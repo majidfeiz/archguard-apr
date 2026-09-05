@@ -1,0 +1,6 @@
+from pathlib import Path
+Path("executed-marker").write_text("must never run")
+eval("raise SystemExit")
+exec("raise SystemExit")
+import definitely_not_an_installed_module
+raise RuntimeError("secret-source-token")

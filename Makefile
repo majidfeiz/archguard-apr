@@ -32,7 +32,7 @@ doctor:
 	uv run archguard doctor
 
 docker-build:
-	docker build -t archguard-apr:phase-1 .
+	docker build -t archguard-apr:phase-2 .
 
 docker-up:
 	docker compose up --build

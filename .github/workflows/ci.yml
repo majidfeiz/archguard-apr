@@ -20,10 +20,12 @@ jobs:
       - run: uv run ruff check .
       - run: uv run mypy src tests
       - run: uv run pytest
+      - run: uv run archguard repository analyze examples/python/simple-layered-app --source-root src --output /tmp/archguard-analysis.json
+      - run: uv run archguard repository inspect /tmp/archguard-analysis.json
       - run: uv build
   docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: docker compose config
-      - run: docker build -t archguard-apr:phase-1 .
+      - run: docker build -t archguard-apr:phase-2 .

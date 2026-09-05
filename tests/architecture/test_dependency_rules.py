@@ -95,3 +95,38 @@ def test_allowed_dependencies() -> None:
         "from archguard.domain.models import ExecutionResult",
         "archguard.application.ports.execution",
     )
+
+
+def test_cli_has_no_analysis_or_persistence_logic(repository_root: Path) -> None:
+    source = (repository_root / "src/archguard/entrypoints/cli/repository.py").read_text()
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            assert not {a.name for a in node.names} & {"ast", "hashlib", "tempfile", "os"}
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            assert node.func.attr not in {
+                "write_text",
+                "write_bytes",
+                "open",
+                "walk",
+                "parse",
+                "dump",
+            }
+
+
+def test_application_has_no_filesystem_operations(repository_root: Path) -> None:
+    for path in (repository_root / "src/archguard/application").rglob("*.py"):
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name):
+                    assert node.func.id not in {"open", "eval", "exec"}
+                elif isinstance(node.func, ast.Attribute):
+                    assert node.func.attr not in {
+                        "read_text",
+                        "write_text",
+                        "read_bytes",
+                        "write_bytes",
+                        "mkdir",
+                        "unlink",
+                    }

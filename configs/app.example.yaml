@@ -8,3 +8,13 @@ random_seed: 0
 repair_provider: null
 repair_model: null
 provider_execution_enabled: false
+
+analysis:
+  max_file_bytes: 1048576
+  excluded_dirs: [.git, .venv, venv, env, __pycache__, .pytest_cache, .mypy_cache, .ruff_cache, .tox, .nox, build, dist, site-packages, node_modules, benchmark_checkouts, "benchmark checkouts"]
+  excluded_patterns: [experiments/results, "experiments/results/*"]
+  source_roots: []
+  include_hidden: false
+  symlink_policy: skip
+  fail_fast: false
+  strict: false

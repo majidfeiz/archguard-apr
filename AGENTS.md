@@ -8,4 +8,9 @@ Never fabricate citations, datasets, metrics or results. Prevent gold-patch and 
 leakage. Never commit secrets, model outputs or generated benchmark data. Record seeds,
 versions, configurations and provenance. Document architectural decisions in ADRs.
 Run all checks in README, review the diff and use scoped conventional commits.
-Phase 1 contains no actual repair execution or agent integrations.
+Phase 2 permits only read-only repository discovery, AST extraction and canonical artifacts.
+Never import, execute or modify target source. Keep analysis separate from persistence behind ports.
+Maintain source-free diagnostics, stable IDs/hashes and byte-identical artifacts across locations.
+Output must remain outside analyzed roots. Add immutability and determinism tests for changes.
+No graph, architecture inference, constraint engine, repair execution or agent integration belongs here.
+The complete test suite must retain at least 90% combined statement and branch coverage.

@@ -2,16 +2,51 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
+
+from archguard.domain.repository import DEFAULT_EXCLUDED_DIRS, AnalysisOptions
+
+
+class AnalysisSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
+    max_file_bytes: int = Field(default=1_048_576, gt=0)
+    excluded_dirs: tuple[str, ...] = DEFAULT_EXCLUDED_DIRS
+    excluded_patterns: tuple[str, ...] = ("experiments/results", "experiments/results/*")
+    source_roots: tuple[str, ...] = ()
+    include_hidden: bool = False
+    symlink_policy: Literal["skip", "reject"] = "skip"
+    fail_fast: bool = False
+    strict: bool = False
+
+    def to_domain(self) -> AnalysisOptions:
+        return AnalysisOptions(
+            self.max_file_bytes,
+            self.excluded_dirs,
+            self.excluded_patterns,
+            self.source_roots,
+            self.include_hidden,
+            self.symlink_policy,
+            self.fail_fast,
+        )
+
+    @model_validator(mode="after")
+    def valid_policy(self) -> "AnalysisSettings":
+        self.to_domain()
+        return self
 
 
 class Settings(BaseSettings):
     """Precedence: environment > .env > explicit/YAML values > defaults."""
 
     model_config = SettingsConfigDict(
-        env_prefix="ARCHGUARD_", env_file=".env", extra="forbid", hide_input_in_errors=True
+        env_prefix="ARCHGUARD_",
+        env_nested_delimiter="__",
+        env_file=".env",
+        extra="forbid",
+        hide_input_in_errors=True,
     )
+    analysis: AnalysisSettings = Field(default_factory=AnalysisSettings)
     environment: Literal["development", "test", "production"] = "development"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     json_logging: bool = False
