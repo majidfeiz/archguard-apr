@@ -1,0 +1,1 @@
+"""ArchGuard domain boundary."""

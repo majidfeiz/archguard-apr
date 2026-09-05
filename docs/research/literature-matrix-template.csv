@@ -1,0 +1,1 @@
+record_id,title,authors,year,venue,doi_or_url,peer_reviewed,research_problem,repair_level,programming_language,dataset,baselines,llm_or_model,agentic,retrieval_method,repository_graph,architecture_constraints,execution_feedback,metrics,key_findings,limitations,relevance_to_archguard,verification_status,notes

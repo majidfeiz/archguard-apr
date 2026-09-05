@@ -1,0 +1,16 @@
+name: Research task
+description: Propose a falsifiable research task.
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and expected outcome
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Reproduction or research protocol
+      description: Include versions and verification status; omit secrets and gold answers.
+    validations:
+      required: true

@@ -1,0 +1,22 @@
+from enum import StrEnum
+
+
+class ExperimentStatus(StrEnum):
+    PLANNED = "planned"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ArtifactKind(StrEnum):
+    MANIFEST = "manifest"
+    ANALYSIS = "analysis"
+    ARCHITECTURE_PROFILE = "architecture_profile"
+    CANDIDATE_PATCH = "candidate_patch"
+    LOG = "log"
+
+
+class Severity(StrEnum):
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"

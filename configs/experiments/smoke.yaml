@@ -1,0 +1,12 @@
+schema_version: "1"
+experiment_name: foundation-smoke
+benchmark_name: metadata-only
+method_variant: foundation_smoke
+seed: 0
+timeout: 30
+output_directory: experiments/results/smoke
+provider_enabled: false
+repair_provider: null
+repair_model: null
+tags: [foundation, metadata-only]
+description: Validate the foundation metadata schema without running an experiment.

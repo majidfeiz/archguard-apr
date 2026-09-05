@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "Please cite this software when using ArchGuard-APR."
+type: software
+title: "ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair with Repository Graphs and Execution Feedback"
+authors:
+  - family-names: Feizi
+    given-names: Majid
+version: 0.1.0
+license: Apache-2.0
+repository-code: "https://github.com/majidfeiz/archguard-apr"
+# TODO: Add DOI only after a verified archival release.

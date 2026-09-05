@@ -1,0 +1,1 @@
+"""ArchGuard entrypoints/cli boundary."""

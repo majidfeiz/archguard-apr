@@ -1,0 +1,1 @@
+"""ArchGuard entrypoints/api boundary."""
