@@ -32,10 +32,20 @@ doctor:
 	uv run archguard doctor
 
 docker-build:
-	docker build -t archguard-apr:phase-2 .
+	docker build -t archguard-apr:phase-3 .
 
 docker-up:
 	docker compose up --build
 
 docker-down:
 	docker compose down
+
+.PHONY: graph-smoke graph-benchmark
+graph-smoke:
+	uv run archguard repository analyze examples/python/simple-layered-app --source-root src --output /tmp/archguard-snapshot.json
+	uv run archguard graph build /tmp/archguard-snapshot.json --output /tmp/archguard-graph.json
+	uv run archguard graph inspect /tmp/archguard-graph.json
+	uv run archguard graph cycles /tmp/archguard-graph.json
+
+graph-benchmark:
+	uv run python scripts/benchmark_repository_graph.py

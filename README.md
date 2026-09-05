@@ -8,8 +8,8 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.2.0 adds deterministic read-only Python repository analysis and canonical snapshot
-artifacts to the library, CLI, health API and research foundation. Graph retrieval, constraint engines,
+Version 0.3.0 adds deterministic immutable repository graphs, canonical graph artifacts and structural
+queries to the read-only Python analysis pipeline. Semantic retrieval, constraint engines,
 LLM calls, agents and automated repair are **not implemented**. Codex, Claude Code, MCP, IDE
 and GitHub Action product integrations are **planned**. The existing workflow is development CI.
 
@@ -54,7 +54,7 @@ invalid configuration or metadata exits 2. Experiment validation never runs a be
 Precedence: environment variables > current-directory `.env` > explicit YAML/constructor values >
 defaults. Prefix: `ARCHGUARD_`. See `.env.example` and `configs/app.example.yaml`.
 Unknown fields fail. No API key is required or reserved. Provider execution must remain false
-in Phase 2. Provider/model names are optional metadata. Application directories can be absolute;
+in Phase 3. Provider/model names are optional metadata. Application directories can be absolute;
 artifact and experiment output references must be relative POSIX paths without parent traversal.
 Lexical path validation does not provide symlink containment or an execution sandbox.
 
@@ -67,7 +67,7 @@ uv build
 uv run pre-commit install
 uv run pre-commit run --all-files
 docker compose config
-docker build -t archguard-apr:phase-2 .
+docker build -t archguard-apr:phase-3 .
 docker compose up --build
 docker compose down
 ```
@@ -84,8 +84,8 @@ digests, model/provider versions and budgets. Preserve failed runs. Keep generat
 benchmark checkouts out of Git and never expose gold patches to repair context.
 
 1. Completed foundation: engineering and preliminary research protocol.
-2. Current: Phase 2 deterministic Python repository analysis.
-3. Later: verified literature, dataset/license selection and repository graphs.
+2. Completed: Phase 2 deterministic Python repository analysis.
+3. Current: Phase 3 deterministic repository graphs and structural queries.
 4. Later: architecture constraints, isolated execution and external-agent validation.
 5. Later: separable multi-agent orchestration and controlled evaluation.
 
@@ -123,3 +123,26 @@ Exit codes: 0 complete/collected partial, 1 strict errors or I/O/analysis failur
 3 path-policy rejection. Any partial status must be considered when consuming research artifacts.
 See [analysis policy](docs/architecture/repository-analysis.md), [schema](docs/schemas/repository-snapshot-v1.md)
 and [ADR-0003](docs/architecture/decisions/ADR-0003-canonical-repository-snapshot.md).
+
+## Repository graph CLI
+
+```bash
+uv run archguard repository analyze examples/python/simple-layered-app \
+  --source-root src --output /tmp/archguard-snapshot.json
+uv run archguard graph build /tmp/archguard-snapshot.json --output /tmp/archguard-graph.json
+uv run archguard graph inspect /tmp/archguard-graph.json
+uv run archguard graph node /tmp/archguard-graph.json module:demo.service
+uv run archguard graph neighbors /tmp/archguard-graph.json module:demo.service --direction incoming
+uv run archguard graph dependencies /tmp/archguard-graph.json module:demo.service
+uv run archguard graph reverse-dependencies /tmp/archguard-graph.json module:demo.model
+uv run archguard graph path /tmp/archguard-graph.json module:demo.controller module:demo.model
+uv run archguard graph cycles /tmp/archguard-graph.json
+uv run archguard graph cycles /tmp/archguard-graph.json --runtime-only
+uv run python scripts/benchmark_repository_graph.py
+```
+
+Build reads only the snapshot. Supply `--protected-root SOURCE_ROOT` when repository context is known.
+Queries return deterministic JSON; inspect supports `--sha256`. Neighbors and path accept `--kind`.
+Exit codes: 0 success (including partial graphs), 1 artifact I/O failure, 2 invalid input/node,
+3 path-policy rejection. No full graph is printed by default. See [graph policy](docs/architecture/repository-graph.md),
+[schema](docs/schemas/repository-graph-v1.md), and [verification](docs/phase-3-verification.md).

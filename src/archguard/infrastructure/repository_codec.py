@@ -6,19 +6,14 @@ from dataclasses import asdict
 
 from pydantic import TypeAdapter
 
+from archguard.domain.canonical import canonical_json as canonical_json
 from archguard.domain.repository import (
     SCHEMA_VERSION,
     AnalysisOptions,
     RepositorySnapshot,
     SourceFileSnapshot,
 )
-
-
-def canonical_json(value: object) -> bytes:
-    return (
-        json.dumps(value, sort_keys=True, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
-        + "\n"
-    ).encode("utf-8")
+from archguard.infrastructure.json_codec import unique_object
 
 
 def canonical_snapshot(snapshot: RepositorySnapshot) -> bytes:
@@ -42,15 +37,6 @@ def fingerprint(options: AnalysisOptions, files: tuple[SourceFileSnapshot, ...])
             }
         )
     ).hexdigest()
-
-
-def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError("duplicate JSON field")
-        result[key] = value
-    return result
 
 
 def decode_snapshot(raw: bytes) -> RepositorySnapshot:

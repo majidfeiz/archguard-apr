@@ -20,3 +20,6 @@ These modes must remain separable for controlled experiments. Fix evaluation cri
 do not silently add internal critique to external baselines. Adapters translate versioned boundary
 requests and call use cases, never duplicate business logic. Authentication, authorization,
 cancellation, sandboxing, network restrictions and output limits must precede repair exposure.
+
+Phase 3 exposes snapshot-to-graph construction and structural queries through Python and CLI only.
+Graph artifacts are provider-neutral. HTTP graph endpoints and all agent integrations remain future work.

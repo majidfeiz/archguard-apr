@@ -18,7 +18,7 @@ to UTC; boundary TypeAdapters can serialize immutable dataclasses. Relative path
 and POSIX traversal but do not sandbox symlinks. No untrusted-code runner exists.
 AST tests resolve relative imports and forbid dynamic core loading. Ruff uses E/F/I/UP/B.
 
-One narrow mypy suppression tests the frozen-dataclass runtime mutation guard; production code
+Narrow mypy suppressions exercise invalid typed inputs and frozen-dataclass mutation guards; production code
 has no type-check suppression.
 
 
@@ -39,3 +39,9 @@ or configuration. Strict only changes exit status and is excluded from fingerpri
 The optional benchmark script reports local engineering timing, not a scientific performance result.
 Existing upstream Starlette deprecation warnings and baseline Node.js Action warnings are non-blocking;
 Action versions have not been guessed or changed in Phase 2.
+
+## Graph verification
+
+Run `make graph-smoke` and `make graph-benchmark`; the latter is an engineering measurement without
+a timing assertion. Graph tests cover resolution, multigraph occurrences, canonical identity, corruption,
+source-read isolation, path safety and deterministic queries. See [Phase 3 verification](phase-3-verification.md).

@@ -16,3 +16,6 @@ of application outer layers, FastAPI, Typer, MCP, Codex, Claude or vendor SDKs m
 Imports perform no I/O, handler installation or service startup. Factory calls load settings.
 
 See [repository analysis](repository-analysis.md) and ADR-0003 for the Phase 2 contract.
+
+Phase 3 adds pure `DeterministicGraphBuilder`, `BuildRepositoryGraph`, `InspectRepositoryGraph` and
+`QueryRepositoryGraph`. Separate graph ports isolate artifact I/O. See [graph architecture](repository-graph.md).

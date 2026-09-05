@@ -68,7 +68,7 @@ def test_inspect_bad_json(tmp_path: Path, data: str) -> None:
 def test_io_error(tmp_path: Path) -> None:
     root = tmp_path / "source"
     write(root, "a.py")
-    with patch("archguard.infrastructure.repository_artifacts.os.replace", side_effect=OSError):
+    with patch("archguard.infrastructure.artifact_io.os.replace", side_effect=OSError):
         result = runner.invoke(
             app, ["repository", "analyze", str(root), "--output", str(tmp_path / "a.json")]
         )

@@ -66,7 +66,7 @@ def test_write_failure_cleanup(tmp_path: Path, snapshot: RepositorySnapshot) -> 
     destination = tmp_path / "existing.json"
     destination.write_bytes(b"original")
     before = set(tmp_path.iterdir())
-    with patch("archguard.infrastructure.repository_artifacts.os.replace", side_effect=OSError):
+    with patch("archguard.infrastructure.artifact_io.os.replace", side_effect=OSError):
         with pytest.raises(OSError):
             LocalAnalysisArtifacts().write(snapshot, destination)
     assert destination.read_bytes() == b"original"
