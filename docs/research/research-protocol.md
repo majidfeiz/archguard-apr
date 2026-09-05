@@ -18,7 +18,7 @@ Prior coverage and novelty remain unverified. TODO: verify primary literature be
 
 ## 5. Scope
 
-Phase 1 provides engineering and metadata foundations. Phase 2 implements deterministic local Python discovery, AST extraction and canonical snapshot persistence without executing source. Future work concerns repository-level repair. No research benchmark, graph engine or agent exists yet. The 500-file script is an engineering guardrail, not experimental evidence of repair quality.
+Phase 1 provides engineering and metadata foundations. Phase 2 implements deterministic local Python discovery, AST extraction and canonical snapshot persistence without executing source. Future work concerns repository-level repair. Phase 3 adds deterministic snapshot-derived graphs and structural queries. No research benchmark or agent exists yet. The 500-file script is an engineering guardrail, not experimental evidence of repair quality.
 
 ## 6. Research questions
 
@@ -91,3 +91,5 @@ Potential deliverables: a neutral platform, controlled evaluation protocol and e
 ## 23. Open decisions
 
 TODO: verified literature, languages, datasets, architectural ground truth, models, budgets, sample size, repeats, evaluators, retention and sandbox design. Resolve before confirmatory evaluation.
+
+Record snapshot and graph schema versions, both artifact hashes, graph fingerprint, build options and partial status separately. Keep graph construction timing distinct from AST analysis. Graph cycles do not establish architecture violations or repair quality.
