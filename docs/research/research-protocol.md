@@ -18,7 +18,7 @@ Prior coverage and novelty remain unverified. TODO: verify primary literature be
 
 ## 5. Scope
 
-Phase 1 provides engineering and metadata foundations only. Future work concerns repository-level repair. No benchmark, graph engine or agent exists yet.
+Phase 1 provides engineering and metadata foundations. Phase 2 implements deterministic local Python discovery, AST extraction and canonical snapshot persistence without executing source. Future work concerns repository-level repair. No research benchmark, graph engine or agent exists yet. The 500-file script is an engineering guardrail, not experimental evidence of repair quality.
 
 ## 6. Research questions
 

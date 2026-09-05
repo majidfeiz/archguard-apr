@@ -8,17 +8,10 @@ from archguard.application.ports.architecture import (
 )
 from archguard.application.ports.execution import ExecutionRunnerPort
 from archguard.application.ports.repair import RepairProviderPort
-from archguard.application.ports.repository import RepositoryAnalyzerPort
 from archguard.domain.enums import ArtifactKind
 from archguard.domain.models import ArtifactReference, ExecutionResult, ValidationSummary
 
 pytestmark = pytest.mark.unit
-
-
-class ReadOnlyAnalysis:
-    def analyze(self, repository: Path) -> ArtifactReference:
-        assert repository.is_dir()
-        return ArtifactReference("analysis.json", ArtifactKind.ANALYSIS)
 
 
 class ProfileAnalysis:
@@ -52,12 +45,11 @@ class RepairFake:
 
 def test_provider_neutral_structural_contracts(tmp_path: Path) -> None:
     """Third-party-shaped fakes satisfy ports without inheriting framework classes."""
-    repository: RepositoryAnalyzerPort = ReadOnlyAnalysis()
     architecture: ArchitectureAnalyzerPort = ProfileAnalysis()
     validator: ArchitectureValidatorPort = Validator()
     runner: ExecutionRunnerPort = ExecutionFake()
     repair: RepairProviderPort = RepairFake()
-    analysis = repository.analyze(tmp_path)
+    analysis = ArtifactReference("analysis.json", ArtifactKind.ANALYSIS)
     profile, existing = architecture.analyze(tmp_path)
     assert existing.passed and validator.validate(profile, tmp_path).passed
     assert repair.propose(analysis, "reproducible failure").kind is ArtifactKind.CANDIDATE_PATCH

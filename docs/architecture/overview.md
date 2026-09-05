@@ -6,11 +6,13 @@ types. Infrastructure may depend on application and domain. Entrypoints compose 
 schemas validate boundary data and may import domain, never the reverse.
 
 No configuration, logging or framework objects enter domain values. Frozen dataclasses provide
-internal values; Pydantic validates boundaries. Analysis/profile/candidate outputs use artifact
-references to avoid premature graph/patch schemas. Contracts require read-only analysis and
-future execution isolation; no production implementation exists. Warning-only validation passes.
-Future use cases belong in application services; no empty service classes are created.
+internal values; Pydantic validates boundaries. Repository analysis returns an immutable canonical snapshot; separate writer/reader ports handle
+artifacts. Architecture-profile/candidate outputs retain artifact references until later design.
+The local analyzer implements read-only discovery and AST parsing; execution remains unimplemented. Warning-only validation passes.
+`AnalyzeRepository` and `InspectRepository` orchestrate ports in application services.
 
 AST tests resolve absolute and relative imports and reject dynamic loading in core. Core imports
 of application outer layers, FastAPI, Typer, MCP, Codex, Claude or vendor SDKs must fail.
 Imports perform no I/O, handler installation or service startup. Factory calls load settings.
+
+See [repository analysis](repository-analysis.md) and ADR-0003 for the Phase 2 contract.

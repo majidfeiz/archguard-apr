@@ -1,0 +1,61 @@
+import os as operating_system, sys
+from typing import TYPE_CHECKING
+from . import sibling as sibling_alias
+from ..parent import Thing
+from external import *
+if TYPE_CHECKING:
+    from annotations import Type
+    if True:
+        import nested_type
+else:
+    import runtime
+if typing.TYPE_CHECKING:
+    import typed_attribute
+if False:
+    import ordinary_guard
+
+@module.decorator("secret-decorator-argument")
+class Public:
+    class Nested:
+        pass
+
+    def __private(self):
+        def inner():
+            return 1
+        return inner()
+
+    @staticmethod
+    def static():
+        pass
+
+    @classmethod
+    def make(cls):
+        pass
+
+    @property
+    def value(self):
+        pass
+
+    async def work(self):
+        pass
+
+@factory.attribute()
+async def asynchronous():
+    pass
+
+def _internal():
+    pass
+
+def duplicate():
+    pass
+
+def duplicate():
+    pass
+
+@(lambda function: function)
+def unknown_decorator():
+    pass
+
+@factory().attribute
+def unknown_attribute():
+    pass

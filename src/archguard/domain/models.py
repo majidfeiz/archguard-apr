@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from math import isfinite
@@ -41,9 +42,13 @@ class ExperimentIdentity:
 class ArtifactReference:
     path: str
     kind: ArtifactKind
+    sha256: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "path", relative_path(self.path))
+        if self.sha256 is not None:
+            if re.fullmatch(r"[0-9a-f]{64}", self.sha256) is None:
+                raise DomainValidationError("invalid artifact SHA-256")
         if not isinstance(self.kind, ArtifactKind):
             raise DomainValidationError("invalid artifact kind")
 

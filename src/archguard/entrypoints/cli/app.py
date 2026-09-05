@@ -8,12 +8,14 @@ import typer
 from pydantic import ValidationError
 
 from archguard import __version__
+from archguard.entrypoints.cli.repository import app as repository_app
 from archguard.infrastructure.config import Settings, load_settings, read_yaml
 from archguard.infrastructure.logging import redact
 from archguard.infrastructure.paths import writable_directory
 from archguard.schemas.experiment import ExperimentMetadata
 
 app = typer.Typer(no_args_is_help=True)
+app.add_typer(repository_app, name="repository")
 config_app = typer.Typer()
 experiment_app = typer.Typer()
 app.add_typer(config_app, name="config")

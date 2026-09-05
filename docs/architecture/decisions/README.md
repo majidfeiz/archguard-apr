@@ -2,3 +2,5 @@
 
 Use numbered ADRs with context, decision, consequences and status. Supersede accepted decisions
 rather than silently rewriting them. ADR-0001 and ADR-0002 are accepted for Phase 1.
+
+ADR-0003 accepts canonical read-only repository analysis for Phase 2.

@@ -8,8 +8,8 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Phase 1 provides library values and ports, metadata CLI, health API, settings, logging, tests,
-CI and a preliminary research protocol. Repository analysis, graph retrieval, constraint engines,
+Version 0.2.0 adds deterministic read-only Python repository analysis and canonical snapshot
+artifacts to the library, CLI, health API and research foundation. Graph retrieval, constraint engines,
 LLM calls, agents and automated repair are **not implemented**. Codex, Claude Code, MCP, IDE
 and GitHub Action product integrations are **planned**. The existing workflow is development CI.
 
@@ -54,7 +54,7 @@ invalid configuration or metadata exits 2. Experiment validation never runs a be
 Precedence: environment variables > current-directory `.env` > explicit YAML/constructor values >
 defaults. Prefix: `ARCHGUARD_`. See `.env.example` and `configs/app.example.yaml`.
 Unknown fields fail. No API key is required or reserved. Provider execution must remain false
-in Phase 1. Provider/model names are optional metadata. Application directories can be absolute;
+in Phase 2. Provider/model names are optional metadata. Application directories can be absolute;
 artifact and experiment output references must be relative POSIX paths without parent traversal.
 Lexical path validation does not provide symlink containment or an execution sandbox.
 
@@ -67,13 +67,13 @@ uv build
 uv run pre-commit install
 uv run pre-commit run --all-files
 docker compose config
-docker build -t archguard-apr:phase-1 .
+docker build -t archguard-apr:phase-2 .
 docker compose up --build
 docker compose down
 ```
 
 Targets: `install`, `format`, `lint`, `typecheck`, `test`, `test-cov`, `check`, `run`, `doctor`,
-`docker-build`, `docker-up`, `docker-down`. Tests require at least 85% source coverage.
+`docker-build`, `docker-up`, `docker-down`. Tests require at least 90% combined statement/branch coverage.
 Containers run non-root and Compose binds localhost. No data services are included.
 See [development](docs/development.md).
 
@@ -83,10 +83,11 @@ Record seeds, configuration and lock hashes, exact repository commits, environme
 digests, model/provider versions and budgets. Preserve failed runs. Keep generated outputs and
 benchmark checkouts out of Git and never expose gold patches to repair context.
 
-1. Current: Phase 1 engineering and preliminary research protocol.
-2. Later: verified literature, dataset/license selection, repository analysis and graphs.
-3. Later: architecture constraints, isolated execution and external-agent validation.
-4. Later: separable multi-agent orchestration and controlled evaluation.
+1. Completed foundation: engineering and preliminary research protocol.
+2. Current: Phase 2 deterministic Python repository analysis.
+3. Later: verified literature, dataset/license selection and repository graphs.
+4. Later: architecture constraints, isolated execution and external-agent validation.
+5. Later: separable multi-agent orchestration and controlled evaluation.
 
 See [protocol](docs/research/research-protocol.md), [questions](docs/research/research-questions.md)
 and [registry](docs/research/experiment-registry.md). Smoke configuration is metadata only.
@@ -96,3 +97,29 @@ and [registry](docs/research/experiment-registry.md). Smoke configuration is met
 Code: [Apache-2.0](LICENSE). Original documentation: [CC BY 4.0](docs/LICENSE.md).
 Future original datasets may use CC BY 4.0 only where underlying rights permit; upstream
 licenses remain controlling. Cite using [CITATION.cff](CITATION.cff). No DOI is assigned.
+
+## Repository analysis (CLI and Python use case)
+
+```bash
+uv run archguard repository analyze examples/python/simple-layered-app --source-root src
+uv run archguard repository analyze examples/python/simple-layered-app --config configs/app.example.yaml
+uv run archguard repository analyze examples/python/simple-layered-app \
+  --source-root src --output /tmp/archguard-analysis.json
+uv run archguard repository inspect /tmp/archguard-analysis.json
+# Optional integrity check: append --sha256 EXPECTED_SHA256 to inspect.
+uv run python scripts/benchmark_repository_analysis.py
+```
+
+Output is a concise JSON summary with fingerprint, counts and complete/partial status. `--output`
+writes canonical JSON externally and reports a basename and artifact hash. It cannot write inside
+the analyzed repository. Source is parsed without importing or executing it; links are never followed.
+Analysis requires Unix descriptor-relative APIs (macOS/Linux); unsupported platforms fail closed.
+Use stable checkouts and output parents. `.gitignore` is not interpreted. HTTP analysis is not exposed.
+
+`--source-root` is repeatable and explicitly overrides configured roots. Environment overrides YAML;
+nested settings use `ARCHGUARD_ANALYSIS__MAX_FILE_BYTES=1048576`, or JSON array values for collections.
+`--strict` fails on error diagnostics after safe reporting; `analysis.fail_fast` aborts immediately.
+Exit codes: 0 complete/collected partial, 1 strict errors or I/O/analysis failure, 2 invalid input,
+3 path-policy rejection. Any partial status must be considered when consuming research artifacts.
+See [analysis policy](docs/architecture/repository-analysis.md), [schema](docs/schemas/repository-snapshot-v1.md)
+and [ADR-0003](docs/architecture/decisions/ADR-0003-canonical-repository-snapshot.md).

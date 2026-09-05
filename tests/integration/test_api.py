@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from archguard import __version__
 from archguard.entrypoints.api.app import create_app
 from archguard.infrastructure.config import Settings
 
@@ -15,7 +14,7 @@ pytestmark = pytest.mark.integration
     [
         ("/health", {"status": "ok"}),
         ("/ready", {"status": "ready"}),
-        ("/version", {"version": __version__}),
+        ("/version", {"version": "0.2.0"}),
     ],
 )
 def test_endpoints(path: str, expected: dict[str, str]) -> None:

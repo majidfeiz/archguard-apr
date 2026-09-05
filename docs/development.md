@@ -20,3 +20,22 @@ AST tests resolve relative imports and forbid dynamic core loading. Ruff uses E/
 
 One narrow mypy suppression tests the frozen-dataclass runtime mutation guard; production code
 has no type-check suppression.
+
+
+## Phase 2 verification
+
+Run the full `uv run pytest` suite for the mandatory 90% combined coverage gate. For focused AST
+architecture checks use `PYTEST_ADDOPTS=--no-cov uv run pytest -m architecture`; a structural subset
+cannot measure whole-program behavioral coverage. This does not change the full-suite threshold.
+Test fixture `.py.txt` templates are copied into temporary repositories without import/execution;
+size-specific, encoding and symlink cases are generated during tests. Examples are tiny real modules.
+Run the external-output example twice and compare bytes and SHA-256. Inspect the complete artifact
+for host/source leakage and validate source manifests before/after. See the schema and ADR-0003.
+
+Analysis settings are under YAML `analysis:`. Collection overrides replace defaults. Nested environment
+keys use double underscores and array values use JSON, e.g. `ARCHGUARD_ANALYSIS__SOURCE_ROOTS='["src"]'`.
+Explicit CLI `--source-root` wins over settings for that invocation; strict is enabled by either flag
+or configuration. Strict only changes exit status and is excluded from fingerprint options.
+The optional benchmark script reports local engineering timing, not a scientific performance result.
+Existing upstream Starlette deprecation warnings and baseline Node.js Action warnings are non-blocking;
+Action versions have not been guessed or changed in Phase 2.
