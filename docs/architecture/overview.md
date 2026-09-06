@@ -7,7 +7,7 @@ schemas validate boundary data and may import domain, never the reverse.
 
 No configuration, logging or framework objects enter domain values. Frozen dataclasses provide
 internal values; Pydantic validates boundaries. Repository analysis returns an immutable canonical snapshot; separate writer/reader ports handle
-artifacts. Architecture-profile/candidate outputs retain artifact references until later design.
+artifacts. Architecture profiles and reports are immutable versioned values; candidate outputs remain future work.
 The local analyzer implements read-only discovery and AST parsing; execution remains unimplemented. Warning-only validation passes.
 `AnalyzeRepository` and `InspectRepository` orchestrate ports in application services.
 
@@ -19,3 +19,9 @@ See [repository analysis](repository-analysis.md) and ADR-0003 for the Phase 2 c
 
 Phase 3 adds pure `DeterministicGraphBuilder`, `BuildRepositoryGraph`, `InspectRepositoryGraph` and
 `QueryRepositoryGraph`. Separate graph ports isolate artifact I/O. See [graph architecture](repository-graph.md).
+
+Phase 4 adds pure explicit component assignment and `DeterministicConstraintEvaluator` over validated
+graphs. Separate profile loader/reader/writer and report reader/writer ports isolate boundaries;
+CLI composes compilation and evaluation services. The domain SCC utility is shared with graph
+queries. See [constraint engine](constraint-engine.md), [DSL](constraint-dsl.md) and ADR-0005.
+No automatic inference or before/after validation is implemented.

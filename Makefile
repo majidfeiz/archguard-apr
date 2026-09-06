@@ -32,7 +32,7 @@ doctor:
 	uv run archguard doctor
 
 docker-build:
-	docker build -t archguard-apr:phase-3 .
+	docker build -t archguard-apr:phase-4 .
 
 docker-up:
 	docker compose up --build
@@ -49,3 +49,18 @@ graph-smoke:
 
 graph-benchmark:
 	uv run python scripts/benchmark_repository_graph.py
+
+.PHONY: architecture-smoke architecture-self architecture-benchmark
+architecture-smoke: graph-smoke
+	uv run archguard architecture profile validate examples/architecture/simple-layered.yaml
+	uv run archguard architecture profile compile examples/architecture/simple-layered.yaml --output /tmp/archguard-profile.json
+	uv run archguard architecture evaluate /tmp/archguard-graph.json --profile examples/architecture/simple-layered.yaml --output /tmp/archguard-report.json
+	uv run archguard architecture inspect /tmp/archguard-report.json
+
+architecture-self:
+	uv run archguard repository analyze . --config configs/architecture-self.yaml --output /tmp/archguard-self-snapshot.json
+	uv run archguard graph build /tmp/archguard-self-snapshot.json --output /tmp/archguard-self-graph.json --protected-root .
+	uv run archguard architecture evaluate /tmp/archguard-self-graph.json --profile .archguard/architecture.yaml --output /tmp/archguard-self-report.json --protected-root .
+
+architecture-benchmark:
+	uv run python scripts/benchmark_constraint_engine.py

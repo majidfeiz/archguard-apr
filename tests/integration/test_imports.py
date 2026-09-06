@@ -42,4 +42,4 @@ def test_module_entrypoint() -> None:
         [sys.executable, "-m", "archguard", "version"], capture_output=True, text=True, timeout=20
     )
     assert result.returncode == 0
-    assert result.stdout.strip() == "0.3.0"
+    assert result.stdout.strip() == "0.4.0"

@@ -1,0 +1,75 @@
+architecture_profile_schema_version: "1"
+id: archguard
+name: ArchGuard explicit dependency boundaries
+assignment:
+  unassigned: error
+  ambiguous: error
+components:
+  - id: domain
+    selectors:
+      - {type: module_prefix, value: archguard.domain}
+  - id: application
+    selectors:
+      - {type: module_prefix, value: archguard.application}
+  - id: infrastructure
+    selectors:
+      - {type: module_prefix, value: archguard.infrastructure}
+  - id: entrypoints
+    selectors:
+      - {type: module_prefix, value: archguard.entrypoints}
+      - {type: module_exact, value: archguard}
+      - {type: module_exact, value: archguard.__main__}
+  - id: schemas
+    selectors:
+      - {type: module_prefix, value: archguard.schemas}
+  - id: tests
+    selectors:
+      - {type: module_prefix, value: tests}
+      - {type: path_prefix, value: scripts}
+      - {type: path_prefix, value: examples}
+rules:
+  - id: domain-only-domain
+    type: allow_only_dependencies
+    source: domain
+    allowed: [domain]
+  - id: application-inner-only
+    type: allow_only_dependencies
+    source: application
+    allowed: [application, domain]
+  - id: infrastructure-inner-only
+    type: allow_only_dependencies
+    source: infrastructure
+    allowed: [infrastructure, application, domain]
+  - id: entrypoints-inner-only
+    type: allow_only_dependencies
+    source: entrypoints
+    allowed: [entrypoints, infrastructure, application, domain, schemas]
+  - id: schemas-domain-only
+    type: allow_only_dependencies
+    source: schemas
+    allowed: [schemas, domain]
+  - id: domain-no-frameworks
+    type: forbid_external_dependency
+    source: domain
+    external:
+      - {type: external_prefix, value: fastapi}
+      - {type: external_prefix, value: typer}
+      - {type: external_prefix, value: pydantic}
+      - {type: external_prefix, value: yaml}
+      - {type: external_prefix, value: networkx}
+      - {type: external_prefix, value: openai}
+      - {type: external_prefix, value: anthropic}
+      - {type: external_prefix, value: mcp}
+      - {type: external_prefix, value: langgraph}
+  - id: application-no-frameworks
+    type: forbid_external_dependency
+    source: application
+    external:
+      - {type: external_prefix, value: fastapi}
+      - {type: external_prefix, value: typer}
+      - {type: external_prefix, value: pydantic}
+      - {type: external_prefix, value: yaml}
+      - {type: external_prefix, value: openai}
+      - {type: external_prefix, value: anthropic}
+      - {type: external_prefix, value: mcp}
+      - {type: external_prefix, value: langgraph}

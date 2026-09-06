@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0
+
+- Add explicit ArchitectureProfile v1 DSL, deterministic assignment and four typed conformance rules.
+- Add ArchitectureReport v1 with aggregated source-free evidence, stable violation IDs,
+  canonical profile/report fingerprints, strict bounded YAML/JSON adapters and atomic persistence.
+- Add architecture CLI, compliant/violating examples, self-hosting CI and engineering workload.
+- Breaking ports: remove ArchitectureAnalyzerPort and ArchitectureValidatorPort; replace with
+  separate profile loader/reader/writer, constraint evaluator and report reader/writer contracts.
+  Before/after candidate validation is reserved for Phase 5 (ADR-0005).
+- Share Phase 3 SCC implementation with constraint evaluation. No inference, patch comparison,
+  repair, LLM, agent or product integration was added.
+
+
 ## 0.3.0
 
 - Add immutable canonical repository graph v1 with conservative static import resolution.

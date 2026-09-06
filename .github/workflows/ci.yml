@@ -25,10 +25,15 @@ jobs:
       - run: uv run archguard graph build /tmp/archguard-analysis.json --output /tmp/archguard-graph.json
       - run: uv run archguard graph inspect /tmp/archguard-graph.json
       - run: uv run archguard graph cycles /tmp/archguard-graph.json
+      - run: uv run archguard architecture profile validate examples/architecture/simple-layered.yaml
+      - run: uv run archguard architecture profile compile examples/architecture/simple-layered.yaml --output /tmp/archguard-profile.json
+      - run: uv run archguard architecture evaluate /tmp/archguard-graph.json --profile examples/architecture/simple-layered.yaml --output /tmp/archguard-report.json
+      - run: uv run archguard architecture inspect /tmp/archguard-report.json
+      - run: make architecture-self
       - run: uv build
   docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: docker compose config
-      - run: docker build -t archguard-apr:phase-3 .
+      - run: docker build -t archguard-apr:phase-4 .

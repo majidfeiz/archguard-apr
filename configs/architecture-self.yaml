@@ -1,0 +1,4 @@
+analysis:
+  source_roots:
+    - src
+    - examples/python/simple-layered-app/src

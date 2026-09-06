@@ -6,3 +6,5 @@ rather than silently rewriting them. ADR-0001 and ADR-0002 are accepted for Phas
 ADR-0003 accepts canonical read-only repository analysis for Phase 2.
 
 - [ADR-0004: Canonical repository graph](ADR-0004-canonical-repository-graph.md)
+
+- [ADR-0005: Versioned constraint DSL](ADR-0005-versioned-constraint-dsl.md)

@@ -8,10 +8,12 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.3.0 adds deterministic immutable repository graphs, canonical graph artifacts and structural
-queries to the read-only Python analysis pipeline. Semantic retrieval, constraint engines,
-LLM calls, agents and automated repair are **not implemented**. Codex, Claude Code, MCP, IDE
-and GitHub Action product integrations are **planned**. The existing workflow is development CI.
+Version 0.4.0 adds explicit versioned architecture profiles and deterministic conformance evaluation
+against validated repository graphs. Four typed rules, canonical profile/report artifacts and CLI
+workflows are implemented. Self-hosting CI checks ArchGuard's declared dependency boundaries.
+Inference, patch comparison, LLM calls, agents and automated repair are **not implemented**.
+Codex, Claude Code, MCP, IDE and GitHub Action product integrations remain **planned**.
+No repair effectiveness or scientific performance result is claimed.
 
 ## Architecture and layout
 
@@ -54,7 +56,7 @@ invalid configuration or metadata exits 2. Experiment validation never runs a be
 Precedence: environment variables > current-directory `.env` > explicit YAML/constructor values >
 defaults. Prefix: `ARCHGUARD_`. See `.env.example` and `configs/app.example.yaml`.
 Unknown fields fail. No API key is required or reserved. Provider execution must remain false
-in Phase 3. Provider/model names are optional metadata. Application directories can be absolute;
+in Phase 4. Provider/model names are optional metadata. Application directories can be absolute;
 artifact and experiment output references must be relative POSIX paths without parent traversal.
 Lexical path validation does not provide symlink containment or an execution sandbox.
 
@@ -67,7 +69,7 @@ uv build
 uv run pre-commit install
 uv run pre-commit run --all-files
 docker compose config
-docker build -t archguard-apr:phase-3 .
+docker build -t archguard-apr:phase-4 .
 docker compose up --build
 docker compose down
 ```
@@ -85,9 +87,10 @@ benchmark checkouts out of Git and never expose gold patches to repair context.
 
 1. Completed foundation: engineering and preliminary research protocol.
 2. Completed: Phase 2 deterministic Python repository analysis.
-3. Current: Phase 3 deterministic repository graphs and structural queries.
-4. Later: architecture constraints, isolated execution and external-agent validation.
-5. Later: separable multi-agent orchestration and controlled evaluation.
+3. Completed: Phase 3 deterministic repository graphs and structural queries.
+4. Current: Phase 4 explicit architecture constraints and deterministic conformance.
+5. Later: before/after validation, isolated execution and external-agent validation.
+6. Later: separable multi-agent orchestration and controlled evaluation.
 
 See [protocol](docs/research/research-protocol.md), [questions](docs/research/research-questions.md)
 and [registry](docs/research/experiment-registry.md). Smoke configuration is metadata only.
@@ -146,3 +149,39 @@ Queries return deterministic JSON; inspect supports `--sha256`. Neighbors and pa
 Exit codes: 0 success (including partial graphs), 1 artifact I/O failure, 2 invalid input/node,
 3 path-policy rejection. No full graph is printed by default. See [graph policy](docs/architecture/repository-graph.md),
 [schema](docs/schemas/repository-graph-v1.md), and [verification](docs/phase-3-verification.md).
+
+## Architecture conformance CLI
+
+```bash
+uv run archguard repository analyze examples/python/simple-layered-app \
+  --source-root src --output /tmp/archguard-snapshot.json
+uv run archguard graph build /tmp/archguard-snapshot.json --output /tmp/archguard-graph.json
+uv run archguard architecture profile validate examples/architecture/simple-layered.yaml
+uv run archguard architecture profile compile examples/architecture/simple-layered.yaml \
+  --output /tmp/archguard-profile.json
+uv run archguard architecture profile inspect /tmp/archguard-profile.json
+uv run archguard architecture evaluate /tmp/archguard-graph.json \
+  --profile examples/architecture/simple-layered.yaml --output /tmp/archguard-report.json
+uv run archguard architecture inspect /tmp/archguard-report.json
+uv run archguard architecture violations /tmp/archguard-report.json
+uv run archguard architecture violations /tmp/archguard-report.json --severity error
+make architecture-self
+uv run python scripts/benchmark_constraint_engine.py
+```
+
+The example profile passes. `simple-layered-violating.yaml` intentionally rejects the existing
+application-to-persistence import; see the actual explanation command in
+[Phase 4 verification](docs/phase-4-verification.md). Profiles are explicit specifications, not inferred
+layers. Assignment ambiguity is never resolved by declaration order. Dependency violations aggregate
+occurrences per rule/source/target; cycle violations aggregate per scoped SCC.
+
+Exit codes: 0 passed/valid, 1 conformance failed, 2 invalid input or artifact I/O, 3 unsafe path,
+4 partial evaluation without `--allow-partial`. A valid report is persisted before conformance exit.
+Warnings do not fail. Partial status always remains visible. Supply `--protected-root ROOT` to protect
+an analyzed root; inputs cannot be overwritten by compile/evaluate. Generated outputs belong outside
+analyzed roots. Targets: `architecture-smoke`, `architecture-self`, `architecture-benchmark`.
+
+Read the [DSL](docs/architecture/constraint-dsl.md), [engine](docs/architecture/constraint-engine.md),
+[profile schema](docs/schemas/architecture-profile-v1.md),
+[report schema](docs/schemas/architecture-report-v1.md) and
+[ADR-0005](docs/architecture/decisions/ADR-0005-versioned-constraint-dsl.md).

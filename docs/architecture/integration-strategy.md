@@ -23,3 +23,8 @@ cancellation, sandboxing, network restrictions and output limits must precede re
 
 Phase 3 exposes snapshot-to-graph construction and structural queries through Python and CLI only.
 Graph artifacts are provider-neutral. HTTP graph endpoints and all agent integrations remain future work.
+
+Phase 4 exposes explicit profile compilation and graph conformance through Python and CLI only.
+Neutral profile/report schemas are suitable future boundaries. No HTTP evaluation, agent, MCP,
+Codex or Claude adapter is implemented. Before/after candidate comparison is reserved for Phase 5;
+removed Phase 1 architecture placeholder ports must not be used by future adapters.
