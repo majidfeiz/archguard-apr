@@ -8,10 +8,13 @@ Never fabricate citations, datasets, metrics or results. Prevent gold-patch and 
 leakage. Never commit secrets, model outputs or generated benchmark data. Record seeds,
 versions, configurations and provenance. Document architectural decisions in ADRs.
 Run all checks in README, review the diff and use scoped conventional commits.
-Phase 3 permits read-only AST analysis, immutable repository graphs and structural queries.
+Phase 4 permits read-only AST analysis, immutable repository graphs, structural queries,
+explicit versioned architecture profiles and deterministic constraint evaluation.
 Never import, execute or modify target source. Keep analysis separate from persistence behind ports.
 Maintain source-free diagnostics, stable IDs/hashes and byte-identical artifacts across locations.
 Output must remain outside analyzed roots. Add immutability and determinism tests for changes.
 Build graphs only from validated snapshots; never reread source in graph construction.
-No architecture inference, constraint engine, repair execution or agent integration belongs here.
+Evaluate only validated graphs; never reread repositories in constraint evaluation.
+Keep YAML loading, compilation, evaluation and report persistence separate behind ports.
+No architecture inference, patch comparison, repair execution or agent integration belongs here.
 The complete test suite must retain at least 90% combined statement and branch coverage.

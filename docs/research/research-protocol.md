@@ -93,3 +93,13 @@ Potential deliverables: a neutral platform, controlled evaluation protocol and e
 TODO: verified literature, languages, datasets, architectural ground truth, models, budgets, sample size, repeats, evaluators, retention and sandbox design. Resolve before confirmatory evaluation.
 
 Record snapshot and graph schema versions, both artifact hashes, graph fingerprint, build options and partial status separately. Keep graph construction timing distinct from AST analysis. Graph cycles do not establish architecture violations or repair quality.
+
+Phase 4 adds explicit user-authored profiles and deterministic conformance. Record profile/report
+schema versions, both semantic fingerprints and raw artifact hashes, assignment policies, every rule
+control and partial/skipped status. Freeze independently reviewed profiles before evaluation and
+prevent gold-patch or hidden-answer leakage into specifications. Dependency violations count unique
+(rule, source module, target module) groups, not import occurrences; cycle violations count scoped
+cyclic SCCs per rule. Separate assignment diagnostics from rule findings. Overlapping independent
+rules can each flag one dependency. Never compare aggregate counts across changed profiles without
+accounting for rule/granularity changes. Self-hosting CI and the fixed 500-module engineering workload
+are not benchmark experiments and provide no evidence that architecture feedback improves repair.

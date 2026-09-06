@@ -12,6 +12,7 @@ class ArtifactKind(StrEnum):
     MANIFEST = "manifest"
     ANALYSIS = "analysis"
     GRAPH = "graph"
+    ARCHITECTURE_REPORT = "architecture_report"
     ARCHITECTURE_PROFILE = "architecture_profile"
     CANDIDATE_PATCH = "candidate_patch"
     LOG = "log"

@@ -45,3 +45,17 @@ Action versions have not been guessed or changed in Phase 2.
 Run `make graph-smoke` and `make graph-benchmark`; the latter is an engineering measurement without
 a timing assertion. Graph tests cover resolution, multigraph occurrences, canonical identity, corruption,
 source-read isolation, path safety and deterministic queries. See [Phase 3 verification](phase-3-verification.md).
+
+## Phase 4 verification
+
+Run `make architecture-smoke`, `make architecture-self`, `make architecture-benchmark`, and all
+existing checks. Docker documentation uses `docker build -t archguard-apr:phase-4 .` (package 0.4.0).
+CI retains both Python minor versions, package/Docker builds and previous graph smoke commands.
+Conformance smoke output stays in `/tmp`; no artifacts are uploaded. Self-hosting declares the
+independent example source root in `configs/architecture-self.yaml` to avoid invalid module names.
+
+Tests cover profile safety/limits, assignment, all four rules, aggregation, evidence invariants,
+partial status, canonical identity, persistence failure cleanup and CLI outcomes. Full-suite coverage
+must remain at least 90%; use the established `PYTEST_ADDOPTS=--no-cov` only for the architecture subset.
+See [actual Phase 4 verification](phase-4-verification.md). No tag/release or automatic merge is part
+of the Phase 4 workflow.

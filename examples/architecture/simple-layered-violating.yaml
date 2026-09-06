@@ -1,0 +1,45 @@
+architecture_profile_schema_version: "1"
+id: simple-layered
+name: Explicit components for the simple layered example
+assignment:
+  unassigned: warn
+  ambiguous: error
+components:
+  - id: presentation
+    selectors:
+      - {type: module_exact, value: demo.controller}
+      - {type: module_exact, value: demo}
+  - id: application
+    selectors:
+      - {type: module_exact, value: demo.service}
+  - id: persistence
+    selectors:
+      - {type: module_exact, value: demo.repository}
+  - id: domain
+    selectors:
+      - {type: module_exact, value: demo.model}
+rules:
+  - id: presentation-no-persistence
+    type: forbid_dependency
+    source: presentation
+    target: persistence
+  - id: domain-only-domain
+    type: allow_only_dependencies
+    source: domain
+    allowed: [domain]
+  - id: domain-no-framework
+    type: forbid_external_dependency
+    source: domain
+    external:
+      - {type: external_prefix, value: fastapi}
+      - {type: external_exact, value: flask}
+    include_type_checking: false
+  - id: application-acyclic
+    type: forbid_cycles
+    components: [application]
+    include_type_checking: false
+  - id: application-no-persistence-demo
+    type: forbid_dependency
+    source: application
+    target: persistence
+    description: Deliberately rejects the existing service-to-repository dependency.
