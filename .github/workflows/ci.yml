@@ -20,6 +20,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run mypy src tests
       - run: uv run pytest
+      - run: uv run pytest tests/integration/test_patch_cli.py tests/integration/test_patch_worktree.py --no-cov
       - run: uv run archguard repository analyze examples/python/simple-layered-app --source-root src --output /tmp/archguard-analysis.json
       - run: uv run archguard repository inspect /tmp/archguard-analysis.json
       - run: uv run archguard graph build /tmp/archguard-analysis.json --output /tmp/archguard-graph.json
@@ -36,4 +37,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker compose config
-      - run: docker build -t archguard-apr:phase-4 .
+      - run: docker build -t archguard-apr:phase-5 .

@@ -118,6 +118,18 @@ def test_application_has_no_filesystem_operations(repository_root: Path) -> None
     for path in (repository_root / "src/archguard/application").rglob("*.py"):
         tree = ast.parse(path.read_text())
         for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                assert not {alias.name.split(".")[0] for alias in node.names} & {
+                    "os",
+                    "subprocess",
+                    "tempfile",
+                }
+            if isinstance(node, ast.ImportFrom):
+                assert (node.module or "").split(".")[0] not in {
+                    "os",
+                    "subprocess",
+                    "tempfile",
+                }
             if isinstance(node, ast.Call):
                 if isinstance(node.func, ast.Name):
                     assert node.func.id not in {"open", "eval", "exec"}

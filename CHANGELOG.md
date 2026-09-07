@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- Add bounded exact-byte unified-diff inspection with stable rejection diagnostics.
+- Add detached Git worktree validation with repository-state proofs and unconditional cleanup.
+- Add semantic before/after architecture deltas and canonical validation artifacts.
+- Add `archguard patch` inspection, validation, result, delta, and violation commands.
+
 ## 0.4.0
 
 - Add explicit ArchitectureProfile v1 DSL, deterministic assignment and four typed conformance rules.

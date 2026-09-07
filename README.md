@@ -8,7 +8,8 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.4.0 adds explicit versioned architecture profiles and deterministic conformance evaluation
+Version 0.5.0 adds isolated candidate patch validation and deterministic before/after architecture
+comparison. Version 0.4.0 added explicit versioned architecture profiles and conformance evaluation
 against validated repository graphs. Four typed rules, canonical profile/report artifacts and CLI
 workflows are implemented. Self-hosting CI checks ArchGuard's declared dependency boundaries.
 Inference, patch comparison, LLM calls, agents and automated repair are **not implemented**.
@@ -69,7 +70,7 @@ uv build
 uv run pre-commit install
 uv run pre-commit run --all-files
 docker compose config
-docker build -t archguard-apr:phase-4 .
+docker build -t archguard-apr:phase-5 .
 docker compose up --build
 docker compose down
 ```
@@ -185,3 +186,27 @@ Read the [DSL](docs/architecture/constraint-dsl.md), [engine](docs/architecture/
 [profile schema](docs/schemas/architecture-profile-v1.md),
 [report schema](docs/schemas/architecture-report-v1.md) and
 [ADR-0005](docs/architecture/decisions/ADR-0005-versioned-constraint-dsl.md).
+
+## Isolated patch validation
+
+Phase 5 accepts a narrow textual Git unified-diff subset. It fingerprints the exact input bytes,
+rejects unsafe paths and unsupported constructs before application, binds one full baseline commit,
+and applies only inside a temporary detached worktree. The original repository must be clean and its
+HEAD, branch, index, tracked status, and untracked status are proven unchanged afterward.
+
+```console
+archguard patch inspect candidate.diff
+archguard patch validate repository --patch candidate.diff --profile architecture.yaml \
+  --baseline 0123456789abcdef0123456789abcdef01234567 --source-root src \
+  --output validation.json
+archguard patch result inspect validation.json
+archguard patch result delta validation.json
+archguard patch result violations validation.json --state introduced
+```
+
+Exit codes are 0 (complete/pass), 1 (complete/gate failed), 2 (invalid input/artifact), 3
+(rejected patch), 4 (incomplete comparison), and 5 (worktree/application failure). No patched code,
+hooks, submodules, tests, or arbitrary commands are executed. Static architecture conformance and
+resolved violations do not establish functional correctness. See the
+[Phase 5 design](docs/architecture/patch-validation.md) and
+[verification report](docs/phase-5-verification.md).

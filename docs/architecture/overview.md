@@ -24,4 +24,7 @@ Phase 4 adds pure explicit component assignment and `DeterministicConstraintEval
 graphs. Separate profile loader/reader/writer and report reader/writer ports isolate boundaries;
 CLI composes compilation and evaluation services. The domain SCC utility is shared with graph
 queries. See [constraint engine](constraint-engine.md), [DSL](constraint-dsl.md) and ADR-0005.
-No automatic inference or before/after validation is implemented.
+No automatic architecture inference is implemented.
+Phase 5 adds a patch-validation application workflow. Infrastructure alone reads exact patch bytes,
+runs bounded Git commands, and manages temporary worktrees; application orchestrates existing
+analysis/graph/evaluation ports; domain values classify semantic architecture deltas.

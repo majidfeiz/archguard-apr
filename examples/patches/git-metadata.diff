@@ -1,0 +1,6 @@
+diff --git a/.git/config b/.git/config
+--- a/.git/config
++++ b/.git/config
+@@ -1 +1 @@
+-safe
++unsafe

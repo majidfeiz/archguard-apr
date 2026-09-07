@@ -1,0 +1,9 @@
+diff --git a/src/demo/model.py b/src/demo/model.py
+index c32626c..2ee1f09 100644
+--- a/src/demo/model.py
++++ b/src/demo/model.py
+@@ -5,3 +5,4 @@ from dataclasses import dataclass
+ @dataclass(frozen=True)
+ class Item:
+     name: str
++    enabled: bool = True
