@@ -8,7 +8,9 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.5.0 adds isolated candidate patch validation and deterministic before/after architecture
+Version 0.6.0 adds deterministic graph-based context retrieval, source-free manifests, explicitly
+sensitive bounded source bundles, and offline retrieval evaluation. Version 0.5.0 added isolated
+candidate patch validation and deterministic before/after architecture
 comparison. Version 0.4.0 added explicit versioned architecture profiles and conformance evaluation
 against validated repository graphs. Four typed rules, canonical profile/report artifacts and CLI
 workflows are implemented. Self-hosting CI checks ArchGuard's declared dependency boundaries.
@@ -210,3 +212,23 @@ hooks, submodules, tests, or arbitrary commands are executed. Static architectur
 resolved violations do not establish functional correctness. See the
 [Phase 5 design](docs/architecture/patch-validation.md) and
 [verification report](docs/phase-5-verification.md).
+
+## Deterministic context retrieval
+
+```console
+archguard context query compile --problem examples/context/problem.txt --output query.json
+archguard context retrieve graph.json --snapshot snapshot.json --query query.json --output manifest.json
+archguard context inspect manifest.json
+archguard context explain manifest.json file:src/demo/service.py
+archguard context bundle repository repository --snapshot snapshot.json --manifest manifest.json --output context-bundle.json --include-source
+archguard context bundle inspect context-bundle.json
+archguard context evaluate manifest.json --labels examples/context/relevance-labels.yaml --output retrieval-evaluation.json
+archguard context evaluation inspect retrieval-evaluation.json
+```
+
+Query, manifest and evaluation outputs are source-free. Bundles are explicitly
+`sensitive-source-bearing`; creation requires `--include-source`, and normal inspection never
+prints source. Exit codes are 0 complete, 1 no candidates, 2 invalid input/artifact, 3 source
+acknowledgement refusal, 4 partial result, and 6 source identity mismatch. See the
+[design](docs/architecture/context-retrieval.md), [schemas](docs/schemas/context-retrieval-v1.md),
+and [Phase 6 verification](docs/phase-6-verification.md).

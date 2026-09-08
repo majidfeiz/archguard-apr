@@ -49,7 +49,10 @@ source-read isolation, path safety and deterministic queries. See [Phase 3 verif
 ## Phase 4 verification
 
 Run `make architecture-smoke`, `make architecture-self`, `make architecture-benchmark`, and all
-existing checks. Docker documentation uses `docker build -t archguard-apr:phase-5 .` (package 0.5.0).
+existing checks. Docker documentation uses `docker build -t archguard-apr:phase-6 .` (package 0.6.0).
+
+Run `make context-self` for deterministic source-free self-hosting retrieval. Source-bearing
+verification outputs must stay in temporary directories and must never be committed or printed.
 
 Phase 5 integration tests use real temporary Git repositories. They never run candidate code and
 must assert original state equality and removal of registered candidate worktrees. Patch artifacts

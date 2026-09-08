@@ -31,10 +31,26 @@ jobs:
       - run: uv run archguard architecture evaluate /tmp/archguard-graph.json --profile examples/architecture/simple-layered.yaml --output /tmp/archguard-report.json
       - run: uv run archguard architecture inspect /tmp/archguard-report.json
       - run: make architecture-self
+      - run: uv run archguard context query compile --problem examples/context/problem.txt --traceback examples/context/traceback.txt --module demo.service --symbol item_names --output /tmp/context-query.json
+      - run: uv run archguard context query compile --symbol item_names --module demo.service --traceback examples/context/traceback.txt --problem examples/context/problem.txt --output /tmp/context-query-two.json
+      - run: cmp /tmp/context-query.json /tmp/context-query-two.json
+      - run: uv run archguard context retrieve /tmp/archguard-graph.json --snapshot /tmp/archguard-analysis.json --query /tmp/context-query.json --exclude 'tests/*' --output /tmp/context-manifest-one.json
+      - run: uv run archguard context retrieve /tmp/archguard-graph.json --snapshot /tmp/archguard-analysis.json --query /tmp/context-query.json --exclude 'tests/*' --output /tmp/context-manifest-two.json
+      - run: cmp /tmp/context-manifest-one.json /tmp/context-manifest-two.json
+      - run: uv run archguard context inspect /tmp/context-manifest-one.json
+      - run: uv run archguard context explain /tmp/context-manifest-one.json file:src/demo/service.py
+      - run: uv run archguard context evaluate /tmp/context-manifest-one.json --labels examples/context/relevance-labels.yaml --output /tmp/context-evaluation.json
+      - run: uv run archguard context evaluation inspect /tmp/context-evaluation.json
+      - run: uv run archguard context bundle repository examples/python/simple-layered-app --snapshot /tmp/archguard-analysis.json --manifest /tmp/context-manifest-one.json --output /tmp/context-bundle.json --include-source > /tmp/context-bundle-create.txt
+      - run: uv run archguard context bundle repository examples/python/simple-layered-app --snapshot /tmp/archguard-analysis.json --manifest /tmp/context-manifest-one.json --output /tmp/context-bundle-two.json --include-source
+      - run: cmp /tmp/context-bundle.json /tmp/context-bundle-two.json
+      - run: uv run archguard context bundle inspect /tmp/context-bundle.json > /tmp/context-bundle-inspect.txt
+      - run: '! grep -F "def item_names" /tmp/context-bundle-create.txt /tmp/context-bundle-inspect.txt'
+      - run: make context-self
       - run: uv build
   docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: docker compose config
-      - run: docker build -t archguard-apr:phase-5 .
+      - run: docker build -t archguard-apr:phase-6 .

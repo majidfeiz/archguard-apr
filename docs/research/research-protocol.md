@@ -107,3 +107,10 @@ For each later repair attempt, record the repository identifier, exact baseline 
 profile fingerprints, baseline/candidate graph and report fingerprints, introduced/resolved/
 persisting counts, architecture gate, comparison completeness, and rejection/failure code. Phase 5
 produces the deterministic substrate but records no fabricated benchmark observations.
+
+Phase 6 retrieval runs additionally record task/repository IDs, exact revision, snapshot and graph
+fingerprints, query fingerprint, method/version, policy and manifest fingerprints, optional bundle
+fingerprint, all byte/line/file/symbol/excerpt limits and consumption, seed/candidate/selection
+counts, partial state and diagnostics, independently authored label fingerprint, MRR, Recall@K,
+Precision@K and Hit@K. Latency is measured externally and excluded from deterministic identities.
+Never infer relevance labels from developer or gold patches.
