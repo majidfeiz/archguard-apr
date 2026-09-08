@@ -5,7 +5,6 @@ import re
 from pathlib import PurePosixPath, PureWindowsPath
 
 from archguard.domain.patch_validation import (
-    CANDIDATE_PATCH_SCHEMA_VERSION,
     MAX_PATCH_BYTES,
     MAX_PATCH_OPERATIONS,
     MAX_PATCH_PATH_BYTES,
@@ -17,8 +16,9 @@ from archguard.domain.patch_validation import (
     PatchOperationKind,
 )
 
-DIFF = re.compile(rb"^diff --git a/(.+) b/(.+)$")
+DIFF = re.compile(rb"^diff --git a/(.+) b/\1$")
 HUNK = re.compile(rb"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$")
+MODE = re.compile(rb"^(?:old mode|new mode|new file mode|deleted file mode) (\d{6})$")
 
 
 class UnifiedDiffInspector:
@@ -34,24 +34,13 @@ class UnifiedDiffInspector:
             diagnostics.add(PatchDiagnosticCode.TOO_LARGE)
         if b"\0" in raw:
             diagnostics.add(PatchDiagnosticCode.NUL)
-        if b"GIT binary patch" in raw or b"Binary files " in raw:
-            diagnostics.add(PatchDiagnosticCode.BINARY)
-        if any(
-            token in raw for token in (b"rename from ", b"rename to ", b"copy from ", b"copy to ")
-        ):
-            diagnostics.add(PatchDiagnosticCode.RENAME_COPY)
-        if any(
-            token in raw
-            for token in (
-                b"new file mode 120000",
-                b"deleted file mode 120000",
-                b"old mode 120000",
-                b"new mode 160000",
-                b"old mode 160000",
-            )
-        ):
-            diagnostics.add(PatchDiagnosticCode.UNSAFE_MODE)
         if len(raw) <= MAX_PATCH_BYTES and b"\0" not in raw:
+            for root in (*allowed_roots, *protected_paths):
+                if root.endswith("/"):
+                    root = root.rstrip("/")
+                code = self._path_code(root, (), ())
+                if code is not None:
+                    diagnostics.add(PatchDiagnosticCode.UNSAFE_PATH)
             self._parse(raw, operations, diagnostics, allowed_roots, protected_paths)
         if len(operations) > MAX_PATCH_OPERATIONS:
             diagnostics.add(PatchDiagnosticCode.TOO_MANY_OPERATIONS)
@@ -63,14 +52,12 @@ class UnifiedDiffInspector:
         normalized = tuple(
             PatchDiagnostic(code, PATCH_MESSAGES[code]) for code in sorted(diagnostics)
         )
-        return CandidatePatch(
-            CANDIDATE_PATCH_SCHEMA_VERSION,
+        return CandidatePatch.create(
             fingerprint,
             len(raw),
-            tuple(sorted(operations)),
+            tuple(operations),
             PatchDiagnosticCode.BINARY in diagnostics,
             normalized,
-            bool(operations) and not normalized,
         )
 
     def _parse(
@@ -94,12 +81,32 @@ class UnifiedDiffInspector:
                 diagnostics.add(PatchDiagnosticCode.MALFORMED)
                 continue
             try:
-                left, right = (value.decode("utf-8") for value in match.groups())
+                left = right = match.group(1).decode("utf-8")
             except UnicodeDecodeError:
                 diagnostics.add(PatchDiagnosticCode.UNSAFE_PATH)
                 continue
             old_headers = [line[4:] for line in section if line.startswith(b"--- ")]
             new_headers = [line[4:] for line in section if line.startswith(b"+++ ")]
+            header_index = next(
+                (index for index, line in enumerate(section) if line.startswith(b"--- ")),
+                len(section),
+            )
+            metadata = section[1:header_index]
+            if any(
+                line == b"GIT binary patch" or line.startswith(b"Binary files ")
+                for line in metadata
+            ):
+                diagnostics.add(PatchDiagnosticCode.BINARY)
+            if any(
+                line.startswith((b"rename from ", b"rename to ", b"copy from ", b"copy to "))
+                for line in metadata
+            ):
+                diagnostics.add(PatchDiagnosticCode.RENAME_COPY)
+            modes = [MODE.fullmatch(line) for line in metadata]
+            if any(
+                match is not None and match.group(1) in {b"120000", b"160000"} for match in modes
+            ):
+                diagnostics.add(PatchDiagnosticCode.UNSAFE_MODE)
             if len(old_headers) != 1 or len(new_headers) != 1 or not self._valid_hunks(section):
                 diagnostics.add(PatchDiagnosticCode.MALFORMED)
                 continue

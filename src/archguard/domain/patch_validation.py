@@ -84,6 +84,7 @@ class PatchOperation:
     kind: PatchOperationKind
 
     def __post_init__(self) -> None:
+        check(isinstance(self.kind, PatchOperationKind), "invalid patch operation kind")
         safe_path(self.path)
         check(len(self.path.encode("utf-8")) <= MAX_PATCH_PATH_BYTES, "patch path too long")
 
@@ -97,6 +98,29 @@ class CandidatePatch:
     binary_patch_present: bool
     diagnostics: tuple[PatchDiagnostic, ...]
     acceptable: bool
+    metadata_fingerprint: str
+
+    @classmethod
+    def create(
+        cls,
+        patch_fingerprint: str,
+        byte_size: int,
+        operations: tuple[PatchOperation, ...],
+        binary_patch_present: bool,
+        diagnostics: tuple[PatchDiagnostic, ...],
+    ) -> "CandidatePatch":
+        ordered_operations = tuple(sorted(operations))
+        ordered_diagnostics = tuple(sorted(set(diagnostics)))
+        values: dict[str, Any] = {
+            "candidate_patch_schema_version": CANDIDATE_PATCH_SCHEMA_VERSION,
+            "patch_fingerprint": patch_fingerprint,
+            "byte_size": byte_size,
+            "operations": ordered_operations,
+            "binary_patch_present": binary_patch_present,
+            "diagnostics": ordered_diagnostics,
+            "acceptable": bool(ordered_operations) and not ordered_diagnostics,
+        }
+        return cls(**values, metadata_fingerprint=_fingerprint_values(values))
 
     def __post_init__(self) -> None:
         check(
@@ -105,15 +129,29 @@ class CandidatePatch:
         )
         digest(self.patch_fingerprint)
         check(self.byte_size >= 0, "invalid patch byte size")
+        check(not self.acceptable or self.byte_size <= MAX_PATCH_BYTES, "accepted patch too large")
         object.__setattr__(self, "operations", tuple(self.operations))
         object.__setattr__(self, "diagnostics", tuple(self.diagnostics))
         check(self.operations == tuple(sorted(self.operations)), "unordered patch operations")
+        check(
+            len({operation.path for operation in self.operations}) == len(self.operations),
+            "duplicate patch operation path",
+        )
         check(
             self.diagnostics == tuple(sorted(set(self.diagnostics))), "unordered patch diagnostics"
         )
         check(
             self.acceptable == (bool(self.operations) and not self.diagnostics),
             "invalid acceptance status",
+        )
+        check(
+            self.binary_patch_present
+            == any(item.code == PatchDiagnosticCode.BINARY for item in self.diagnostics),
+            "invalid binary patch status",
+        )
+        check(
+            self.metadata_fingerprint == candidate_metadata_identity(self),
+            "metadata fingerprint mismatch",
         )
 
     @property
@@ -122,6 +160,12 @@ class CandidatePatch:
 
     def paths(self, kind: PatchOperationKind) -> tuple[str, ...]:
         return tuple(operation.path for operation in self.operations if operation.kind == kind)
+
+
+def candidate_metadata_identity(patch: CandidatePatch) -> str:
+    data = asdict(patch)
+    data.pop("metadata_fingerprint", None)
+    return hashlib.sha256(canonical_json(data)).hexdigest()
 
 
 type SemanticKey = tuple[str, ...]
@@ -145,6 +189,12 @@ class PersistingViolation:
     semantic_key: SemanticKey
     baseline: ArchitectureViolation
     candidate: ArchitectureViolation
+
+    def __post_init__(self) -> None:
+        check(
+            self.semantic_key == semantic_key(self.baseline) == semantic_key(self.candidate),
+            "persisting semantic key mismatch",
+        )
 
 
 @dataclass(frozen=True)
@@ -192,6 +242,26 @@ class ArchitectureDelta:
         )
         for field in ("introduced", "resolved", "persisting", "incompleteness_reasons"):
             object.__setattr__(self, field, tuple(getattr(self, field)))
+        introduced_keys = tuple(semantic_key(item) for item in self.introduced)
+        resolved_keys = tuple(semantic_key(item) for item in self.resolved)
+        persisting_keys = tuple(item.semantic_key for item in self.persisting)
+        check(
+            introduced_keys == tuple(sorted(set(introduced_keys))),
+            "unordered introduced violations",
+        )
+        check(resolved_keys == tuple(sorted(set(resolved_keys))), "unordered resolved violations")
+        check(
+            persisting_keys == tuple(sorted(set(persisting_keys))),
+            "unordered persisting violations",
+        )
+        check(
+            not (
+                set(introduced_keys) & set(resolved_keys)
+                | set(introduced_keys) & set(persisting_keys)
+                | set(resolved_keys) & set(persisting_keys)
+            ),
+            "overlapping architecture delta states",
+        )
         check(
             self.incompleteness_reasons == tuple(sorted(set(self.incompleteness_reasons))),
             "unordered incompleteness reasons",
@@ -309,9 +379,28 @@ class RepositoryStateProof:
     index_tree: str
     tracked_status_sha256: str
     untracked_status_sha256: str
+    untracked_content_sha256: str
 
     def __post_init__(self) -> None:
-        for value in (self.index_tree, self.tracked_status_sha256, self.untracked_status_sha256):
+        check(
+            len(self.head_commit) == 40
+            and all(character in "0123456789abcdef" for character in self.head_commit),
+            "invalid repository HEAD",
+        )
+        check(
+            self.branch is None
+            or (
+                0 < len(self.branch) <= 1024
+                and all(ord(character) >= 32 for character in self.branch)
+            ),
+            "invalid repository branch",
+        )
+        for value in (
+            self.index_tree,
+            self.tracked_status_sha256,
+            self.untracked_status_sha256,
+            self.untracked_content_sha256,
+        ):
             digest(value)
 
 
@@ -356,6 +445,14 @@ class PatchValidationResult:
         check(
             self.validation_completed == (self.status == ValidationStatus.COMPLETED),
             "invalid completion status",
+        )
+        check(
+            not self.patch_applied or self.status == ValidationStatus.COMPLETED,
+            "invalid applied status",
+        )
+        check(
+            self.status != ValidationStatus.COMPLETED or self.delta is not None,
+            "completed result requires delta",
         )
         check(self.result_fingerprint == result_identity(self), "result fingerprint mismatch")
 
