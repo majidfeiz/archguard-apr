@@ -1,0 +1,1 @@
+Architecture patch validation fails to clean up an isolated Git worktree.

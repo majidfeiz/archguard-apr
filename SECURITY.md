@@ -18,3 +18,10 @@ hooks, prompts, network, and submodule initialization are disabled or absent. Ap
 inside an adapter-created detached temporary worktree, and state proofs detect original repository
 changes. Cleanup never accepts a caller-selected deletion root and does not expose temporary paths.
 Canonical artifacts omit source, patch hunks, raw Git output, host details, and timestamps.
+## Source-bearing context
+
+Retrieval manifests contain no raw query or source. Context bundles are sensitive: create them only
+with explicit acknowledgement, store them outside analyzed repositories, restrict their retention,
+and never print them in logs or CI. Source reads reject traversal, symlinks, file-type changes,
+digest/size mutation, source-root escape, invalid UTF-8, oversized lines and artifact overwrite.
+Repository-controlled source is parsed or copied as data only and is never imported or executed.

@@ -17,6 +17,10 @@ class ArtifactKind(StrEnum):
     CANDIDATE_PATCH = "candidate_patch"
     ARCHITECTURE_DELTA = "architecture_delta"
     PATCH_VALIDATION = "patch_validation"
+    RETRIEVAL_QUERY = "retrieval_query"
+    RETRIEVAL_MANIFEST = "retrieval_manifest"
+    CONTEXT_BUNDLE = "context_bundle"
+    RETRIEVAL_EVALUATION = "retrieval_evaluation"
     LOG = "log"
 
 

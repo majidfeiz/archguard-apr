@@ -11,3 +11,6 @@ ADR-0003 accepts canonical read-only repository analysis for Phase 2.
 - [ADR-0006](ADR-0006-isolated-detached-worktrees.md): isolated detached worktrees
 - [ADR-0007](ADR-0007-semantic-violation-delta.md): semantic violation delta
 - [ADR-0008](ADR-0008-narrow-patch-policy.md): narrow patch safety policy
+- [ADR-0009](ADR-0009-deterministic-graph-retrieval.md): deterministic graph retrieval
+- [ADR-0010](ADR-0010-model-neutral-context-budgets.md): model-neutral byte/line budgets
+- [ADR-0011](ADR-0011-context-artifact-privacy.md): source-free/sensitive artifact separation

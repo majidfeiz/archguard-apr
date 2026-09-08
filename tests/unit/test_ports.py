@@ -2,6 +2,11 @@ from pathlib import Path
 
 import pytest
 
+from archguard.application.ports.context import (
+    ContextArtifactPort,
+    RelevanceLabelPort,
+    SourceExcerptReaderPort,
+)
 from archguard.application.ports.execution import ExecutionRunnerPort
 from archguard.application.ports.patch_validation import (
     CandidatePatchInspectorPort,
@@ -12,9 +17,11 @@ from archguard.application.ports.patch_validation import (
 from archguard.application.ports.repair import RepairProviderPort
 from archguard.domain.enums import ArtifactKind
 from archguard.domain.models import ArtifactReference, ExecutionResult
+from archguard.infrastructure.context_artifacts import LocalContextArtifacts, LocalRelevanceLabels
 from archguard.infrastructure.git_worktree import GitCandidateWorkspace, GitRepositoryState
 from archguard.infrastructure.patch_artifacts import LocalPatchValidationArtifacts
 from archguard.infrastructure.patch_inspector import UnifiedDiffInspector
+from archguard.infrastructure.source_excerpt_reader import LocalSourceExcerptReader
 
 pytestmark = pytest.mark.unit
 
@@ -41,6 +48,10 @@ def test_provider_neutral_structural_contracts(tmp_path: Path) -> None:
     assert repair.propose(analysis, "reproducible failure").kind is ArtifactKind.CANDIDATE_PATCH
     assert runner.run(("fixture",), tmp_path, 1).exit_code == 0
     assert not list(tmp_path.iterdir())
+    artifacts: ContextArtifactPort = LocalContextArtifacts()
+    labels: RelevanceLabelPort = LocalRelevanceLabels()
+    reader: SourceExcerptReaderPort = LocalSourceExcerptReader()
+    assert artifacts and labels and reader
 
 
 def test_patch_validation_adapters_satisfy_narrow_ports() -> None:

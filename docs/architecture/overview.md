@@ -28,3 +28,8 @@ No automatic architecture inference is implemented.
 Phase 5 adds a patch-validation application workflow. Infrastructure alone reads exact patch bytes,
 runs bounded Git commands, and manages temporary worktrees; application orchestrates existing
 analysis/graph/evaluation ports; domain values classify semantic architecture deltas.
+
+Phase 6 adds immutable retrieval contracts and pure graph retrieval/application services. Narrow
+infrastructure ports own canonical context artifacts, independent labels, and snapshot-bound source
+excerpt reads. Source-free manifests are separate from sensitive source-bearing bundles. No
+repository code, model, agent, repair, embedding, tokenizer, or vector store is executed.

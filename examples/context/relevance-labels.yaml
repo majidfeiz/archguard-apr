@@ -1,0 +1,6 @@
+retrieval_labels_schema_version: "1"
+relevant_node_ids:
+  - file:src/demo/repository.py
+  - file:src/demo/service.py
+  - module:demo.repository
+  - module:demo.service

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- Add deterministic compiled retrieval queries, graph seed discovery, bounded expansion,
+  explainable integer scoring, stable ranking and exact byte/line budget decisions.
+- Add source-free retrieval manifests and separately classified sensitive context bundles with
+  snapshot-bound, descriptor-relative source reads.
+- Add independently labeled offline MRR, Hit@K, Recall@K and Precision@K evaluation.
+- Add the `archguard context` CLI, adversarial tests, examples, ADRs and research traceability.
+
 ## 0.5.0
 
 - Add bounded exact-byte unified-diff inspection with stable rejection diagnostics.

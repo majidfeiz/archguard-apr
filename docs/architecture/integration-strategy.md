@@ -31,3 +31,8 @@ removed Phase 1 architecture placeholder ports must not be used by future adapte
 Phase 5 remains integration-neutral: repair agents may later consume source-free validation
 artifacts, but this phase includes no agent, provider, prompt, MCP, or repair generation. Candidate
 code is never executed.
+
+Phase 6 provides provider-neutral query, manifest, bundle and evaluation contracts for later repair
+agents. The sole implemented method descriptor is `deterministic-graph-retrieval-v1`. A future
+semantic implementation may emit the same generic contracts, but Phase 6 does not fake or implement
+that baseline.

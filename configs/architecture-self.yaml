@@ -2,3 +2,4 @@ analysis:
   source_roots:
     - src
     - examples/python/simple-layered-app/src
+    - examples/python/simple-layered-app/tests
