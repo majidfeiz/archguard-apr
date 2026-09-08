@@ -3,6 +3,7 @@
 import hashlib
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
 from collections.abc import Iterator
@@ -78,7 +79,30 @@ class GitRepositoryState:
             index_tree,
             hashlib.sha256(tracked).hexdigest(),
             hashlib.sha256(untracked).hexdigest(),
+            self._untracked_content(repository, untracked),
         )
+
+    @staticmethod
+    def _untracked_content(repository: Path, paths: bytes) -> str:
+        fingerprint = hashlib.sha256()
+        for encoded in sorted(filter(None, paths.split(b"\0"))):
+            try:
+                target = repository / encoded.decode("utf-8", "surrogateescape")
+                info = target.lstat()
+                fingerprint.update(
+                    encoded + b"\0" + str(stat.S_IFMT(info.st_mode)).encode() + b"\0"
+                )
+                if stat.S_ISREG(info.st_mode):
+                    descriptor = os.open(target, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                    with os.fdopen(descriptor, "rb") as stream:
+                        while chunk := stream.read(1024 * 1024):
+                            fingerprint.update(chunk)
+                elif stat.S_ISLNK(info.st_mode):
+                    fingerprint.update(os.readlink(target).encode("utf-8", "surrogateescape"))
+            except (OSError, UnicodeError):
+                raise GitOperationError("untracked repository state could not be proven") from None
+            fingerprint.update(b"\0")
+        return fingerprint.hexdigest()
 
     def require_clean(self, repository: Path) -> RepositoryStateProof:
         proof = self.capture(repository)
@@ -89,6 +113,28 @@ class GitRepositoryState:
 
 
 class GitCandidateWorkspace:
+    @staticmethod
+    def _safe_parent(parent: Path) -> bool:
+        try:
+            return (
+                parent.name.startswith("archguard-candidate-")
+                and parent.parent.resolve() == Path(tempfile.gettempdir()).resolve()
+                and (not parent.exists() or (parent.is_dir() and not parent.is_symlink()))
+            )
+        except (OSError, RuntimeError):
+            return False
+
+    def _cleanup(self, repository: Path, parent: Path, candidate: Path, created: bool) -> None:
+        if not self._safe_parent(parent):
+            raise GitOperationError("candidate cleanup target failed safety validation")
+        if created:
+            _git(repository, ["worktree", "remove", "--force", str(candidate)], check=False)
+        if parent.exists():
+            shutil.rmtree(parent)
+        registered = _git(repository, ["worktree", "list", "--porcelain"]).stdout
+        if str(candidate).encode() in registered or parent.exists():
+            raise GitOperationError("candidate worktree cleanup failed")
+
     @contextmanager
     def workspace(self, repository: Path, baseline_commit: str) -> Iterator[Path]:
         parent = Path(tempfile.mkdtemp(prefix="archguard-candidate-"))
@@ -103,14 +149,7 @@ class GitCandidateWorkspace:
             _git(candidate, ["checkout", "--detach", baseline_commit])
             yield candidate
         finally:
-            if created:
-                _git(repository, ["worktree", "remove", "--force", str(candidate)], check=False)
-            # Only an adapter-created direct child of our mkdtemp directory is removed.
-            if (
-                parent.name.startswith("archguard-candidate-")
-                and parent.parent == Path(tempfile.gettempdir()).resolve()
-            ):
-                shutil.rmtree(parent, ignore_errors=True)
+            self._cleanup(repository, parent, candidate, created)
 
     def check_apply(self, workspace: Path, raw: bytes) -> bool:
         return (

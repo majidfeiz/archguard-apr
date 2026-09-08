@@ -1,6 +1,22 @@
 diff --git a/src/demo/service.py b/src/demo/service.py
-index 8c9f18d..5df26b3 100644
+deleted file mode 100644
+index 8c9f18d..0000000
 --- a/src/demo/service.py
-+++ b/src/demo/service.py
-@@ -1 +0,0 @@
++++ /dev/null
+@@ -1,5 +0,0 @@
 -from .repository import list_items
+-
+-
+-def item_names() -> tuple[str, ...]:
+-    return tuple(item.name for item in list_items())
+diff --git a/src/demo/controller.py b/src/demo/controller.py
+deleted file mode 100644
+index b4845d9..0000000
+--- a/src/demo/controller.py
++++ /dev/null
+@@ -1,5 +0,0 @@
+-from .service import item_names
+-
+-
+-def response() -> dict[str, tuple[str, ...]]:
+-    return {"items": item_names()}

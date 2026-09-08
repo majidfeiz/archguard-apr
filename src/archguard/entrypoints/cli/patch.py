@@ -43,6 +43,7 @@ def patch_summary(patch: CandidatePatch) -> dict[str, object]:
     return {
         "candidate_patch_schema_version": patch.candidate_patch_schema_version,
         "patch_fingerprint": patch.patch_fingerprint,
+        "metadata_fingerprint": patch.metadata_fingerprint,
         "byte_size": patch.byte_size,
         "operation_count": len(patch.operations),
         "changed_paths": patch.changed_paths,
@@ -119,6 +120,7 @@ def validate(
             DeterministicGraphBuilder(),
             LocalArchitectureProfiles(),
             DeterministicConstraintEvaluator(),
+            LocalPatchValidationArtifacts(),
         ).execute(
             repository,
             raw,
@@ -127,8 +129,8 @@ def validate(
             options,
             allowed_roots=tuple(allowed_root or ()),
             protected_paths=tuple(protected_path or ()),
+            output=output,
         )
-        LocalPatchValidationArtifacts().write(result, output)
         emit(result_summary(result))
         raise typer.Exit(result.exit_code)
     except typer.Exit:

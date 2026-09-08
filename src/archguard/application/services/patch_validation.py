@@ -10,6 +10,7 @@ from archguard.application.ports.graph import RepositoryGraphBuilderPort
 from archguard.application.ports.patch_validation import (
     CandidatePatchInspectorPort,
     CandidateWorkspacePort,
+    PatchValidationArtifactPort,
     RepositoryStatePort,
 )
 from archguard.application.ports.repository import RepositoryAnalyzerPort
@@ -45,6 +46,7 @@ class ValidateCandidatePatch:
         graphs: RepositoryGraphBuilderPort,
         profiles: ArchitectureProfileLoaderPort,
         evaluator: ArchitectureConstraintEvaluatorPort,
+        artifacts: PatchValidationArtifactPort,
     ) -> None:
         self.inspector, self.states, self.workspaces = inspector, states, workspaces
         self.analyzer, self.graphs, self.profiles, self.evaluator = (
@@ -53,6 +55,7 @@ class ValidateCandidatePatch:
             profiles,
             evaluator,
         )
+        self.artifacts = artifacts
 
     def execute(
         self,
@@ -64,6 +67,7 @@ class ValidateCandidatePatch:
         graph_options: GraphBuildOptions | None = None,
         allowed_roots: tuple[str, ...] = (),
         protected_paths: tuple[str, ...] = (),
+        output: Path | None = None,
     ) -> PatchValidationResult:
         graph_options = graph_options or GraphBuildOptions()
         require_clean = getattr(self.states, "require_clean", None)
@@ -72,7 +76,7 @@ class ValidateCandidatePatch:
         patch = self.inspector.inspect(raw, allowed_roots, protected_paths)
         if not patch.acceptable:
             after = self.states.capture(repository)
-            return create_validation_result(
+            result = create_validation_result(
                 ValidationStatus.REJECTED,
                 baseline,
                 patch,
@@ -80,7 +84,12 @@ class ValidateCandidatePatch:
                 after,
                 diagnostic_codes=tuple(d.code for d in patch.diagnostics),
             )
+            if output is not None:
+                self.artifacts.write(result, output)
+            return result
         profile = self.profiles.load(profile_path)
+        delta = None
+        application_failed = False
         with self.workspaces.workspace(repository, baseline) as workspace:
             baseline_snapshot = self.analyzer.analyze(workspace, analysis_options)
             baseline_graph = self.graphs.build(baseline_snapshot, graph_options)
@@ -88,36 +97,36 @@ class ValidateCandidatePatch:
             if not self.workspaces.check_apply(workspace, raw) or not self.workspaces.apply(
                 workspace, raw
             ):
-                after = self.states.capture(repository)
-                return create_validation_result(
-                    ValidationStatus.APPLICATION_FAILED,
+                application_failed = True
+            else:
+                candidate_snapshot = self.analyzer.analyze(workspace, analysis_options)
+                candidate_graph = self.graphs.build(candidate_snapshot, graph_options)
+                candidate_report = self.evaluator.evaluate(candidate_graph, profile)
+                delta = compare_reports(
                     baseline,
-                    patch,
-                    before,
-                    after,
-                    diagnostic_codes=(PatchDiagnosticCode.APPLICATION_FAILED,),
-                    patch_applied=False,
+                    patch.patch_fingerprint,
+                    baseline_snapshot.repository_fingerprint,
+                    candidate_snapshot.repository_fingerprint,
+                    baseline_graph.graph_fingerprint,
+                    candidate_graph.graph_fingerprint,
+                    baseline_report,
+                    candidate_report,
                 )
-            candidate_snapshot = self.analyzer.analyze(workspace, analysis_options)
-            candidate_graph = self.graphs.build(candidate_snapshot, graph_options)
-            candidate_report = self.evaluator.evaluate(candidate_graph, profile)
-            delta = compare_reports(
-                baseline,
-                patch.patch_fingerprint,
-                baseline_snapshot.repository_fingerprint,
-                candidate_snapshot.repository_fingerprint,
-                baseline_graph.graph_fingerprint,
-                candidate_graph.graph_fingerprint,
-                baseline_report,
-                candidate_report,
-            )
         after = self.states.capture(repository)
-        return create_validation_result(
-            ValidationStatus.COMPLETED,
+        result = create_validation_result(
+            ValidationStatus.APPLICATION_FAILED
+            if application_failed
+            else ValidationStatus.COMPLETED,
             baseline,
             patch,
             before,
             after,
             delta=delta,
-            patch_applied=True,
+            diagnostic_codes=(PatchDiagnosticCode.APPLICATION_FAILED,)
+            if application_failed
+            else (),
+            patch_applied=not application_failed,
         )
+        if output is not None:
+            self.artifacts.write(result, output)
+        return result
