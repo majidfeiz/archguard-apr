@@ -15,6 +15,8 @@ class ArtifactKind(StrEnum):
     ARCHITECTURE_REPORT = "architecture_report"
     ARCHITECTURE_PROFILE = "architecture_profile"
     CANDIDATE_PATCH = "candidate_patch"
+    ARCHITECTURE_DELTA = "architecture_delta"
+    PATCH_VALIDATION = "patch_validation"
     LOG = "log"
 
 

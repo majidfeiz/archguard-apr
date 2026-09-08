@@ -1,0 +1,7 @@
+diff --git a/src/demo/controller.py b/src/demo/controller.py
+index b4845d9..c25cc81 100644
+--- a/src/demo/controller.py
++++ b/src/demo/controller.py
+@@ -1 +1,2 @@
+ from .service import item_names
++from .repository import list_items

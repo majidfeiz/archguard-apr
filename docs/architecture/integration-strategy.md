@@ -28,3 +28,6 @@ Phase 4 exposes explicit profile compilation and graph conformance through Pytho
 Neutral profile/report schemas are suitable future boundaries. No HTTP evaluation, agent, MCP,
 Codex or Claude adapter is implemented. Before/after candidate comparison is reserved for Phase 5;
 removed Phase 1 architecture placeholder ports must not be used by future adapters.
+Phase 5 remains integration-neutral: repair agents may later consume source-free validation
+artifacts, but this phase includes no agent, provider, prompt, MCP, or repair generation. Candidate
+code is never executed.

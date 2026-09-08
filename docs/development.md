@@ -49,7 +49,11 @@ source-read isolation, path safety and deterministic queries. See [Phase 3 verif
 ## Phase 4 verification
 
 Run `make architecture-smoke`, `make architecture-self`, `make architecture-benchmark`, and all
-existing checks. Docker documentation uses `docker build -t archguard-apr:phase-4 .` (package 0.4.0).
+existing checks. Docker documentation uses `docker build -t archguard-apr:phase-5 .` (package 0.5.0).
+
+Phase 5 integration tests use real temporary Git repositories. They never run candidate code and
+must assert original state equality and removal of registered candidate worktrees. Patch artifacts
+and verification outputs must be written outside analyzed roots.
 CI retains both Python minor versions, package/Docker builds and previous graph smoke commands.
 Conformance smoke output stays in `/tmp`; no artifacts are uploaded. Self-hosting declares the
 independent example source root in `configs/architecture-self.yaml` to avoid invalid module names.

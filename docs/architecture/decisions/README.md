@@ -8,3 +8,6 @@ ADR-0003 accepts canonical read-only repository analysis for Phase 2.
 - [ADR-0004: Canonical repository graph](ADR-0004-canonical-repository-graph.md)
 
 - [ADR-0005: Versioned constraint DSL](ADR-0005-versioned-constraint-dsl.md)
+- [ADR-0006](ADR-0006-isolated-detached-worktrees.md): isolated detached worktrees
+- [ADR-0007](ADR-0007-semantic-violation-delta.md): semantic violation delta
+- [ADR-0008](ADR-0008-narrow-patch-policy.md): narrow patch safety policy

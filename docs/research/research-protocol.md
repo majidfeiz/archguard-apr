@@ -103,3 +103,7 @@ cyclic SCCs per rule. Separate assignment diagnostics from rule findings. Overla
 rules can each flag one dependency. Never compare aggregate counts across changed profiles without
 accounting for rule/granularity changes. Self-hosting CI and the fixed 500-module engineering workload
 are not benchmark experiments and provide no evidence that architecture feedback improves repair.
+For each later repair attempt, record the repository identifier, exact baseline commit, patch and
+profile fingerprints, baseline/candidate graph and report fingerprints, introduced/resolved/
+persisting counts, architecture gate, comparison completeness, and rejection/failure code. Phase 5
+produces the deterministic substrate but records no fabricated benchmark observations.

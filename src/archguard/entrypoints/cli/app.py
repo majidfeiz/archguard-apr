@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from archguard import __version__
 from archguard.entrypoints.cli.architecture import app as architecture_app
 from archguard.entrypoints.cli.graph import app as graph_app
+from archguard.entrypoints.cli.patch import app as patch_app
 from archguard.entrypoints.cli.repository import app as repository_app
 from archguard.infrastructure.config import Settings, load_settings, read_yaml
 from archguard.infrastructure.logging import redact
@@ -20,6 +21,7 @@ app = typer.Typer(no_args_is_help=True)
 app.add_typer(repository_app, name="repository")
 app.add_typer(graph_app, name="graph")
 app.add_typer(architecture_app, name="architecture")
+app.add_typer(patch_app, name="patch")
 config_app = typer.Typer()
 experiment_app = typer.Typer()
 app.add_typer(config_app, name="config")

@@ -22,6 +22,8 @@ model_outputs/
 benchmark_checkouts/
 workspaces/
 patches/
+!examples/patches/
+!examples/patches/**
 *.patch
 experiments/results/*
 !experiments/results/README.md

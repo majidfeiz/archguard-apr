@@ -1,0 +1,6 @@
+diff --git a/src/demo/service.py b/src/demo/service.py
+index 8c9f18d..5df26b3 100644
+--- a/src/demo/service.py
++++ b/src/demo/service.py
+@@ -1 +0,0 @@
+-from .repository import list_items
