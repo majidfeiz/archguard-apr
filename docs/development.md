@@ -15,7 +15,8 @@ arbitrary bare credentials: never log provider payloads or secrets directly.
 
 Canonical experiment JSON has sorted keys; array order is preserved. Domain timestamps normalize
 to UTC; boundary TypeAdapters can serialize immutable dataclasses. Relative paths reject Windows
-and POSIX traversal but do not sandbox symlinks. No untrusted-code runner exists.
+and POSIX traversal. Phase 7 candidate execution is Docker-only, fails closed, rejects workspace
+symlink escapes and has no host-subprocess fallback.
 AST tests resolve relative imports and forbid dynamic core loading. Ruff uses E/F/I/UP/B.
 
 Narrow mypy suppressions exercise invalid typed inputs and frozen-dataclass mutation guards; production code
@@ -49,7 +50,7 @@ source-read isolation, path safety and deterministic queries. See [Phase 3 verif
 ## Phase 4 verification
 
 Run `make architecture-smoke`, `make architecture-self`, `make architecture-benchmark`, and all
-existing checks. Docker documentation uses `docker build -t archguard-apr:phase-6 .` (package 0.6.0).
+existing checks. Build `archguard-apr:phase-7` and the trusted `Dockerfile.validation` image.
 
 Run `make context-self` for deterministic source-free self-hosting retrieval. Source-bearing
 verification outputs must stay in temporary directories and must never be committed or printed.

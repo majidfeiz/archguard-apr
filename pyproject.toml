@@ -3,7 +3,7 @@ requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 [project]
 name = "archguard-apr"
-version = "0.6.0"
+version = "0.7.0"
 description = "Agent-agnostic architecture-aware program repair research foundation"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
@@ -30,7 +30,7 @@ plugins = ["pydantic.mypy"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers --cov=archguard --cov-report=term-missing --cov-fail-under=90"
-markers = ["unit: isolated behavior", "integration: adapter behavior", "architecture: dependency contracts"]
+markers = ["unit: isolated behavior", "integration: adapter behavior", "architecture: dependency contracts", "docker: requires a trusted local Docker validation image"]
 [tool.coverage.run]
 branch = true
 [tool.coverage.report]

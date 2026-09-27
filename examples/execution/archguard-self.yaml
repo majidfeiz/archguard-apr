@@ -1,0 +1,23 @@
+schema: archguard.execution-plan/v1
+plan_id: archguard-self
+image: sha256:0000000000000000000000000000000000000000000000000000000000000000
+stages:
+  - stage_id: tests
+    argv: [python, -m, pytest, --junitxml=.archguard-results/junit.xml]
+    working_directory: .
+    timeout_seconds: 300
+    adapter: pytest-junit
+    expected_artifacts: [.archguard-results/junit.xml]
+    failure_policy: stop
+total_timeout_seconds: 300
+limits:
+  cpu_count: 2.0
+  memory_bytes: 1073741824
+  pid_limit: 256
+  temporary_storage_bytes: 268435456
+  maximum_output_bytes: 1048576
+allowed_environment: []
+environment:
+  - [PYTHONDONTWRITEBYTECODE, "1"]
+target_tests: []
+allow_persistent_failures: false

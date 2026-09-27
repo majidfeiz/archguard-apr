@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0
+
+- Add immutable digest-pinned execution plans and fail-closed Docker execution.
+- Add source-free command/JUnit evidence, functional deltas and combined validation gates.
+- Add execution CLI, isolation tests, schema/threat-model documentation and Docker CI coverage.
+
 ## 0.6.0
 
 - Add deterministic compiled retrieval queries, graph seed discovery, bounded expansion,

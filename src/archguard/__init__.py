@@ -1,3 +1,3 @@
 """ArchGuard public package metadata; importing performs no I/O."""
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"

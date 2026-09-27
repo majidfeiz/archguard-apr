@@ -14,3 +14,4 @@ ADR-0003 accepts canonical read-only repository analysis for Phase 2.
 - [ADR-0009](ADR-0009-deterministic-graph-retrieval.md): deterministic graph retrieval
 - [ADR-0010](ADR-0010-model-neutral-context-budgets.md): model-neutral byte/line budgets
 - [ADR-0011](ADR-0011-context-artifact-privacy.md): source-free/sensitive artifact separation
+- [ADR-0012](ADR-0012-docker-execution-feedback.md): Docker-only deterministic execution feedback

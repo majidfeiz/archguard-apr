@@ -7,3 +7,5 @@ amendments with reasons and UTC timestamps. Retain failed runs, not only favorab
 Phase 6 adds engineering fixtures only; their rankings and metrics are not empirical research runs.
 Future RQ2 entries must use independently supplied labels and record all retrieval fingerprints,
 exact budgets and consumption, diagnostic status and metric denominators.
+Phase 7 records controlled engineering checks only: plan/image/revision fingerprints, evidence
+identities, delta counts, output bounds and cleanup. They are not empirical repair-effectiveness data.
