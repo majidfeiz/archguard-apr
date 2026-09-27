@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0
+
+- Add typed provider-neutral roles, capabilities, run/candidate state machines and bounded budgets.
+- Add canonical hash-chained events, checkpoints, verified resume and side-effect-free replay.
+- Add evidence-only deterministic ranking, explicit human decisions, scripted agents and repair CLI.
+
 ## 0.7.0
 
 - Add immutable digest-pinned execution plans and fail-closed Docker execution.

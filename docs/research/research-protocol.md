@@ -1,5 +1,9 @@
 # Preliminary research protocol
 
+Phase 8 demonstrations use deterministic scripted agents and controlled fixtures. They verify state,
+budget, integrity and replay mechanisms, not LLM repair performance. Provider identity, stochastic
+settings and monetary cost remain out of scope until Phase 9.
+
 ## 1. Working title
 
 ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair with Repository Graphs and Execution Feedback.
