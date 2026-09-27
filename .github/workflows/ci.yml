@@ -19,7 +19,7 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run mypy src tests
-      - run: uv run pytest
+      - run: uv run pytest -m "not docker"
       - run: uv run pytest tests/integration/test_patch_cli.py tests/integration/test_patch_worktree.py --no-cov
       - run: uv run archguard repository analyze examples/python/simple-layered-app --source-root src --output /tmp/archguard-analysis.json
       - run: uv run archguard repository inspect /tmp/archguard-analysis.json
@@ -52,5 +52,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          python-version: "3.12"
+      - run: uv sync --frozen
       - run: docker compose config
-      - run: docker build -t archguard-apr:phase-6 .
+      - run: docker build -t archguard-apr:phase-7 .
+      - run: docker build -f Dockerfile.validation -t archguard-validation:phase-7 .
+      - name: Docker sandbox isolation and timeout smoke
+        run: |
+          IMAGE_ID=$(docker image inspect archguard-validation:phase-7 --format '{{.Id}}')
+          TEST_DOCKER_IMAGE="$IMAGE_ID" uv run pytest -m docker --no-cov

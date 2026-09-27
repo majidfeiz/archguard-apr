@@ -8,7 +8,9 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.6.0 adds deterministic graph-based context retrieval, source-free manifests, explicitly
+Version 0.7.0 adds Docker-only execution feedback, trusted digest-pinned plans, pytest/JUnit evidence,
+deterministic functional deltas and combined architecture/functional gates. Version 0.6.0 added
+deterministic graph-based context retrieval, source-free manifests, explicitly
 sensitive bounded source bundles, and offline retrieval evaluation. Version 0.5.0 added isolated
 candidate patch validation and deterministic before/after architecture
 comparison. Version 0.4.0 added explicit versioned architecture profiles and conformance evaluation
@@ -48,6 +50,15 @@ uv run archguard experiment validate --config configs/experiments/smoke.yaml
 uv run uvicorn archguard.entrypoints.api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
+Validate a trusted plan without executing candidate code:
+
+```bash
+uv run archguard execution plan validate --plan examples/execution/archguard-self.yaml
+```
+
+Execution comparison never falls back to a host subprocess. See
+[execution feedback](docs/architecture/execution-feedback.md).
+
 API: `/health`, `/ready`, `/version`. Readiness means validated configuration, not execution-backend
 availability. Imports perform no I/O or logging setup. Factory creation loads settings.
 Doctor checks Python, settings, workspace, output writability and Git. Missing optional Docker
@@ -72,7 +83,8 @@ uv build
 uv run pre-commit install
 uv run pre-commit run --all-files
 docker compose config
-docker build -t archguard-apr:phase-5 .
+docker build -t archguard-apr:phase-7 .
+docker build -f Dockerfile.validation -t archguard-validation:phase-7 .
 docker compose up --build
 docker compose down
 ```
@@ -91,9 +103,11 @@ benchmark checkouts out of Git and never expose gold patches to repair context.
 1. Completed foundation: engineering and preliminary research protocol.
 2. Completed: Phase 2 deterministic Python repository analysis.
 3. Completed: Phase 3 deterministic repository graphs and structural queries.
-4. Current: Phase 4 explicit architecture constraints and deterministic conformance.
-5. Later: before/after validation, isolated execution and external-agent validation.
-6. Later: separable multi-agent orchestration and controlled evaluation.
+4. Completed: explicit architecture constraints and deterministic conformance.
+5. Completed: isolated patch and architecture-delta validation.
+6. Completed: deterministic graph context retrieval.
+7. Current: Docker-only execution feedback and functional validation.
+8. Later: separable multi-agent orchestration and controlled evaluation.
 
 See [protocol](docs/research/research-protocol.md), [questions](docs/research/research-questions.md)
 and [registry](docs/research/experiment-registry.md). Smoke configuration is metadata only.
@@ -231,4 +245,5 @@ Query, manifest and evaluation outputs are source-free. Bundles are explicitly
 prints source. Exit codes are 0 complete, 1 no candidates, 2 invalid input/artifact, 3 source
 acknowledgement refusal, 4 partial result, and 6 source identity mismatch. See the
 [design](docs/architecture/context-retrieval.md), [schemas](docs/schemas/context-retrieval-v1.md),
-and [Phase 6 verification](docs/phase-6-verification.md).
+and [Phase 6 verification](docs/phase-6-verification.md). Phase 7 evidence is in
+[Phase 7 verification](docs/phase-7-verification.md).
