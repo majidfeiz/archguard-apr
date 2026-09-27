@@ -1,0 +1,12 @@
+schema: archguard.repair-run-spec/v1
+run_id: phase8-demo
+baseline_commit: d48031b7c66325d7009664f7bcf6b95bd133a617
+architecture_profile: {kind: profile, sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, sensitivity: source_free}
+repository_graph: {kind: graph, sha256: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, sensitivity: source_free}
+execution_plan: {kind: execution_plan, sha256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc, sensitivity: source_free}
+roles: [coordinator, context_analyst, repair_planner, patch_proposer, architecture_reviewer, execution_reviewer, candidate_ranker, human_gate]
+budget: {steps: 20, invocations: 10, candidates: 4, validations: 4, retries: 2, input_units: 100, output_units: 100, total_units: 300}
+deterministic_seed: 8
+human_approval_required: true
+architecture_validation_required: true
+execution_validation_required: true

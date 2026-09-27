@@ -8,7 +8,9 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.7.0 adds Docker-only execution feedback, trusted digest-pinned plans, pytest/JUnit evidence,
+Version 0.8.0 adds provider-neutral typed repair orchestration, bounded budgets, hash-chained events,
+verified checkpoints, deterministic replay/ranking, scripted agents and explicit human gates.
+Version 0.7.0 added Docker-only execution feedback, trusted digest-pinned plans, pytest/JUnit evidence,
 deterministic functional deltas and combined architecture/functional gates. Version 0.6.0 added
 deterministic graph-based context retrieval, source-free manifests, explicitly
 sensitive bounded source bundles, and offline retrieval evaluation. Version 0.5.0 added isolated
@@ -106,8 +108,9 @@ benchmark checkouts out of Git and never expose gold patches to repair context.
 4. Completed: explicit architecture constraints and deterministic conformance.
 5. Completed: isolated patch and architecture-delta validation.
 6. Completed: deterministic graph context retrieval.
-7. Current: Docker-only execution feedback and functional validation.
-8. Later: separable multi-agent orchestration and controlled evaluation.
+7. Completed: Docker-only execution feedback and functional validation.
+8. Current: provider-neutral multi-agent orchestration and deterministic replay.
+9. Later: real provider adapters and controlled evaluation.
 
 See [protocol](docs/research/research-protocol.md), [questions](docs/research/research-questions.md)
 and [registry](docs/research/experiment-registry.md). Smoke configuration is metadata only.
