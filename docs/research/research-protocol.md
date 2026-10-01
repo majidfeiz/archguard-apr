@@ -4,6 +4,9 @@ Phase 9 adds direct API adapters and offline provider-contract demonstrations. T
 security and replay mechanisms, not LLM repair performance. Live inference is nondeterministic; record
 provider/model, reported raw usage, attempt identity, configuration and price-table provenance. Never
 present estimated cost as measured usage or provider output as scientific evidence.
+Phase 10 candidate/refinement demonstrations are controlled engineering checks using scripted evidence.
+They do not measure repair rate, compare systems or support scientific conclusions. Freeze task,
+candidate, lineage, feedback, validation and result fingerprints before later benchmark analysis.
 
 ## 1. Working title
 

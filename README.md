@@ -8,7 +8,9 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.9.0 adds secure OpenAI Responses and Anthropic Messages adapters. Version 0.8.0 added
+Version 0.10.0 adds the deterministic iterative multi-candidate repair-loop contracts, protected
+prechecks, lineage, feedback and evidence-only selection. Version 0.9.0 added secure OpenAI Responses
+and Anthropic Messages adapters. Version 0.8.0 added
 provider-neutral typed repair orchestration, bounded budgets, hash-chained events,
 verified checkpoints, deterministic replay/ranking, scripted agents and explicit human gates.
 Version 0.7.0 added Docker-only execution feedback, trusted digest-pinned plans, pytest/JUnit evidence,
@@ -94,6 +96,19 @@ incur costs. Live smoke tests are opt-in. Structured output guarantees structure
 Phase 5 architecture and Phase 7 sandboxed execution remain mandatory gates. See
 [provider integration](docs/providers/overview.md).
 
+Validate or inspect an immutable Phase 10 task without provider or repository execution:
+
+```bash
+uv run archguard repair task validate --task examples/repair/task.yaml
+uv run archguard repair task inspect --task examples/repair/task.yaml
+uv run python scripts/iterative_repair_demo.py \
+  --task examples/repair/task.yaml --output /tmp/archguard-phase10-demo
+```
+
+Candidates and issue text are untrusted. Model assertions are never validation evidence; selection
+uses only recorded applicability, architecture, sandbox execution, test-preservation and cleanup
+evidence. Selected tests do not prove complete correctness, and Phase 10 performs no deployment.
+
 ```bash
 make install
 make check
@@ -126,7 +141,9 @@ benchmark checkouts out of Git and never expose gold patches to repair context.
 6. Completed: deterministic graph context retrieval.
 7. Completed: Docker-only execution feedback and functional validation.
 8. Completed: provider-neutral multi-agent orchestration and deterministic replay.
-9. Current: secure API provider adapters; controlled repair evaluation remains future work.
+9. Completed: secure API provider adapters.
+10. Current: iterative candidate/refinement control and deterministic evidence selection; benchmark
+    evaluation remains future work.
 
 See [protocol](docs/research/research-protocol.md), [questions](docs/research/research-questions.md)
 and [registry](docs/research/experiment-registry.md). Smoke configuration is metadata only.
