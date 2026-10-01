@@ -12,6 +12,7 @@ from archguard.entrypoints.cli.architecture import app as architecture_app
 from archguard.entrypoints.cli.benchmark import app as benchmark_app
 from archguard.entrypoints.cli.context import app as context_app
 from archguard.entrypoints.cli.execution import app as execution_app
+from archguard.entrypoints.cli.experiment import app as experiment_runner_app
 from archguard.entrypoints.cli.graph import app as graph_app
 from archguard.entrypoints.cli.patch import app as patch_app
 from archguard.entrypoints.cli.provider import app as provider_app
@@ -33,7 +34,7 @@ app.add_typer(execution_app, name="execution")
 app.add_typer(repair_app, name="repair")
 app.add_typer(provider_app, name="provider")
 config_app = typer.Typer()
-experiment_app = typer.Typer()
+experiment_app = experiment_runner_app
 app.add_typer(config_app, name="config")
 app.add_typer(experiment_app, name="experiment")
 

@@ -1,0 +1,32 @@
+name: Live LLM pilot (manual authorization gate)
+on:
+  workflow_dispatch:
+    inputs:
+      preflight_fingerprint:
+        description: Reviewed immutable preflight fingerprint
+        required: true
+        type: string
+      acknowledge_provider_cost:
+        description: I explicitly authorize provider cost
+        required: true
+        type: boolean
+      acknowledge_benchmark_use:
+        description: I explicitly authorize frozen PILOT benchmark use
+        required: true
+        type: boolean
+permissions:
+  contents: read
+jobs:
+  authorization-gate:
+    if: ${{ inputs.acknowledge_provider_cost && inputs.acknowledge_benchmark_use }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate authorization metadata without provider execution
+        env:
+          PREFLIGHT: ${{ inputs.preflight_fingerprint }}
+        run: |
+          test "${#PREFLIGHT}" -eq 64
+          printf '%s' "$PREFLIGHT" | grep -Eq '^[0-9a-f]{64}$'
+          printf '{"authorization_gate":"passed","provider_execution":"requires separately configured protected environment"}\n'

@@ -17,3 +17,6 @@ Phase 10's three-candidate controlled fixture is also an engineering verificatio
 experiment. No benchmark, ablation, statistical result or comparative effectiveness claim exists.
 Phase 11 registry and benchmark-shaped fixtures are pipeline checks only. No BugsInPy or SWE-bench
 instance was acquired, no task was externally eligible, and no pilot or final experiment is registered.
+Phase 12's four-task, C0–C6 repeated fixture is deterministic framework verification (Mode A), not an
+LLM or benchmark experiment. Modes B and C were not executed. Its known outcomes validate scheduling,
+failure handling, blinding and aggregation only; they are not repair-effectiveness observations.

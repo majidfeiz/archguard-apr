@@ -1,0 +1,20 @@
+schema: archguard.experiment-plan/v1
+benchmark_snapshot: {kind: benchmark_snapshot, sha256: "1111111111111111111111111111111111111111111111111111111111111111"}
+frozen_split: {kind: split_manifest, sha256: "2222222222222222222222222222222222222222222222222222222222222222"}
+system_configuration: {kind: system_configuration, sha256: "3333333333333333333333333333333333333333333333333333333333333333"}
+profile_set: {kind: profile_set, sha256: "4444444444444444444444444444444444444444444444444444444444444444"}
+provider_configuration: {kind: provider_configuration, sha256: "5555555555555555555555555555555555555555555555555555555555555555"}
+prompt_template_version: phase12-v1
+execution_plan_version: phase7-v1
+random_seed: 12012
+candidate_budget: 3
+round_budget: 3
+timeout_seconds: 900
+repetitions: 2
+baseline_configurations: [C0]
+ablation_configurations: [C2, C3, C4, C5, C6]
+metrics_specification: {kind: metric_definitions, sha256: "6666666666666666666666666666666666666666666666666666666666666666"}
+output_directory: experiments/phase12-offline
+resume_policy: immutable-completed-resume-interrupted
+evaluation_tasks_frozen: true
+profiles_frozen: true

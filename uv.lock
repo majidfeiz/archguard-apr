@@ -54,7 +54,7 @@ wheels = [
 
 [[package]]
 name = "archguard-apr"
-version = "0.11.0"
+version = "0.12.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
