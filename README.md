@@ -8,7 +8,10 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.11.0 adds an immutable benchmark metadata pipeline, deterministic eligibility and splits,
+Version 0.12.0 adds controlled baseline and one-factor ablation definitions, comparison fairness,
+deterministic randomized-block scheduling, source-free run metrics and ledgers, blinding, descriptive
+pilot summaries, and an offline repeated experiment fixture. No live pilot or final scientific
+experiment was run. Version 0.11.0 added an immutable benchmark metadata pipeline, deterministic eligibility and splits,
 verified offline caches, gold quarantine boundaries, and source-free fixtures. It supports BugsInPy
 and SWE-bench Verified metadata shapes, but no external instance was acquired or verified. Version
 0.10.0 added deterministic iterative multi-candidate repair-loop contracts, protected prechecks,
@@ -56,6 +59,7 @@ uv run archguard doctor
 uv run archguard config show
 uv run archguard config show --config configs/app.example.yaml
 uv run archguard experiment validate --config configs/experiments/smoke.yaml
+uv run archguard experiment plan validate --plan configs/experiments/phase12-plan.yaml
 uv run uvicorn archguard.entrypoints.api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
@@ -159,7 +163,9 @@ benchmark checkouts out of Git and never expose gold patches to repair context.
 9. Completed: secure API provider adapters.
 10. Completed: iterative candidate/refinement control and deterministic evidence selection.
 11. Current: reproducible benchmark metadata, dataset policy, and gold-patch quarantine. External
-    acquisition, pilot studies, and final scientific experiments remain future work.
+    acquisition and final scientific experiments remain future work.
+12. Current: controlled baselines, ablations, deterministic offline pilots and a prospective Phase 13
+    protocol. External/live pilots require explicit authorization and final evaluation remains untouched.
 
 See [protocol](docs/research/research-protocol.md), [questions](docs/research/research-questions.md)
 and [registry](docs/research/experiment-registry.md). Smoke configuration is metadata only.

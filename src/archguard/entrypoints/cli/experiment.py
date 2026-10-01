@@ -1,0 +1,237 @@
+"""Source-free experiment planning and verification commands."""
+
+import csv
+import json
+from pathlib import Path
+from typing import Annotated, Never
+
+import typer
+
+from archguard.application.services.experiments import (
+    blind_labels,
+    create_schedule,
+    validate_comparison,
+)
+from archguard.domain.benchmark import ExperimentPlan
+from archguard.domain.experiments import ComparisonContract, ExperimentLedger, ExperimentSchedule
+from archguard.infrastructure.experiment_artifacts import (
+    load_experiment_artifact,
+    write_experiment_artifact,
+)
+
+app = typer.Typer(no_args_is_help=True)
+plan_app = typer.Typer(no_args_is_help=True)
+compare_app = typer.Typer(no_args_is_help=True)
+schedule_app = typer.Typer(no_args_is_help=True)
+ledger_app = typer.Typer(no_args_is_help=True)
+app.add_typer(plan_app, name="plan")
+app.add_typer(compare_app, name="compare")
+app.add_typer(schedule_app, name="schedule")
+app.add_typer(ledger_app, name="ledger")
+
+
+def emit(value: object) -> None:
+    typer.echo(json.dumps(value, sort_keys=True, separators=(",", ":")))
+
+
+def fail(code: int, diagnostic: str) -> Never:
+    emit({"diagnostic_code": diagnostic, "status": "error"})
+    raise typer.Exit(code)
+
+
+@plan_app.command("validate")
+def plan_validate(plan: Annotated[Path, typer.Option("--plan")]) -> None:
+    try:
+        value = load_experiment_artifact(plan, ExperimentPlan)
+    except (OSError, ValueError):
+        fail(2, "invalid_experiment_plan")
+    emit({"status": "valid", "plan_fingerprint": value.plan_fingerprint, "credentials": False})
+
+
+@compare_app.command("validate")
+def compare_validate(contract: Annotated[Path, typer.Option("--contract")]) -> None:
+    try:
+        value = load_experiment_artifact(contract, ComparisonContract)
+        report = validate_comparison(value)
+    except (OSError, ValueError):
+        fail(2, "invalid_comparison_contract")
+    emit(
+        {
+            "status": "comparable" if report.comparable else "not_comparable",
+            "difference_count": len(report.differences),
+            "report_fingerprint": report.report_fingerprint,
+        }
+    )
+    if not report.comparable:
+        raise typer.Exit(3)
+
+
+@schedule_app.command("create")
+def schedule_create(
+    plan: Annotated[Path, typer.Option("--plan")],
+    contract: Annotated[Path, typer.Option("--contract")],
+    output: Annotated[Path, typer.Option("--output")],
+) -> None:
+    try:
+        plan_value = load_experiment_artifact(plan, ExperimentPlan)
+        contract_value = load_experiment_artifact(contract, ComparisonContract)
+        report = validate_comparison(contract_value)
+        if not report.comparable:
+            fail(3, "comparison_not_fair")
+        schedule = create_schedule(contract_value, plan_value.benchmark_snapshot)
+        write_experiment_artifact(output, schedule)
+    except FileExistsError:
+        fail(4, "immutable_output_exists")
+    except (OSError, ValueError):
+        fail(2, "invalid_schedule_input")
+    emit(
+        {
+            "status": "created",
+            "run_count": len(schedule.runs),
+            "schedule_fingerprint": schedule.schedule_fingerprint,
+        }
+    )
+
+
+@app.command("run")
+def run_experiment(
+    schedule: Annotated[Path, typer.Option("--schedule")],
+    mode: Annotated[str, typer.Option("--mode")] = "offline",
+    acknowledge_resources: Annotated[bool, typer.Option("--acknowledge-resources")] = False,
+    acknowledge_provider_cost: Annotated[bool, typer.Option("--acknowledge-provider-cost")] = False,
+    acknowledge_benchmark_use: Annotated[bool, typer.Option("--acknowledge-benchmark-use")] = False,
+) -> None:
+    try:
+        value = load_experiment_artifact(schedule, ExperimentSchedule)
+    except (OSError, ValueError):
+        fail(2, "invalid_experiment_schedule")
+    if mode == "external-pilot" and not acknowledge_resources:
+        fail(5, "resource_acknowledgement_required")
+    if mode == "live-pilot" and not (acknowledge_provider_cost and acknowledge_benchmark_use):
+        fail(5, "live_pilot_acknowledgements_required")
+    if mode not in {"offline", "external-pilot", "live-pilot"}:
+        fail(2, "invalid_experiment_mode")
+    emit(
+        {
+            "status": "dry_run",
+            "mode": mode,
+            "planned_runs": len(value.runs),
+            "provider_calls_executed": 0,
+        }
+    )
+
+
+@ledger_app.command("verify")
+def ledger_verify(ledger: Annotated[Path, typer.Option("--ledger")]) -> None:
+    try:
+        value = load_experiment_artifact(ledger, ExperimentLedger)
+    except (OSError, ValueError):
+        fail(2, "invalid_experiment_ledger")
+    emit(
+        {
+            "status": "verified",
+            "entry_count": len(value.entries),
+            "ledger_fingerprint": value.ledger_fingerprint,
+        }
+    )
+
+
+@app.command("status")
+def experiment_status(experiment: Annotated[Path, typer.Option("--experiment")]) -> None:
+    try:
+        value = load_experiment_artifact(experiment, ExperimentLedger)
+    except (OSError, ValueError):
+        fail(2, "invalid_experiment_ledger")
+    counts: dict[str, int] = {}
+    for item in value.entries:
+        counts[str(item.status)] = counts.get(str(item.status), 0) + 1
+    emit({"status": "verified", "counts": counts, "entry_count": len(value.entries)})
+
+
+@app.command("resume")
+def experiment_resume(experiment: Annotated[Path, typer.Option("--experiment")]) -> None:
+    try:
+        value = load_experiment_artifact(experiment, ExperimentLedger)
+    except (OSError, ValueError):
+        fail(2, "invalid_experiment_ledger")
+    emit(
+        {
+            "status": "replay_verified",
+            "immutable_completed_runs": len(value.entries),
+            "provider_calls_repeated": 0,
+            "resumable_runs": 0,
+        }
+    )
+
+
+@app.command("summarize")
+def experiment_summarize(
+    experiment: Annotated[Path, typer.Option("--experiment")],
+    output: Annotated[Path, typer.Option("--output")],
+    blinded: Annotated[bool, typer.Option("--blinded")] = False,
+) -> None:
+    if output.exists():
+        fail(4, "immutable_output_exists")
+    try:
+        value = load_experiment_artifact(experiment, ExperimentLedger)
+        ids = tuple(sorted({item.configuration_id for item in value.entries}))
+        mapping = dict(blind_labels(ids, 0)) if blinded else {item: item for item in ids}
+        counts = {
+            label: sum(mapping[item.configuration_id] == label for item in value.entries)
+            for label in sorted(mapping.values())
+        }
+        output.write_text(
+            json.dumps(
+                {
+                    "schema": "archguard.pilot-summary/v1",
+                    "blinded": blinded,
+                    "scheduled_denominators": counts,
+                    "confirmatory_analysis": False,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    except (OSError, ValueError):
+        fail(2, "invalid_experiment_summary")
+    emit({"status": "summarized", "configuration_count": len(ids), "blinded": blinded})
+
+
+@app.command("export")
+def export_results(
+    experiment: Annotated[Path, typer.Option("--experiment")],
+    output: Annotated[Path, typer.Option("--output")],
+    format_name: Annotated[str, typer.Option("--format")] = "csv",
+) -> None:
+    if format_name != "csv" or output.exists():
+        fail(4, "invalid_or_existing_export")
+    try:
+        ledger = load_experiment_artifact(experiment, ExperimentLedger)
+        with output.open("x", encoding="utf-8", newline="") as stream:
+            writer = csv.writer(stream, lineterminator="\n")
+            writer.writerow(
+                (
+                    "configuration_id",
+                    "failure_reason",
+                    "repetition_id",
+                    "run_id",
+                    "status",
+                    "task_id",
+                )
+            )
+            for item in sorted(ledger.entries, key=lambda value: value.run_id):
+                writer.writerow(
+                    (
+                        item.configuration_id,
+                        item.failure_reason,
+                        item.repetition_id,
+                        item.run_id,
+                        item.status,
+                        item.task_id,
+                    )
+                )
+    except (OSError, ValueError):
+        fail(2, "invalid_experiment_export")
+    emit({"status": "exported", "row_count": len(ledger.entries), "source_disclosed": False})

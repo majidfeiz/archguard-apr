@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0
+
+- Add frozen C0–C6 baseline/ablation configurations and machine-verifiable comparison fairness.
+- Add deterministic blocked scheduling, evaluation-split isolation, source-free run metrics, ledgers,
+  blinding, descriptive summaries, immutable exports and an offline repeated experiment fixture.
+- Add pilot safety acknowledgements, manual workflows, Phase 13 prospective protocol, tests and docs.
+- No external infrastructure pilot, paid provider run or final scientific experiment was executed.
+
 ## 0.11.0
 
 - Add immutable benchmark registry, task, snapshot, split, leakage and experiment-plan contracts.
