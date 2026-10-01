@@ -1,0 +1,146 @@
+name: Docker Isolation Linux x86
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-isolation-linux-x86
+  cancel-in-progress: false
+
+jobs:
+  docker-isolation:
+    name: Docker isolation tests on Ubuntu x86_64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    env:
+      UV_FROZEN: "1"
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Verify Linux x86 environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verification-artifacts
+
+          {
+            echo "timestamp_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "architecture=$(uname -m)"
+            echo
+            uname -a
+            echo
+            lscpu
+            echo
+            free -h
+            echo
+            df -h
+          } | tee verification-artifacts/environment.txt
+
+          test "$(uname -s)" = "Linux"
+          test "$(uname -m)" = "x86_64"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install Python
+        run: uv python install 3.12
+
+      - name: Synchronize dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen
+
+      - name: Validate Docker configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker version | tee verification-artifacts/docker-version.txt
+          docker compose config > verification-artifacts/docker-compose-config.txt
+
+      - name: Build trusted validation image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker build \
+            --platform linux/amd64 \
+            --file Dockerfile.validation \
+            --tag archguard-validation:linux-x86-ci \
+            .
+
+          IMAGE_ID="$(docker image inspect archguard-validation:linux-x86-ci --format '{{.Id}}')"
+          test -n "${IMAGE_ID}"
+          echo "TEST_DOCKER_IMAGE=${IMAGE_ID}" >> "${GITHUB_ENV}"
+          echo "validation_image_id=${IMAGE_ID}" | tee verification-artifacts/validation-image-id.txt
+
+          docker image inspect "${IMAGE_ID}" \
+            > verification-artifacts/validation-image-inspect.json
+
+          IMAGE_ARCH="$(docker image inspect "${IMAGE_ID}" --format '{{.Architecture}}')"
+          test "${IMAGE_ARCH}" = "amd64"
+
+      - name: Run exactly three Docker isolation tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -o pipefail
+
+          uv run pytest \
+            tests/integration/test_execution_docker.py \
+            -m docker \
+            --no-cov \
+            -vv \
+            -rs 2>&1 | tee verification-artifacts/docker-isolation-pytest.txt
+
+          grep -Eq '3 passed' verification-artifacts/docker-isolation-pytest.txt
+
+      - name: Verify sandbox container cleanup
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker ps -a --no-trunc \
+            | tee verification-artifacts/docker-containers-after-tests.txt
+
+          if [ -n "${TEST_DOCKER_IMAGE:-}" ]; then
+            REMAINING="$(docker ps -aq --filter ancestor="${TEST_DOCKER_IMAGE}")"
+            if [ -n "${REMAINING}" ]; then
+              echo "Unexpected validation containers remain: ${REMAINING}" >&2
+              exit 1
+            fi
+          fi
+
+      - name: Record final resources
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "=== final disk ==="
+            df -h
+            echo
+            echo "=== Docker disk usage ==="
+            docker system df
+          } | tee verification-artifacts/final-resources.txt
+
+      - name: Upload Docker isolation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: archguard-docker-isolation-x86-${{ github.run_id }}
+          path: verification-artifacts/
+          if-no-files-found: error
+          retention-days: 30
