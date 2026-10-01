@@ -1,6 +1,7 @@
-# codex integration (planned)
+# Codex integration (planned)
 
-No integration is implemented or installable in Phase 1. A future adapter will translate host
+Phase 9 does not reuse ChatGPT subscriptions, Codex CLI login state or browser sessions. A future
+product adapter will translate host
 requests into application use cases and return structured results. Core must not import host SDKs.
 External validation and internal orchestration remain independently selectable.
 

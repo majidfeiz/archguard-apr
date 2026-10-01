@@ -17,6 +17,7 @@ from archguard.domain.orchestration import (
 )
 from archguard.entrypoints.cli.graph import emit
 from archguard.infrastructure.orchestration import LocalRunArtifacts
+from archguard.infrastructure.providers.configuration import load_provider_configuration
 
 app = typer.Typer(no_args_is_help=True)
 run_app = typer.Typer(no_args_is_help=True)
@@ -45,9 +46,13 @@ def validate(spec: Annotated[Path, typer.Option("--spec")]) -> None:
 
 @run_app.command("start")
 def start(
-    spec: Annotated[Path, typer.Option("--spec")], output: Annotated[Path, typer.Option("--output")]
+    spec: Annotated[Path, typer.Option("--spec")],
+    output: Annotated[Path, typer.Option("--output")],
+    providers: Annotated[Path | None, typer.Option("--providers")] = None,
 ) -> None:
     try:
+        if providers is not None:
+            load_provider_configuration(providers)
         value = LocalRunArtifacts().load_spec(spec)
         coordinator = DeterministicCoordinator()
         snapshot, events = coordinator.create(value)
