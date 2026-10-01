@@ -23,3 +23,6 @@ failure handling, blinding and aggregation only; they are not repair-effectivene
 Phase 12.5 inspected official benchmark metadata only. Zero task repositories were acquired or run,
 zero evaluators/profiles were qualified, and no external/live experiment was registered. Hypotheses and
 statistics remain proposed pending human review; Phase 13 remains blocked.
+Phase 12.6 registered a resource-constrained qualification run, not a repair-effectiveness experiment.
+PySnooper-2 reproduced stably and its evaluator qualified; PySnooper-1 did not reproduce. No model
+patch, provider call, outcome comparison or scientific claim was produced.

@@ -10,3 +10,8 @@ real architecture analysis; human-reviewed frozen profiles; reviewed/frozen hypo
 details; dated provider pricing/cost ceilings; infrastructure pilot; and verified Linux x86_64 evidence.
 Current Darwin ARM64 observations cannot satisfy the platform gate. No final split is frozen and no
 final scientific claim exists.
+
+Phase 12.6 adds one stable evaluator-qualified BugsInPy task and one review-required profile draft.
+This is useful infrastructure evidence but is insufficient for Phase 13: the profile is partial and
+unreviewed, SWE-bench was not executed, protocol decisions remain proposed, benchmark-family coverage
+is inadequate, and native Linux x86_64 execution remains unverified.

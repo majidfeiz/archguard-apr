@@ -14,7 +14,7 @@ pytestmark = pytest.mark.integration
     [
         ("/health", {"status": "ok"}),
         ("/ready", {"status": "ready"}),
-        ("/version", {"version": "0.12.5"}),
+        ("/version", {"version": "0.12.6"}),
     ],
 )
 def test_endpoints(path: str, expected: dict[str, str]) -> None:
