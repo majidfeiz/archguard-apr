@@ -1,0 +1,49 @@
+name: External benchmark smoke (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      benchmark:
+        description: Official adapter to exercise
+        type: choice
+        options: [bugsinpy, swe-bench-verified]
+        required: true
+      task_ids:
+        description: Explicit comma-separated task IDs (never use all)
+        type: string
+        required: true
+      platform:
+        description: Declared execution architecture
+        type: choice
+        options: [linux-x86_64]
+        required: true
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TASK_IDS: ${{ inputs.task_ids }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          python-version: "3.12"
+      - run: uv sync --frozen
+      - name: Require bounded explicit selection
+        run: |
+          test -n "$TASK_IDS"
+          test "$(printf '%s' "$TASK_IDS" | tr ',' '\n' | wc -l)" -le 20
+      - name: Record source-free provenance
+        run: |
+          mkdir -p safe-artifacts
+          printf '{"benchmark":"%s","platform":"%s","task_selection_supplied":true,"external_adapter_status":"not_implemented","gold_uploaded":false}\n' \
+            '${{ inputs.benchmark }}' '${{ inputs.platform }}' > safe-artifacts/provenance.json
+      - name: Verify compatible offline shape only
+        run: uv run python scripts/benchmark_fixture_demo.py --fixture ${{ inputs.benchmark == 'bugsinpy' && 'bugsinpy-compatible' || 'swe-bench-compatible' }} --output safe-artifacts/fixture.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-free-benchmark-smoke
+          path: safe-artifacts/*.json
+          retention-days: 7

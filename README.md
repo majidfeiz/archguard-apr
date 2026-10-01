@@ -8,8 +8,11 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.10.0 adds the deterministic iterative multi-candidate repair-loop contracts, protected
-prechecks, lineage, feedback and evidence-only selection. Version 0.9.0 added secure OpenAI Responses
+Version 0.11.0 adds an immutable benchmark metadata pipeline, deterministic eligibility and splits,
+verified offline caches, gold quarantine boundaries, and source-free fixtures. It supports BugsInPy
+and SWE-bench Verified metadata shapes, but no external instance was acquired or verified. Version
+0.10.0 added deterministic iterative multi-candidate repair-loop contracts, protected prechecks,
+lineage, feedback and evidence-only selection. Version 0.9.0 added secure OpenAI Responses
 and Anthropic Messages adapters. Version 0.8.0 added
 provider-neutral typed repair orchestration, bounded budgets, hash-chained events,
 verified checkpoints, deterministic replay/ranking, scripted agents and explicit human gates.
@@ -109,6 +112,18 @@ Candidates and issue text are untrusted. Model assertions are never validation e
 uses only recorded applicability, architecture, sandbox execution, test-preservation and cleanup
 evidence. Selected tests do not prove complete correctness, and Phase 10 performs no deployment.
 
+Validate Phase 11 fixture metadata and run offline shape checks:
+
+```bash
+uv run archguard benchmark registry validate --registry configs/benchmarks.fixture.yaml
+uv run archguard benchmark registry inspect --registry configs/benchmarks.fixture.yaml
+uv run python scripts/benchmark_fixture_demo.py --fixture synthetic --output /tmp/benchmark.json
+```
+
+Acquisition is always explicit and outside tracked paths. Ordinary imports, tests and CI make no
+benchmark network request. See [benchmark CLI](docs/benchmark-cli.md), [strategy](docs/research/benchmark-strategy.md)
+and [gold quarantine](docs/research/gold-patch-quarantine.md).
+
 ```bash
 make install
 make check
@@ -142,8 +157,9 @@ benchmark checkouts out of Git and never expose gold patches to repair context.
 7. Completed: Docker-only execution feedback and functional validation.
 8. Completed: provider-neutral multi-agent orchestration and deterministic replay.
 9. Completed: secure API provider adapters.
-10. Current: iterative candidate/refinement control and deterministic evidence selection; benchmark
-    evaluation remains future work.
+10. Completed: iterative candidate/refinement control and deterministic evidence selection.
+11. Current: reproducible benchmark metadata, dataset policy, and gold-patch quarantine. External
+    acquisition, pilot studies, and final scientific experiments remain future work.
 
 See [protocol](docs/research/research-protocol.md), [questions](docs/research/research-questions.md)
 and [registry](docs/research/experiment-registry.md). Smoke configuration is metadata only.

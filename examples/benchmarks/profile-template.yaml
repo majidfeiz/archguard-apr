@@ -1,0 +1,8 @@
+schema: archguard.architecture-profile/v1
+profile_id: replace-after-pre-outcome-review
+profile_version: "1"
+description: Template only; do not infer undocumented intent.
+source_roots: [src]
+classifications: []
+constraints: []
+# Record author, reviewer, rationale, task exceptions, coverage and unassigned modules separately.
