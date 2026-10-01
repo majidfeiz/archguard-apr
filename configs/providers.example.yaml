@@ -1,0 +1,20 @@
+schema_version: archguard.provider-config/v1
+providers:
+  - provider: openai
+    model: ${OPENAI_MODEL}
+    structured_output_mode: strict_json_schema
+    model_allowlist: ["${OPENAI_MODEL}"]
+  - provider: anthropic
+    model: ${ANTHROPIC_MODEL}
+    structured_output_mode: forced_tool
+    model_allowlist: ["${ANTHROPIC_MODEL}"]
+role_to_provider:
+  context_analyst: openai
+  repair_planner: openai
+  patch_proposer: anthropic
+  architecture_reviewer: openai
+  execution_reviewer: anthropic
+  candidate_ranker: openai
+live_execution_enabled: false
+prompt_logging_enabled: false
+response_logging_enabled: false

@@ -11,3 +11,5 @@ Phase 7 records controlled engineering checks only: plan/image/revision fingerpr
 identities, delta counts, output bounds and cleanup. They are not empirical repair-effectiveness data.
 Phase 8 demonstrations exercise scripted orchestration mechanisms only. Record run-spec, event-chain,
 checkpoint and candidate fingerprints; do not report them as agent or repair effectiveness results.
+Phase 9 fake/recorded transport responses and opt-in live smoke tests are engineering checks, not
+experiments. No repair-performance result is registered or claimed.

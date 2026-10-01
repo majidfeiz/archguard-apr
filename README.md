@@ -8,7 +8,8 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.8.0 adds provider-neutral typed repair orchestration, bounded budgets, hash-chained events,
+Version 0.9.0 adds secure OpenAI Responses and Anthropic Messages adapters. Version 0.8.0 added
+provider-neutral typed repair orchestration, bounded budgets, hash-chained events,
 verified checkpoints, deterministic replay/ranking, scripted agents and explicit human gates.
 Version 0.7.0 added Docker-only execution feedback, trusted digest-pinned plans, pytest/JUnit evidence,
 deterministic functional deltas and combined architecture/functional gates. Version 0.6.0 added
@@ -18,8 +19,9 @@ candidate patch validation and deterministic before/after architecture
 comparison. Version 0.4.0 added explicit versioned architecture profiles and conformance evaluation
 against validated repository graphs. Four typed rules, canonical profile/report artifacts and CLI
 workflows are implemented. Self-hosting CI checks ArchGuard's declared dependency boundaries.
-Inference, patch comparison, LLM calls, agents and automated repair are **not implemented**.
-Codex, Claude Code, MCP, IDE and GitHub Action product integrations remain **planned**.
+Phase 9 adds secure direct OpenAI Responses and Anthropic Messages API adapters with offline contract
+tests. Provider inference is nondeterministic and no repair-performance result is claimed. Codex CLI,
+Claude Code, MCP, IDE and GitHub Action product integrations remain **planned**.
 No repair effectiveness or scientific performance result is claimed.
 
 ## Architecture and layout
@@ -71,12 +73,26 @@ invalid configuration or metadata exits 2. Experiment validation never runs a be
 
 Precedence: environment variables > current-directory `.env` > explicit YAML/constructor values >
 defaults. Prefix: `ARCHGUARD_`. See `.env.example` and `configs/app.example.yaml`.
-Unknown fields fail. No API key is required or reserved. Provider execution must remain false
-in Phase 4. Provider/model names are optional metadata. Application directories can be absolute;
+Unknown fields fail. Provider credentials are read only from `OPENAI_API_KEY` and
+`ANTHROPIC_API_KEY`; never put them in configuration or CLI arguments. Provider/model names are
+optional metadata. Application directories can be absolute;
 artifact and experiment output references must be relative POSIX paths without parent traversal.
 Lexical path validation does not provide symlink containment or an execution sandbox.
 
 ## Quality and Docker
+
+Provider configuration is offline-validatable. Doctor never makes a paid request:
+
+```bash
+OPENAI_MODEL=your-allowed-model ANTHROPIC_MODEL=your-allowed-model \
+  uv run archguard provider config validate --config configs/providers.example.yaml
+uv run archguard provider doctor --provider openai --config providers.yaml
+```
+
+API access is separate from consumer subscriptions, model access varies by account, and usage may
+incur costs. Live smoke tests are opt-in. Structured output guarantees structure, not correctness;
+Phase 5 architecture and Phase 7 sandboxed execution remain mandatory gates. See
+[provider integration](docs/providers/overview.md).
 
 ```bash
 make install
@@ -109,8 +125,8 @@ benchmark checkouts out of Git and never expose gold patches to repair context.
 5. Completed: isolated patch and architecture-delta validation.
 6. Completed: deterministic graph context retrieval.
 7. Completed: Docker-only execution feedback and functional validation.
-8. Current: provider-neutral multi-agent orchestration and deterministic replay.
-9. Later: real provider adapters and controlled evaluation.
+8. Completed: provider-neutral multi-agent orchestration and deterministic replay.
+9. Current: secure API provider adapters; controlled repair evaluation remains future work.
 
 See [protocol](docs/research/research-protocol.md), [questions](docs/research/research-questions.md)
 and [registry](docs/research/experiment-registry.md). Smoke configuration is metadata only.

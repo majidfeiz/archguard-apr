@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0
+
+- Add secure OpenAI Responses and Anthropic Messages adapters behind provider-neutral contracts.
+- Add strict configuration, capabilities, normalized errors, usage, bounded retry and redaction.
+- Add deterministic injection-resistant prompts, provider CLI, offline tests and provider guidance.
+
 ## 0.8.0
 
 - Add typed provider-neutral roles, capabilities, run/candidate state machines and bounded budgets.

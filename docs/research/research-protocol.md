@@ -1,8 +1,9 @@
 # Preliminary research protocol
 
-Phase 8 demonstrations use deterministic scripted agents and controlled fixtures. They verify state,
-budget, integrity and replay mechanisms, not LLM repair performance. Provider identity, stochastic
-settings and monetary cost remain out of scope until Phase 9.
+Phase 9 adds direct API adapters and offline provider-contract demonstrations. They verify integration,
+security and replay mechanisms, not LLM repair performance. Live inference is nondeterministic; record
+provider/model, reported raw usage, attempt identity, configuration and price-table provenance. Never
+present estimated cost as measured usage or provider output as scientific evidence.
 
 ## 1. Working title
 

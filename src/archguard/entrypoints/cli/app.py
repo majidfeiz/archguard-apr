@@ -13,6 +13,7 @@ from archguard.entrypoints.cli.context import app as context_app
 from archguard.entrypoints.cli.execution import app as execution_app
 from archguard.entrypoints.cli.graph import app as graph_app
 from archguard.entrypoints.cli.patch import app as patch_app
+from archguard.entrypoints.cli.provider import app as provider_app
 from archguard.entrypoints.cli.repair import app as repair_app
 from archguard.entrypoints.cli.repository import app as repository_app
 from archguard.infrastructure.config import Settings, load_settings, read_yaml
@@ -28,6 +29,7 @@ app.add_typer(patch_app, name="patch")
 app.add_typer(context_app, name="context")
 app.add_typer(execution_app, name="execution")
 app.add_typer(repair_app, name="repair")
+app.add_typer(provider_app, name="provider")
 config_app = typer.Typer()
 experiment_app = typer.Typer()
 app.add_typer(config_app, name="config")

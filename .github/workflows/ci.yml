@@ -48,6 +48,8 @@ jobs:
       - run: '! grep -F "def item_names" /tmp/context-bundle-create.txt /tmp/context-bundle-inspect.txt'
       - run: make context-self
       - run: uv run pytest tests/unit/test_orchestration.py --no-cov
+      - run: uv run pytest tests/unit/test_providers.py tests/integration/test_provider_cli.py --no-cov
+      - run: OPENAI_MODEL=offline-openai ANTHROPIC_MODEL=offline-anthropic uv run archguard provider config validate --config configs/providers.example.yaml
       - run: uv run python scripts/orchestration_demo.py --spec examples/repair/run-spec.yaml --output /tmp/orchestration-one
       - run: uv run python scripts/orchestration_demo.py --spec examples/repair/run-spec.yaml --output /tmp/orchestration-two
       - run: diff -rq /tmp/orchestration-one /tmp/orchestration-two
