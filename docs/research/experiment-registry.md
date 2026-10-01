@@ -15,3 +15,5 @@ Phase 9 fake/recorded transport responses and opt-in live smoke tests are engine
 experiments. No repair-performance result is registered or claimed.
 Phase 10's three-candidate controlled fixture is also an engineering verification, not a registered
 experiment. No benchmark, ablation, statistical result or comparative effectiveness claim exists.
+Phase 11 registry and benchmark-shaped fixtures are pipeline checks only. No BugsInPy or SWE-bench
+instance was acquired, no task was externally eligible, and no pilot or final experiment is registered.

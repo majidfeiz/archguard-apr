@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.0
+
+- Add immutable benchmark registry, task, snapshot, split, leakage and experiment-plan contracts.
+- Add deterministic eligibility/sampling, gold-boundary checks, verified offline caches and explicit
+  acquisition/evaluator ports.
+- Add source-free fixtures, benchmark CLI, tests, research policies, licensing records and offline CI.
+- External BugsInPy and SWE-bench instances were not acquired or verified in this phase.
+
 ## 0.10.0
 
 - Add immutable repair-task, patch-candidate, feedback, lineage, evidence, and result contracts.

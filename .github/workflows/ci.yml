@@ -19,7 +19,15 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run mypy src tests
+      - run: uv run pre-commit run --all-files
       - run: uv run pytest -m "not docker"
+      - run: uv run pytest tests/unit/test_benchmark_pipeline.py tests/integration/test_benchmark_cli.py tests/integration/test_benchmark_fixture_demo.py --no-cov
+      - run: uv run archguard benchmark registry validate --registry configs/benchmarks.fixture.yaml
+      - run: uv run python scripts/benchmark_fixture_demo.py --fixture synthetic --output /tmp/benchmark-synthetic-one.json
+      - run: uv run python scripts/benchmark_fixture_demo.py --fixture synthetic --output /tmp/benchmark-synthetic-two.json
+      - run: cmp /tmp/benchmark-synthetic-one.json /tmp/benchmark-synthetic-two.json
+      - run: uv run python scripts/benchmark_fixture_demo.py --fixture bugsinpy-compatible --output /tmp/benchmark-bugsinpy.json
+      - run: uv run python scripts/benchmark_fixture_demo.py --fixture swe-bench-compatible --output /tmp/benchmark-swebench.json
       - run: uv run pytest tests/integration/test_patch_cli.py tests/integration/test_patch_worktree.py --no-cov
       - run: uv run archguard repository analyze examples/python/simple-layered-app --source-root src --output /tmp/archguard-analysis.json
       - run: uv run archguard repository inspect /tmp/archguard-analysis.json
@@ -68,7 +76,7 @@ jobs:
           python-version: "3.12"
       - run: uv sync --frozen
       - run: docker compose config
-      - run: docker build -t archguard-apr:phase-8 .
+      - run: docker build -t archguard-apr:phase-11 .
       - run: docker build -f Dockerfile.validation -t archguard-validation:phase-7 .
       - name: Docker sandbox isolation and timeout smoke
         run: |

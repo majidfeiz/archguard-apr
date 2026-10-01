@@ -1,0 +1,21 @@
+schema: archguard.benchmark-registry/v1
+entries:
+  - benchmark_id: synthetic-fixture
+    kind: synthetic
+    benchmark_version: "1"
+    upstream_source: https://github.com/majidfeiz/archguard-apr
+    upstream_revision: be753459cc1e0296fb5d008d191dbaee8b77a580
+    citation: ArchGuard-APR controlled engineering fixture; not an external benchmark.
+    license_identifier: Apache-2.0
+    license_source: https://github.com/majidfeiz/archguard-apr/blob/main/LICENSE
+    redistribution_status: allowed
+    adapter_version: "1"
+    declared_task_count: 3
+    supported_languages: [python]
+    supported_platforms: [arm64, x86_64]
+    acquisition_policy: offline_cache_only
+    integrity_policy: sha256
+    gold_artifact_policy: quarantined
+    cache_policy: atomic_offline
+    evaluator_policy: trusted_source_free
+    known_limitations: [fixture_only]
