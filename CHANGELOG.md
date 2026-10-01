@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0
+
+- Add immutable repair-task, patch-candidate, feedback, lineage, evidence, and result contracts.
+- Add strict patch normalization, protected-path/validation prechecks, duplicate detection, and
+  evidence-only deterministic selection.
+- Add an evented repair-loop state machine, task CLI, scripted refinement demonstration, tests,
+  architecture decision, security policy, and reproducibility documentation.
+
 ## 0.9.0
 
 - Add secure OpenAI Responses and Anthropic Messages adapters behind provider-neutral contracts.

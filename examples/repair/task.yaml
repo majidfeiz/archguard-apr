@@ -1,0 +1,31 @@
+schema: archguard.repair-task/v1
+task_id: controlled-fixture
+repository: examples/python/simple-layered-app
+baseline_revision: 498d720971669b0753a030c937c27afc9cdf64b2
+problem_statement: "Untrusted fixture report: item_names returns an incorrect value."
+failing_tests: [tests/test_service.py::test_item_names]
+target_tests: [tests/test_service.py::test_item_names]
+regression_scope: [tests]
+architecture_profile: {kind: architecture_profile, sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+repository_graph: {kind: repository_graph, sha256: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}
+execution_plan: {kind: execution_plan, sha256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc}
+patch_policy:
+  allowed_patterns: ["src/**/*.py"]
+  protected_paths: ["src/demo/__init__.py"]
+  maximum_changed_files: 2
+  maximum_added_lines: 20
+  maximum_deleted_lines: 20
+  maximum_patch_bytes: 8192
+budget:
+  rounds: 3
+  candidates_per_round: 2
+  total_candidates: 5
+  provider_invocations: 5
+  validations: 4
+  input_units: 10000
+  output_units: 5000
+provider_policy: offline-scripted
+diversity_intents: [minimal_local_fix, data_validation_correction]
+acceptance:
+  first_success: true
+human_approval_required: false

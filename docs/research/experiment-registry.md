@@ -13,3 +13,5 @@ Phase 8 demonstrations exercise scripted orchestration mechanisms only. Record r
 checkpoint and candidate fingerprints; do not report them as agent or repair effectiveness results.
 Phase 9 fake/recorded transport responses and opt-in live smoke tests are engineering checks, not
 experiments. No repair-performance result is registered or claimed.
+Phase 10's three-candidate controlled fixture is also an engineering verification, not a registered
+experiment. No benchmark, ablation, statistical result or comparative effectiveness claim exists.

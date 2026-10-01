@@ -18,14 +18,52 @@ from archguard.domain.orchestration import (
 from archguard.entrypoints.cli.graph import emit
 from archguard.infrastructure.orchestration import LocalRunArtifacts
 from archguard.infrastructure.providers.configuration import load_provider_configuration
+from archguard.infrastructure.repair import load_repair_task
 
 app = typer.Typer(no_args_is_help=True)
 run_app = typer.Typer(no_args_is_help=True)
 candidate_app = typer.Typer(no_args_is_help=True)
 decision_app = typer.Typer(no_args_is_help=True)
+task_app = typer.Typer(no_args_is_help=True)
 app.add_typer(run_app, name="run")
 app.add_typer(candidate_app, name="candidate")
 app.add_typer(decision_app, name="decision")
+app.add_typer(task_app, name="task")
+
+
+@task_app.command("validate")
+def validate_task(task: Annotated[Path, typer.Option("--task")]) -> None:
+    try:
+        value = load_repair_task(task)
+        emit(
+            {
+                "status": "valid",
+                "task_id": value.task_id,
+                "task_fingerprint": value.task_fingerprint,
+            }
+        )
+    except (ValueError, OSError):
+        fail(2, "invalid_repair_task")
+
+
+@task_app.command("inspect")
+def inspect_task(task: Annotated[Path, typer.Option("--task")]) -> None:
+    try:
+        value = load_repair_task(task)
+        emit(
+            {
+                "task_id": value.task_id,
+                "baseline_revision": value.baseline_revision,
+                "task_fingerprint": value.task_fingerprint,
+                "failing_test_count": len(value.failing_tests),
+                "target_test_count": len(value.target_tests),
+                "maximum_rounds": value.budget.rounds,
+                "maximum_total_candidates": value.budget.total_candidates,
+                "human_approval_required": value.human_approval_required,
+            }
+        )
+    except (ValueError, OSError):
+        fail(2, "invalid_repair_task")
 
 
 def fail(code: int, diagnostic: str) -> Never:
