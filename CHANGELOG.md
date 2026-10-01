@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.5
+
+- Add external benchmark readiness stages, acquisition containment, license/reproduction/profile-review
+  contracts, deterministic selection, quarantine scans and non-forgeable readiness status.
+- Record verified official framework/dataset revisions and actual unresolved licensing/platform gates.
+- Add offline CLI/tests, review proposals, Linux/x86 requirements and manual infrastructure workflow.
+- No task repository, dataset payload, paid provider run, human approval or final evaluation is claimed.
+
 ## 0.12.0
 
 - Add frozen C0–C6 baseline/ablation configurations and machine-verifiable comparison fairness.

@@ -1,0 +1,96 @@
+schema: archguard.external-readiness/v1
+gates:
+  - gate_id: acquisition
+    stage: STAGE_B_ACQUISITION
+    required: true
+    status: blocked
+    evidence: []
+    blocker_reason: No real task repository has been selected or acquired.
+    reviewer_required: false
+    platform_requirement: null
+    remediation: Select eligible tasks after license and resource review, then acquire immutable revisions outside Git.
+  - gate_id: external-pilot
+    stage: STAGE_H_EXTERNAL_PILOT
+    required: true
+    status: blocked
+    evidence: []
+    blocker_reason: No real-task infrastructure pilot has been executed.
+    reviewer_required: false
+    platform_requirement: linux-x86_64
+    remediation: Run the frozen infrastructure-only pilot on the qualified Linux x86_64 host.
+  - gate_id: human-review
+    stage: STAGE_G_HUMAN_REVIEW
+    required: true
+    status: review_required
+    evidence: []
+    blocker_reason: No external human has reviewed or approved an architecture profile.
+    reviewer_required: true
+    platform_requirement: null
+    remediation: Obtain dated profile decisions from Majid or an academic supervisor and validate their fingerprints.
+  - gate_id: license-audit
+    stage: STAGE_C_LICENSE_AUDIT
+    required: true
+    status: blocked
+    evidence: []
+    blocker_reason: BugsInPy framework and SWE-bench Verified dataset licensing remain unresolved, and no task-project licenses were audited.
+    reviewer_required: true
+    platform_requirement: null
+    remediation: Resolve authoritative benchmark and per-project licenses with human or legal review before task acquisition.
+  - gate_id: metadata
+    stage: STAGE_A_METADATA
+    required: true
+    status: passed
+    evidence:
+      - kind: external_metadata
+        sha256: 04e16d604b35b16d777c76048bbb7b274ec63e6cf6fb6c40702f7ceb4eb691c2
+        sensitivity: source_free
+    blocker_reason: null
+    reviewer_required: false
+    platform_requirement: null
+    remediation: Reverify immutable upstream revisions if the registry changes.
+  - gate_id: phase13-ready
+    stage: STAGE_J_PHASE13_READY
+    required: true
+    status: blocked
+    evidence: []
+    blocker_reason: Mandatory qualification, review, protocol-freeze, and Linux x86_64 gates remain unresolved.
+    reviewer_required: true
+    platform_requirement: linux-x86_64
+    remediation: Pass every preceding mandatory gate with independently verifiable evidence.
+  - gate_id: profile-drafting
+    stage: STAGE_F_PROFILE_DRAFTING
+    required: true
+    status: blocked
+    evidence: []
+    blocker_reason: No project is yet eligible for an evidence-based architecture-profile draft.
+    reviewer_required: false
+    platform_requirement: null
+    remediation: Draft profiles only after selected projects have reproducible analysis artifacts.
+  - gate_id: protocol-freeze
+    stage: STAGE_I_PROTOCOL_FREEZE
+    required: true
+    status: review_required
+    evidence: []
+    blocker_reason: Hypotheses, endpoints, statistical decisions, and cost ceilings are proposals awaiting human approval.
+    reviewer_required: true
+    platform_requirement: null
+    remediation: Record human approval and freeze the reviewed protocol without using pilot outcomes to choose methods.
+  - gate_id: real-analysis
+    stage: STAGE_E_ANALYSIS
+    required: true
+    status: blocked
+    evidence: []
+    blocker_reason: No reproducible real task exists for repository analysis and deterministic graph construction.
+    reviewer_required: false
+    platform_requirement: null
+    remediation: Analyze only validated reproducible task snapshots and compare byte-identical graph artifacts.
+  - gate_id: reproduction
+    stage: STAGE_D_REPRODUCTION
+    required: true
+    status: blocked
+    evidence: []
+    blocker_reason: No real buggy baseline or evaluator has been qualified.
+    reviewer_required: false
+    platform_requirement: linux-x86_64
+    remediation: Reproduce declared failures repeatedly and qualify the evaluator against controlled cases on Linux x86_64.
+overall_status: REVIEW_REQUIRED

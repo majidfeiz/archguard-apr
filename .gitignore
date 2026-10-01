@@ -20,6 +20,10 @@ secrets/
 tokens/
 model_outputs/
 benchmark_checkouts/
+benchmark-root/
+benchmark-cache/
+gold-quarantine/
+evaluator-only/
 workspaces/
 patches/
 !examples/patches/

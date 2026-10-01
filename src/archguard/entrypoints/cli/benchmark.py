@@ -6,6 +6,7 @@ from typing import Annotated, Never
 
 import typer
 
+from archguard.entrypoints.cli.external import app as external_app
 from archguard.infrastructure.benchmark import load_registry, load_snapshot, verify_cache
 
 app = typer.Typer(no_args_is_help=True)
@@ -17,6 +18,7 @@ app.add_typer(registry_app, name="registry")
 app.add_typer(cache_app, name="cache")
 app.add_typer(tasks_app, name="tasks")
 app.add_typer(task_app, name="task")
+app.add_typer(external_app, name="external")
 
 
 def emit(value: object) -> None:

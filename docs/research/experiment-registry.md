@@ -20,3 +20,6 @@ instance was acquired, no task was externally eligible, and no pilot or final ex
 Phase 12's four-task, C0–C6 repeated fixture is deterministic framework verification (Mode A), not an
 LLM or benchmark experiment. Modes B and C were not executed. Its known outcomes validate scheduling,
 failure handling, blinding and aggregation only; they are not repair-effectiveness observations.
+Phase 12.5 inspected official benchmark metadata only. Zero task repositories were acquired or run,
+zero evaluators/profiles were qualified, and no external/live experiment was registered. Hypotheses and
+statistics remain proposed pending human review; Phase 13 remains blocked.

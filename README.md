@@ -8,7 +8,10 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.12.0 adds controlled baseline and one-factor ablation definitions, comparison fairness,
+Version 0.12.5 adds external benchmark onboarding controls, source allowlists, external storage
+containment, license/reproduction/profile-review records, gold quarantine scans and non-forgeable
+Phase 13 readiness. Official metadata revisions were inspected, but no real task was qualified and
+Phase 13 remains blocked. Version 0.12.0 added controlled baseline and one-factor ablation definitions, comparison fairness,
 deterministic randomized-block scheduling, source-free run metrics and ledgers, blinding, descriptive
 pilot summaries, and an offline repeated experiment fixture. No live pilot or final scientific
 experiment was run. Version 0.11.0 added an immutable benchmark metadata pipeline, deterministic eligibility and splits,
@@ -60,6 +63,8 @@ uv run archguard config show
 uv run archguard config show --config configs/app.example.yaml
 uv run archguard experiment validate --config configs/experiments/smoke.yaml
 uv run archguard experiment plan validate --plan configs/experiments/phase12-plan.yaml
+uv run archguard benchmark external preflight \
+  --registry configs/benchmarks.external-metadata.yaml --output /tmp/external-preflight.json
 uv run uvicorn archguard.entrypoints.api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 

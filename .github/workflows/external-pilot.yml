@@ -2,23 +2,42 @@ name: External infrastructure pilot (manual)
 on:
   workflow_dispatch:
     inputs:
+      benchmark:
+        description: Official benchmark
+        required: true
+        type: choice
+        options: [bugsinpy, swe-bench-verified]
       task_ids:
         description: Explicit frozen PILOT task IDs (maximum 20)
         required: true
         type: string
+      cache_location:
+        description: Absolute untracked cache location on the controlled runner
+        required: true
+        type: string
+      acknowledge_network:
+        description: I authorize official-source network reads
+        required: true
+        type: boolean
       acknowledge_resources:
         description: I reviewed and accept the preflight resource bounds
         required: true
         type: boolean
+      max_storage_gb:
+        description: Maximum external cache allocation in GiB
+        required: true
+        type: number
 permissions:
   contents: read
 jobs:
   preflight:
-    if: ${{ inputs.acknowledge_resources }}
+    if: ${{ inputs.acknowledge_resources && inputs.acknowledge_network }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       TASK_IDS: ${{ inputs.task_ids }}
+      CACHE_LOCATION: ${{ inputs.cache_location }}
+      MAX_STORAGE_GB: ${{ inputs.max_storage_gb }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -27,11 +46,21 @@ jobs:
       - name: Enforce explicit bounded selection
         run: |
           test -n "$TASK_IDS"
+          test -n "$CACHE_LOCATION"
+          test "${CACHE_LOCATION#/}" != "$CACHE_LOCATION"
+          test "$MAX_STORAGE_GB" -gt 0
           test "$(printf '%s' "$TASK_IDS" | tr ',' '\n' | wc -l)" -le 20
+      - name: Report platform and resource ceiling
+        run: |
+          uname -a
+          uname -m
+          docker version
+          docker info
+          df -h "$CACHE_LOCATION" || df -h "$(dirname "$CACHE_LOCATION")"
       - run: uv run pytest tests/unit/test_experiment_framework.py --no-cov
       - name: Record source-free readiness only
         run: |
           mkdir safe-artifacts
-          printf '{"mode":"external-pilot","authorized":true,"task_ids_supplied":true,"provider_calls":0,"evaluation_split_access":false}\n' > safe-artifacts/preflight.json
+          printf '{"mode":"external-pilot","benchmark":"%s","network_acknowledged":true,"task_ids_supplied":true,"max_storage_gb":%s,"timeout_minutes":30,"provider_calls":0,"evaluation_split_access":false}\n' '${{ inputs.benchmark }}' "$MAX_STORAGE_GB" > safe-artifacts/preflight.json
       - uses: actions/upload-artifact@v4
         with: {name: external-pilot-source-free-preflight, path: safe-artifacts/preflight.json, retention-days: 7}

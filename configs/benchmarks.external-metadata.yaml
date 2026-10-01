@@ -1,0 +1,23 @@
+schema: archguard.external-metadata/v1
+access_date: "2026-10-01"
+benchmarks:
+  - benchmark_id: bugsinpy
+    official_url: https://github.com/soarsmu/BugsInPy
+    framework_revision: 11c5f1eea954a42132cfd06bf257766a7963e0fd
+    observed_project_count: 17
+    observed_bug_record_count: 501
+    metadata_status: verified
+    framework_license_status: unresolved
+    framework_license_reason: No LICENSE file was present at the inspected revision.
+    checkout_classification: GOLD_QUARANTINED
+  - benchmark_id: swe-bench-verified
+    official_framework_url: https://github.com/SWE-bench/SWE-bench
+    framework_revision: 02e7a74ffd0b707aab73d203fe87bdc7c76afc8e
+    official_dataset_url: https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified
+    dataset_revision: 78f471bf655a3137b2e8a75af1501690ec009ec3
+    official_declared_task_count: 500
+    metadata_status: verified
+    framework_license: MIT
+    dataset_license_status: unresolved
+    payload_acquired: false
+    checkout_classification: AGENT_VISIBLE_FRAMEWORK_ONLY

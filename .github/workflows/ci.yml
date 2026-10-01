@@ -23,6 +23,8 @@ jobs:
       - run: uv run pytest -m "not docker"
       - run: uv run pytest tests/unit/test_benchmark_pipeline.py tests/integration/test_benchmark_cli.py tests/integration/test_benchmark_fixture_demo.py --no-cov
       - run: uv run pytest tests/unit/test_experiment_framework.py tests/integration/test_experiment_framework_cli.py --no-cov
+      - run: uv run pytest tests/unit/test_external_readiness.py tests/integration/test_external_readiness_cli.py --no-cov
+      - run: uv run archguard benchmark external preflight --registry configs/benchmarks.external-metadata.yaml --output /tmp/external-preflight.json
       - run: uv run python scripts/offline_experiment_demo.py --output /tmp/phase12-one
       - run: uv run python scripts/offline_experiment_demo.py --output /tmp/phase12-two
       - run: diff -rq /tmp/phase12-one /tmp/phase12-two
