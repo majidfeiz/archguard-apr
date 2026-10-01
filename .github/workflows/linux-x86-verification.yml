@@ -1,0 +1,156 @@
+name: Linux x86 Verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-x86-verification
+  cancel-in-progress: false
+
+jobs:
+  verify-linux-x86:
+    name: Ubuntu 24.04 x86_64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    env:
+      UV_FROZEN: "1"
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Verify Linux x86 environment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p verification-artifacts
+
+          {
+            echo "timestamp_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "architecture=$(uname -m)"
+            echo
+            echo "=== uname ==="
+            uname -a
+            echo
+            echo "=== CPU ==="
+            lscpu
+            echo
+            echo "=== memory ==="
+            free -h
+            echo
+            echo "=== disk ==="
+            df -h
+          } | tee verification-artifacts/linux-x86-environment.txt
+
+          test "$(uname -s)" = "Linux"
+          test "$(uname -m)" = "x86_64"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install Python
+        run: uv python install 3.12
+
+      - name: Synchronize dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen
+
+      - name: Record tool versions
+        shell: bash
+        run: |
+          {
+            echo "=== Python ==="
+            uv run python --version
+            echo
+            echo "=== uv ==="
+            uv --version
+            echo
+            echo "=== Docker ==="
+            docker version
+            echo
+            echo "=== Docker information ==="
+            docker info
+          } | tee verification-artifacts/tool-versions.txt
+
+      - name: Verify package and configuration
+        run: |
+          uv run archguard version
+          uv run archguard doctor
+          docker compose config
+
+      - name: Run formatting and lint checks
+        run: |
+          uv run ruff format --check .
+          uv run ruff check .
+
+      - name: Run type checking
+        run: uv run mypy src tests
+
+      - name: Run complete test suite
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run pytest 2>&1 | tee verification-artifacts/pytest-linux-x86.txt
+
+      - name: Build Python package
+        run: uv build
+
+      - name: Build application Docker image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker build \
+            --platform linux/amd64 \
+            --tag archguard-apr:linux-x86-ci \
+            .
+
+          docker image inspect archguard-apr:linux-x86-ci \
+            > verification-artifacts/docker-image-inspect.json
+
+      - name: Verify AMD64 container execution
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --platform linux/amd64 \
+            alpine:3.20 \
+            uname -m | tee verification-artifacts/container-architecture.txt
+
+          grep -Eq 'x86_64|amd64' \
+            verification-artifacts/container-architecture.txt
+
+      - name: Record final resources
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "=== final disk ==="
+            df -h
+            echo
+            echo "=== Docker disk usage ==="
+            docker system df
+          } | tee verification-artifacts/final-resources.txt
+
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: archguard-linux-x86-${{ github.run_id }}
+          path: verification-artifacts/
+          if-no-files-found: error
+          retention-days: 30
