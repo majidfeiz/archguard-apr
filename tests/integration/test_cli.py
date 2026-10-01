@@ -13,7 +13,7 @@ runner = CliRunner()
 def test_version() -> None:
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
-    assert result.stdout.strip() == "0.12.5"
+    assert result.stdout.strip() == "0.12.6"
 
 
 def test_config() -> None:

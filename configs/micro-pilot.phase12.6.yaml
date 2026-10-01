@@ -1,0 +1,49 @@
+schema: archguard.local-micro-pilot/v1
+status: QUALIFIED_WITH_LIMITATIONS
+started_date: "2026-10-01"
+completed_date: "2026-10-02"
+selection:
+  algorithm: eligible-lightweight-lexicographic/v1
+  seed: 12625
+  selected_tasks: [PySnooper-1, PySnooper-2]
+limits:
+  maximum_additional_disk_gib: 18
+  minimum_free_disk_gib: 7
+  maximum_network_download_gib: 5
+  maximum_unapproved_single_download_gib: 1
+  maximum_approved_single_download_gib: 3
+  maximum_benchmark_images: 2
+  maximum_bugsinpy_tasks: 2
+  maximum_swe_bench_tasks: 1
+  maximum_concurrency: 1
+  maximum_paid_provider_calls: 0
+observations:
+  initial_free_disk_gib: 51
+  final_free_disk_gib: 49
+  benchmark_root_usage_kib: 13164
+  docker_image_usage_initial_gb: 40.88
+  docker_image_usage_final_gb: 41.10
+  known_or_declared_transfer_bytes: 68528386
+  additional_rounded_pip_transfer_kb: 1421
+  registry_metadata_transfer: unmeasured
+  provider_calls: 0
+tasks:
+  - task_id: PySnooper-1
+    buggy_revision: e21a31162f4c54be693d8ca8260e42393b39abd3
+    license: MIT
+    baseline: NOT_REPRODUCIBLE
+    stability: NOT_REPRODUCIBLE
+    evaluator: NOT_QUALIFIED
+    reason: The fixed-revision evaluator test passed on the declared buggy revision in three runs.
+  - task_id: PySnooper-2
+    buggy_revision: e21a31162f4c54be693d8ca8260e42393b39abd3
+    license: MIT
+    baseline: REPRODUCED
+    stability: STABLE
+    evaluator: QUALIFIED
+    architecture_analysis: COMPLETE
+    profile_status: REVIEW_REQUIRED
+swe_bench:
+  metadata_revision: 78f471bf655a3137b2e8a75af1501690ec009ec3
+  execution: SKIPPED_RESOURCE_LIMIT
+  reason: No task image size could be bounded without acquiring gold-bearing dataset payload; dataset license also remains unresolved.

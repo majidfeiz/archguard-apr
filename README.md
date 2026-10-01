@@ -8,7 +8,9 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.12.5 adds external benchmark onboarding controls, source allowlists, external storage
+Version 0.12.6 adds a strict low-resource local micro-pilot: two real BugsInPy tasks were attempted,
+one stable task/evaluator qualified, and its architecture profile remains review-required. No paid
+provider or SWE-bench task ran, and Phase 13 remains blocked. Version 0.12.5 added external benchmark onboarding controls, source allowlists, external storage
 containment, license/reproduction/profile-review records, gold quarantine scans and non-forgeable
 Phase 13 readiness. Official metadata revisions were inspected, but no real task was qualified and
 Phase 13 remains blocked. Version 0.12.0 added controlled baseline and one-factor ablation definitions, comparison fairness,

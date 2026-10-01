@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.6
+
+- Qualify one stable real BugsInPy micro-pilot task under strict disk/network/provider limits.
+- Add fail-closed local resource preflight contracts, a source-free evidence record and a
+  review-required PySnooper architecture-profile draft.
+- Record one non-reproducible task, evaluator adaptations, deterministic graph evidence, ARM/AMD64
+  Docker smoke results and the resource-limited SWE-bench skip without weakening Phase 13 gates.
+
 ## 0.12.5
 
 - Add external benchmark readiness stages, acquisition containment, license/reproduction/profile-review
