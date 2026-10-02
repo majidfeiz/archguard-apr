@@ -107,7 +107,7 @@ jobs:
           BUGGY_ROOT="${EXTERNAL_ROOT}/buggy"
           FIXED_ROOT="${EXTERNAL_ROOT}/fixed"
           mkdir -p "${EXTERNAL_ROOT}" "${EVALUATOR_ROOT}"
-          chmod 700 "${EXTERNAL_ROOT}" "${EVALUATOR_ROOT}"
+          chmod 755 "${EXTERNAL_ROOT}" "${EVALUATOR_ROOT}"
 
           git -c core.hooksPath=/dev/null clone --quiet --no-checkout --no-recurse-submodules https://github.com/soarsmu/BugsInPy.git "${FRAMEWORK_ROOT}"
           git -C "${FRAMEWORK_ROOT}" checkout --quiet --detach "${BUGSINPY_REVISION}"
@@ -134,7 +134,7 @@ jobs:
           assert exercise_custom_repr() == 10
           assert "foofoo!" in output.getvalue()
           PYTHON
-          chmod 0400 "${EVALUATOR_ROOT}/evaluate_custom_repr.py"
+          chmod 0444 "${EVALUATOR_ROOT}/evaluate_custom_repr.py"
           test "$(git -C "${BUGGY_ROOT}" rev-parse HEAD)" = "${PYSNOOPER_BUGGY_REVISION}"
           test "$(git -C "${FIXED_ROOT}" rev-parse HEAD)" = "${PYSNOOPER_FIXED_REVISION}"
 
@@ -182,7 +182,7 @@ jobs:
             RAW_LOG="$RUNNER_TEMP/buggy-${run}.log"
             CONTAINER_NAME="archguard-phase127-buggy-${run}"
             set +e
-            docker run --name "${CONTAINER_NAME}" --label archguard.phase=12.7 --platform linux/amd64 --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m --cpus 1 --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/source --volume "${BUGGY_ROOT}:/source:ro" --volume "${EVALUATOR_ROOT}:/evaluator:ro" "${EVALUATOR_IMAGE_ID}" python /evaluator/evaluate_custom_repr.py > "${RAW_LOG}" 2>&1
+            docker run --name "${CONTAINER_NAME}" --label archguard.phase=12.7 --platform linux/amd64 --user "$(id -u):$(id -g)" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m --cpus 1 --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/source --volume "${BUGGY_ROOT}:/source:ro" --volume "${EVALUATOR_ROOT}:/evaluator:ro" "${EVALUATOR_IMAGE_ID}" python /evaluator/evaluate_custom_repr.py > "${RAW_LOG}" 2>&1
             EXIT_CODE=$?
             set -e
             docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
@@ -193,8 +193,11 @@ jobs:
             FAILURE_LINE="$(grep -E '^TypeError:' "${RAW_LOG}" | tail -n 1 || true)"
             if [ -z "${FAILURE_LINE}" ]; then
               echo "Expected PySnooper-2 TypeError was not observed on run ${run}." >&2
-              echo "Observed exception classes:" >&2
-              grep -E '^[A-Za-z_][A-Za-z0-9_.]*(Error|Exception):' "${RAW_LOG}" | sed -E 's/:.*$//' | sort -u >&2 || true
+              echo "Sanitized evaluator diagnostic:" >&2
+              sed -E \
+                -e 's#(/home/runner/work/_temp|/tmp)/[^ :]+#<temporary-path>#g' \
+                -e 's#sha256:[0-9a-f]{64}#sha256:<redacted>#g' \
+                "${RAW_LOG}" | tail -n 80 >&2
               exit 1
             fi
             SIGNATURE="$(printf '%s' "${FAILURE_LINE}" | sha256sum | cut -d' ' -f1)"
@@ -217,10 +220,13 @@ jobs:
           set -euo pipefail
           CONTAINER_NAME="archguard-phase127-fixed"
           RAW_LOG="$RUNNER_TEMP/fixed.log"
-          if ! docker run --name "${CONTAINER_NAME}" --label archguard.phase=12.7 --platform linux/amd64 --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m --cpus 1 --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/source --volume "${FIXED_ROOT}:/source:ro" --volume "${EVALUATOR_ROOT}:/evaluator:ro" "${EVALUATOR_IMAGE_ID}" python /evaluator/evaluate_custom_repr.py > "${RAW_LOG}" 2>&1; then
+          if ! docker run --name "${CONTAINER_NAME}" --label archguard.phase=12.7 --platform linux/amd64 --user "$(id -u):$(id -g)" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m --cpus 1 --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/source --volume "${FIXED_ROOT}:/source:ro" --volume "${EVALUATOR_ROOT}:/evaluator:ro" "${EVALUATOR_IMAGE_ID}" python /evaluator/evaluate_custom_repr.py > "${RAW_LOG}" 2>&1; then
             docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
             echo "Trusted fixed control failed" >&2
-            grep -E '^[A-Za-z_][A-Za-z0-9_.]*(Error|Exception):' "${RAW_LOG}" | sed -E 's/:.*$//' | sort -u >&2 || true
+            sed -E \
+              -e 's#(/home/runner/work/_temp|/tmp)/[^ :]+#<temporary-path>#g' \
+              -e 's#sha256:[0-9a-f]{64}#sha256:<redacted>#g' \
+              "${RAW_LOG}" | tail -n 80 >&2
             exit 1
           fi
           docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
