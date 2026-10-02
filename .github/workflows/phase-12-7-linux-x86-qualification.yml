@@ -164,7 +164,7 @@ jobs:
             RAW_LOG="$RUNNER_TEMP/buggy-${run}.log"
             CONTAINER_NAME="archguard-phase127-buggy-${run}"
             set +e
-            docker run --name "${CONTAINER_NAME}" --label archguard.phase=12.7 --platform linux/amd64 --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m --cpus 1 --env HOME=/tmp --env PIP_NO_CACHE_DIR=1 --volume "${BUGGY_ROOT}:/source:ro" "${EVALUATOR_IMAGE_ID}" bash -lc "cp -a /source /tmp/task && cd /tmp/task && pip install --no-deps . >/dev/null && pytest -q -s tests/test_pysnooper.py::test_custom_repr_single" > "${RAW_LOG}" 2>&1
+            docker run --name "${CONTAINER_NAME}" --label archguard.phase=12.7 --platform linux/amd64 --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m --cpus 1 --env HOME=/tmp --env PYTHONPATH=/tmp/task --volume "${BUGGY_ROOT}:/source:ro" "${EVALUATOR_IMAGE_ID}" bash -lc "cp -a /source /tmp/task && cd /tmp/task && pytest -q -s tests/test_pysnooper.py::test_custom_repr_single" > "${RAW_LOG}" 2>&1
             EXIT_CODE=$?
             set -e
             docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
@@ -194,7 +194,7 @@ jobs:
           set -euo pipefail
           CONTAINER_NAME="archguard-phase127-fixed"
           RAW_LOG="$RUNNER_TEMP/fixed.log"
-          if ! docker run --name "${CONTAINER_NAME}" --label archguard.phase=12.7 --platform linux/amd64 --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m --cpus 1 --env HOME=/tmp --env PIP_NO_CACHE_DIR=1 --volume "${FIXED_ROOT}:/source:ro" "${EVALUATOR_IMAGE_ID}" bash -lc "cp -a /source /tmp/task && cd /tmp/task && pip install --no-deps . >/dev/null && pytest -q -s tests/test_pysnooper.py::test_custom_repr_single" > "${RAW_LOG}" 2>&1; then
+          if ! docker run --name "${CONTAINER_NAME}" --label archguard.phase=12.7 --platform linux/amd64 --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m --cpus 1 --env HOME=/tmp --env PYTHONPATH=/tmp/task --volume "${FIXED_ROOT}:/source:ro" "${EVALUATOR_IMAGE_ID}" bash -lc "cp -a /source /tmp/task && cd /tmp/task && pytest -q -s tests/test_pysnooper.py::test_custom_repr_single" > "${RAW_LOG}" 2>&1; then
             docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
             echo "Trusted fixed control failed" >&2
             exit 1
