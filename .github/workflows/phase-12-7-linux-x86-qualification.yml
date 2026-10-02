@@ -114,10 +114,27 @@ jobs:
           test "$(git -C "${FRAMEWORK_ROOT}" rev-parse HEAD)" = "${BUGSINPY_REVISION}"
 
           git -c core.hooksPath=/dev/null clone --quiet --no-checkout --no-recurse-submodules https://github.com/cool-RR/PySnooper.git "${SOURCE_ROOT}"
-          git -C "${SOURCE_ROOT}" show "${PYSNOOPER_FIXED_REVISION}:tests/test_pysnooper.py" > "${EVALUATOR_ROOT}/test_pysnooper.py"
           git -C "${SOURCE_ROOT}" worktree add --quiet --detach "${BUGGY_ROOT}" "${PYSNOOPER_BUGGY_REVISION}"
           git -C "${SOURCE_ROOT}" worktree add --quiet --detach "${FIXED_ROOT}" "${PYSNOOPER_FIXED_REVISION}"
-          install -m 0600 "${EVALUATOR_ROOT}/test_pysnooper.py" "${BUGGY_ROOT}/tests/test_pysnooper.py"
+          cat > "${EVALUATOR_ROOT}/evaluate_custom_repr.py" <<'PYTHON'
+          import io
+
+          import pysnooper
+
+
+          output = io.StringIO()
+
+
+          @pysnooper.snoop(output, custom_repr=(list, lambda value: "foofoo!"))
+          def exercise_custom_repr():
+              values = list(range(10))
+              return len(values)
+
+
+          assert exercise_custom_repr() == 10
+          assert "foofoo!" in output.getvalue()
+          PYTHON
+          chmod 0400 "${EVALUATOR_ROOT}/evaluate_custom_repr.py"
           test "$(git -C "${BUGGY_ROOT}" rev-parse HEAD)" = "${PYSNOOPER_BUGGY_REVISION}"
           test "$(git -C "${FIXED_ROOT}" rev-parse HEAD)" = "${PYSNOOPER_FIXED_REVISION}"
 
@@ -132,6 +149,7 @@ jobs:
           } > phase-12-7-evidence/acquisition-proof.txt
           {
             echo "EXTERNAL_ROOT=${EXTERNAL_ROOT}"
+            echo "EVALUATOR_ROOT=${EVALUATOR_ROOT}"
             echo "BUGGY_ROOT=${BUGGY_ROOT}"
             echo "FIXED_ROOT=${FIXED_ROOT}"
           } >> "$GITHUB_ENV"
@@ -142,7 +160,7 @@ jobs:
           set -euo pipefail
           cat > "$RUNNER_TEMP/Dockerfile.phase12.7-evaluator" <<'DOCKERFILE'
           FROM python:3.8.1
-          RUN pip install --no-cache-dir pytest==7.4.4 python_toolbox==1.3.2 six==1.15.0
+          RUN pip install --no-cache-dir six==1.15.0
           WORKDIR /task
           DOCKERFILE
           docker build --platform linux/amd64 --file "$RUNNER_TEMP/Dockerfile.phase12.7-evaluator" --tag archguard-pysnooper-evaluator:phase-12-7 "$RUNNER_TEMP"
@@ -164,7 +182,7 @@ jobs:
             RAW_LOG="$RUNNER_TEMP/buggy-${run}.log"
             CONTAINER_NAME="archguard-phase127-buggy-${run}"
             set +e
-            docker run --name "${CONTAINER_NAME}" --label archguard.phase=12.7 --platform linux/amd64 --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m --cpus 1 --env HOME=/tmp --env PYTHONPATH=/tmp/task --volume "${BUGGY_ROOT}:/source:ro" "${EVALUATOR_IMAGE_ID}" bash -lc "cp -a /source /tmp/task && cd /tmp/task && pytest -q -s tests/test_pysnooper.py::test_custom_repr_single" > "${RAW_LOG}" 2>&1
+            docker run --name "${CONTAINER_NAME}" --label archguard.phase=12.7 --platform linux/amd64 --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m --cpus 1 --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/source --volume "${BUGGY_ROOT}:/source:ro" --volume "${EVALUATOR_ROOT}:/evaluator:ro" "${EVALUATOR_IMAGE_ID}" python /evaluator/evaluate_custom_repr.py > "${RAW_LOG}" 2>&1
             EXIT_CODE=$?
             set -e
             docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
@@ -172,8 +190,13 @@ jobs:
               echo "Buggy baseline unexpectedly passed on run ${run}" >&2
               exit 1
             fi
-            FAILURE_LINE="$(grep -E 'TypeError(:.*)?$' "${RAW_LOG}" | tail -n 1 || true)"
-            test -n "${FAILURE_LINE}"
+            FAILURE_LINE="$(grep -E '^TypeError:' "${RAW_LOG}" | tail -n 1 || true)"
+            if [ -z "${FAILURE_LINE}" ]; then
+              echo "Expected PySnooper-2 TypeError was not observed on run ${run}." >&2
+              echo "Observed exception classes:" >&2
+              grep -E '^[A-Za-z_][A-Za-z0-9_.]*(Error|Exception):' "${RAW_LOG}" | sed -E 's/:.*$//' | sort -u >&2 || true
+              exit 1
+            fi
             SIGNATURE="$(printf '%s' "${FAILURE_LINE}" | sha256sum | cut -d' ' -f1)"
             echo "run=${run} exit_code=${EXIT_CODE} exception=TypeError signature_sha256=${SIGNATURE}" >> phase-12-7-evidence/buggy-run-signatures.txt
             rm -f "${RAW_LOG}"
@@ -194,9 +217,10 @@ jobs:
           set -euo pipefail
           CONTAINER_NAME="archguard-phase127-fixed"
           RAW_LOG="$RUNNER_TEMP/fixed.log"
-          if ! docker run --name "${CONTAINER_NAME}" --label archguard.phase=12.7 --platform linux/amd64 --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m --cpus 1 --env HOME=/tmp --env PYTHONPATH=/tmp/task --volume "${FIXED_ROOT}:/source:ro" "${EVALUATOR_IMAGE_ID}" bash -lc "cp -a /source /tmp/task && cd /tmp/task && pytest -q -s tests/test_pysnooper.py::test_custom_repr_single" > "${RAW_LOG}" 2>&1; then
+          if ! docker run --name "${CONTAINER_NAME}" --label archguard.phase=12.7 --platform linux/amd64 --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m --cpus 1 --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/source --volume "${FIXED_ROOT}:/source:ro" --volume "${EVALUATOR_ROOT}:/evaluator:ro" "${EVALUATOR_IMAGE_ID}" python /evaluator/evaluate_custom_repr.py > "${RAW_LOG}" 2>&1; then
             docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
             echo "Trusted fixed control failed" >&2
+            grep -E '^[A-Za-z_][A-Za-z0-9_.]*(Error|Exception):' "${RAW_LOG}" | sed -E 's/:.*$//' | sort -u >&2 || true
             exit 1
           fi
           docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
