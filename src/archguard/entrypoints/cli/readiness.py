@@ -8,6 +8,7 @@ import typer
 
 from archguard.application.services.readiness import aggregate_readiness, validate_human_decision
 from archguard.infrastructure.phase127_evidence import import_phase127_zip, validate_phase127_zip
+from archguard.infrastructure.phase128a_artifacts import validate_phase128a_artifacts
 from archguard.infrastructure.readiness_artifacts import load_human_decision, load_json
 
 app = typer.Typer(no_args_is_help=True)
@@ -71,3 +72,12 @@ def gate(facts: Annotated[Path, typer.Option("--facts")]) -> None:
     emit(result)
     if not result["phase_13_ready"]:
         raise typer.Exit(4)
+
+
+@app.command("phase128a-validate")
+def phase128a_validate(root: Annotated[Path, typer.Option("--root")] = Path("research")) -> None:
+    """Validate source-free Phase 12.8A artifacts without external execution."""
+    try:
+        emit(validate_phase128a_artifacts(root))
+    except (OSError, ValueError, json.JSONDecodeError):
+        fail("INVALID_PHASE_12_8A_ARTIFACT")

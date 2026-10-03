@@ -1,0 +1,9 @@
+{
+  "amends": "archguard.confirmatory-protocol/v1",
+  "final_population": "Not frozen; target at least 30 and preferably 50+ eligible tasks subject to prospective power and resource review.",
+  "fingerprint": "d61128091dbf33a85d5e4c71fe77b0dee91cae59a2e0c7e70a59fe7cf2a53d59",
+  "pilot_population": "4-6 tasks across at least two projects; feasibility only and excluded from confirmatory claims unless prospectively approved.",
+  "power_analysis": "research/power/phase-12.8a-power-design.json",
+  "schema": "archguard.confirmatory-protocol/v2-proposed",
+  "status": "PROPOSED_REVIEW_REQUIRED"
+}

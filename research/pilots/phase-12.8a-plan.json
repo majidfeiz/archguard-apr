@@ -1,0 +1,25 @@
+{
+  "fingerprint": "8de8cffb335e5a26aa7ee0bcce35e2ba92149554d86dcbc4729f83c897566e70",
+  "limits": {
+    "external_material_bytes": 2147483648,
+    "maximum_concurrency": 1,
+    "maximum_new_docker_bytes": 8589934592,
+    "maximum_tasks": 6,
+    "minimum_free_bytes": 4294967296,
+    "per_task_timeout_minutes": 30,
+    "total_job_timeout_minutes": 180
+  },
+  "provider_calls": 0,
+  "schema": "archguard.qualification-pilot-plan/v1",
+  "selected_tasks": [],
+  "status": "BLOCKED_LICENSE_AND_CANDIDATE_COUNT",
+  "task_protocol": {
+    "buggy_runs": 3,
+    "fixed_runs": 1,
+    "network_during_evaluation": false,
+    "non_root": true,
+    "read_only_root": true,
+    "tmpfs_bytes": 268435456
+  },
+  "task_replacement": "FORBIDDEN"
+}

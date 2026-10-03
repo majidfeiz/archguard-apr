@@ -1,6 +1,7 @@
 # PySnooper architecture-profile review packet
 
-Status: `REVIEW_REQUIRED`. This packet is source-free and is not a human approval.
+Status: `EXTERNAL_EXECUTION_REQUIRED`, then `REVIEW_REQUIRED`. This packet is source-free and is not a
+human approval. The prepared graph workflow has not run and no graph-evidence artifact was imported.
 
 - Project/task: PySnooper / BugsInPy `PySnooper-2`
 - Buggy revision: `e21a31162f4c54be693d8ca8260e42393b39abd3`

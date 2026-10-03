@@ -2,6 +2,8 @@
 
 ## 0.12.8
 
+- Prepare Phase 12.8A source-free license, graph, candidate, pilot, and power-analysis contracts and
+  fail-closed external workflows without changing human decisions or readiness thresholds.
 - Add hardened, hash-bound, source-free Phase 12.7 qualification evidence ingestion.
 - Add fingerprint-bound human profile/protocol decisions and fail-closed Phase 13 aggregation.
 - Add deterministic representative-task selection policy, pending review artifacts, and check-only CI.

@@ -34,3 +34,12 @@ def test_phase13_gate_reports_all_current_blockers(repository_root: Path) -> Non
     output = json.loads(result.stdout)
     assert output["phase_13_ready"] is False
     assert "PROFILE_REVIEW_REQUIRED" in output["blocker_codes"]
+
+
+def test_phase128a_artifacts_validate(repository_root: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["readiness", "phase128a-validate", "--root", str(repository_root / "research")],
+    )
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["artifact_count"] == 6

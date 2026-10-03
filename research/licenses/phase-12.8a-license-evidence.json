@@ -1,0 +1,63 @@
+{
+  "fingerprint": "4bb692c02c302ba996725a934caeaea513d67f9dc06d53aeb3ddf3c97304257a",
+  "records": [
+    {
+      "canonical_url": "https://github.com/cool-RR/PySnooper",
+      "evaluator_use": "UNRESOLVED",
+      "evidence_method": "validated Phase 12.7 acquisition proof; raw text not imported",
+      "license_path": "LICENSE",
+      "license_sha256": "5db83d6347f7e52946b736c71d0d59bb80c8a4485fcfa0a5140bdd839152be88",
+      "notes": "Exact file hash is verified at the buggy revision; SPDX and redistribution require external text inspection. Not legal advice.",
+      "redistribution": "UNRESOLVED",
+      "revision": "e21a31162f4c54be693d8ca8260e42393b39abd3",
+      "schema": "archguard.license-evidence/v1",
+      "spdx": null,
+      "subject_id": "pysnooper",
+      "subject_kind": "project"
+    },
+    {
+      "canonical_url": "https://github.com/soarsmu/BugsInPy",
+      "evaluator_use": "UNRESOLVED",
+      "evidence_method": "official immutable metadata inspection recorded in Phase 12.5",
+      "license_path": null,
+      "license_sha256": null,
+      "notes": "No LICENSE file was observed at the pinned revision; absence is not public domain.",
+      "redistribution": "UNRESOLVED",
+      "revision": "11c5f1eea954a42132cfd06bf257766a7963e0fd",
+      "schema": "archguard.license-evidence/v1",
+      "spdx": null,
+      "subject_id": "bugsinpy",
+      "subject_kind": "framework"
+    },
+    {
+      "canonical_url": "https://github.com/SWE-bench/SWE-bench",
+      "evaluator_use": "UNRESOLVED",
+      "evidence_method": "official immutable metadata only; license text hash not acquired",
+      "license_path": null,
+      "license_sha256": null,
+      "notes": "Metadata reports MIT, but canonical text evidence is not locally available; dataset rights are separate.",
+      "redistribution": "UNRESOLVED",
+      "revision": "02e7a74ffd0b707aab73d203fe87bdc7c76afc8e",
+      "schema": "archguard.license-evidence/v1",
+      "spdx": null,
+      "subject_id": "swe-bench-framework",
+      "subject_kind": "framework"
+    },
+    {
+      "canonical_url": "https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified",
+      "evaluator_use": "UNRESOLVED",
+      "evidence_method": "official immutable metadata only; payload not acquired",
+      "license_path": null,
+      "license_sha256": null,
+      "notes": "Dataset license remains independent and unresolved; no payload acquisition is authorized.",
+      "redistribution": "UNRESOLVED",
+      "revision": "78f471bf655a3137b2e8a75af1501690ec009ec3",
+      "schema": "archguard.license-evidence/v1",
+      "spdx": null,
+      "subject_id": "swe-bench-verified",
+      "subject_kind": "dataset"
+    }
+  ],
+  "schema": "archguard.license-evidence-registry/v1",
+  "status": "EXTERNAL_EXECUTION_REQUIRED"
+}

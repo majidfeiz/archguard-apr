@@ -1,0 +1,82 @@
+{
+  "assumptions": {
+    "alpha": 0.05,
+    "method": "exact two-sided conditional McNemar enumeration",
+    "outcomes_used": false
+  },
+  "fingerprint": "c342f01dae3749ba2175fc1c42087f90f1b9c33a1f4e007fdd0ef415134dc93f",
+  "pilot": {
+    "purpose": "feasibility only",
+    "tasks_max": 6,
+    "tasks_min": 4
+  },
+  "provider": {
+    "calls": "UNKNOWN_DISABLED",
+    "cost": "UNKNOWN_DISABLED",
+    "tokens": "UNKNOWN_DISABLED"
+  },
+  "recommendation": "Plan at least 30 and preferably 50 or more final tasks; run a prospective design review because exact power remains assumption-sensitive and low in several scenarios.",
+  "resource_scenarios": [
+    {
+      "conditions": 5,
+      "evaluator_runs": 1200,
+      "repair_attempts": 300,
+      "repetitions": 3,
+      "tasks": 20
+    },
+    {
+      "conditions": 5,
+      "evaluator_runs": 1800,
+      "repair_attempts": 450,
+      "repetitions": 3,
+      "tasks": 30
+    },
+    {
+      "conditions": 5,
+      "evaluator_runs": 3000,
+      "repair_attempts": 750,
+      "repetitions": 3,
+      "tasks": 50
+    }
+  ],
+  "scenarios": [
+    {
+      "discordant_rate": 0.3,
+      "favored_share": 0.65,
+      "power": 0.038765,
+      "tasks": 20
+    },
+    {
+      "discordant_rate": 0.5,
+      "favored_share": 0.75,
+      "power": 0.242527,
+      "tasks": 20
+    },
+    {
+      "discordant_rate": 0.3,
+      "favored_share": 0.65,
+      "power": 0.076733,
+      "tasks": 30
+    },
+    {
+      "discordant_rate": 0.5,
+      "favored_share": 0.75,
+      "power": 0.408693,
+      "tasks": 30
+    },
+    {
+      "discordant_rate": 0.3,
+      "favored_share": 0.65,
+      "power": 0.146563,
+      "tasks": 50
+    },
+    {
+      "discordant_rate": 0.5,
+      "favored_share": 0.75,
+      "power": 0.6564,
+      "tasks": 50
+    }
+  ],
+  "schema": "archguard.power-design-analysis/v1",
+  "status": "PROPOSED_REVIEW_REQUIRED"
+}

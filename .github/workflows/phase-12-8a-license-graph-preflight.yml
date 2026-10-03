@@ -1,0 +1,43 @@
+name: Phase 12.8A License and Graph Preflight
+
+on:
+  pull_request:
+    paths: [".github/workflows/phase-12-8a-license-graph-preflight.yml", "research/**", "src/**", "tests/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - run: uv python install 3.12 && uv sync --frozen
+      - run: uv run pytest tests/unit/test_phase128a.py --no-cov
+      - run: uv run ruff format --check . && uv run ruff check . && uv run mypy src tests
+
+  external-preflight:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      EXTERNAL_ROOT: ${{ runner.temp }}/archguard-phase-12-8a-external
+    steps:
+      - uses: actions/checkout@v6
+      - name: Fail closed pending explicit acquisition adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          test "$(df --output=avail -B1 "$RUNNER_TEMP" | tail -1)" -ge 4294967296
+          echo 'EXTERNAL_EXECUTION_REQUIRED: immutable acquisition and source-free evidence adapter is not yet authorized.'
+          exit 4
+      - name: Cleanup only Phase 12.8A external data
+        if: always()
+        shell: bash
+        run: |
+          if [ -d "$EXTERNAL_ROOT" ]; then rm -rf -- "$EXTERNAL_ROOT"; fi

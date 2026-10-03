@@ -1,0 +1,35 @@
+{
+  "candidate_pool": [
+    {
+      "architecture_support": true,
+      "benchmark_source": "BugsInPy",
+      "buggy_revision": "e21a31162f4c54be693d8ca8260e42393b39abd3",
+      "evaluator_provenance": "phase-12.7 validated evidence",
+      "expected_resource_class": "small",
+      "fixed_revision": "814abc34a098c1b98cb327105ac396f985d2413e",
+      "gold_quarantine_feasible": true,
+      "license_record": "pysnooper",
+      "project": "PySnooper",
+      "repository_size_estimate": null,
+      "runtime": "Python 3.8.1 container",
+      "source_layout": "Python package; no supported submodule evidence imported",
+      "task_id": "PySnooper-2"
+    }
+  ],
+  "counts": {
+    "candidates": 1,
+    "eligible": 0,
+    "projects": 1,
+    "selected": 0
+  },
+  "exclusions": [
+    {
+      "reason": "BUGSINPY_FRAMEWORK_LICENSE_UNRESOLVED",
+      "task_id": "PySnooper-2"
+    }
+  ],
+  "fingerprint": "6d5b87e337f15f0094600de53d54473b884954ed5813bc010ce8abba506a0d41",
+  "schema": "archguard.candidate-registry/v1",
+  "selection_algorithm": "Filter on immutable revisions, separate VERIFIED framework/project licenses, bounded resources, evaluator provenance, supported layout, Linux amd64, and gold quarantine; sort by benchmark source, project, task ID, buggy revision; round-robin projects; take at most six. Never use outcomes or replace failures.",
+  "status": "EXTERNAL_EXECUTION_REQUIRED"
+}
