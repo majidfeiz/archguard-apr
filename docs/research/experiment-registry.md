@@ -29,3 +29,7 @@ patch, provider call, outcome comparison or scientific claim was produced.
 Phase 12.8A prepares license/graph evidence and an outcome-blind pilot registry. It registers no new
 execution: one candidate is known but ineligible pending framework licensing, zero pilot tasks are
 selected, and the proposed power/design amendment remains review-required.
+Phase 12.8B adds bounded external acquisition and source-free license/graph evidence tooling. The
+local implementation and its tests are engineering verification only. No external acquisition,
+benchmark execution, provider call, evidence import, or repair-effectiveness experiment is registered
+until a separately validated workflow artifact is imported.

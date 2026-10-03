@@ -1,60 +1,123 @@
-name: Phase 12.8A License and Graph Preflight
+name: Phase 12.8B License and Graph Evidence
 
 on:
   pull_request:
-    paths: [".github/workflows/phase-12-8a-license-graph-preflight.yml", "research/**", "src/**", "tests/**"]
+    paths:
+      - ".github/workflows/phase-12-8a-license-graph-preflight.yml"
+      - "research/**"
+      - "src/**"
+      - "tests/**"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: phase-12-8b-license-graph-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   syntax:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.11.32"
       - run: uv python install 3.12 && uv sync --frozen
-      - run: uv run pytest tests/unit/test_phase128a.py --no-cov
+      - run: uv run pytest tests/unit/test_phase128a.py tests/unit/test_phase128b.py tests/unit/test_phase128a_workflows.py --no-cov
       - run: uv run ruff format --check . && uv run ruff check . && uv run mypy src tests
 
-  external-preflight:
+  external-evidence:
     if: github.event_name == 'workflow_dispatch'
+    needs: syntax
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
-      - name: Initialize external workspace
+      - name: Initialize isolated paths
         shell: bash
         run: |
           set -euo pipefail
-          external_root="${RUNNER_TEMP}/archguard-phase-12-8a-external"
+          external_root="${RUNNER_TEMP}/archguard-phase-12-8b-external"
+          evidence_root="${RUNNER_TEMP}/archguard-phase-12-8b-evidence"
+          archive_path="${RUNNER_TEMP}/archguard-phase-12-8b-license-graph-${GITHUB_RUN_ID}.zip"
           mkdir -p "${external_root}"
           echo "EXTERNAL_ROOT=${external_root}" >> "${GITHUB_ENV}"
-      - name: Validate pending external execution gate
+          echo "EVIDENCE_ROOT=${evidence_root}" >> "${GITHUB_ENV}"
+          echo "ARCHIVE_PATH=${archive_path}" >> "${GITHUB_ENV}"
+      - name: Announce bounded network acquisition
         shell: bash
         run: |
           set -euo pipefail
+          cat <<'EOF'
+          Hosts: github.com
+          Repositories: cool-RR/PySnooper, soarsmu/BugsInPy, SWE-bench/SWE-bench
+          Maximum transfer and acquired disk budget: 250 MiB total
+          Destinations: RUNNER_TEMP/archguard-phase-12-8b-external/{pysnooper-buggy,pysnooper-fixed,bugsinpy-metadata,swe-bench-framework}
+          Credentials required: no
+          EOF
           test "$(uname -m)" = x86_64
-          test "$(df --output=avail -B1 "$RUNNER_TEMP" | tail -1)" -ge 4294967296
-          test "$(jq -r .status research/graph-evidence/pysnooper-2.pending.json)" = EXTERNAL_EXECUTION_REQUIRED
-          test "$(jq -r .status research/licenses/phase-12.8a-license-evidence.json)" = EXTERNAL_EXECUTION_REQUIRED
-          test "$(jq -r .graph_evidence_validated research/readiness-facts.json)" = false
-          test "$(jq -r .licenses_verified research/readiness-facts.json)" = false
-          message='Immutable acquisition and source-free evidence execution remain required; no readiness gate was resolved.'
-          echo "::notice title=Phase 12.8A external execution required::$message"
+          test "$(df --output=avail -B1 "${RUNNER_TEMP}" | tail -1)" -ge 4294967296
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - name: Install locked tooling
+        run: uv python install 3.12 && uv sync --frozen
+      - name: Acquire immutable revisions and generate evidence twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run archguard readiness phase128b produce \
+            --external-root "${EXTERNAL_ROOT}" \
+            --output "${EVIDENCE_ROOT}" \
+            --repository-root "${GITHUB_WORKSPACE}" \
+            --github-run-id "${GITHUB_RUN_ID}" \
+            --github-job "${GITHUB_JOB}"
+      - name: Remove acquired repositories
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf -- "${EXTERNAL_ROOT}"
+          test ! -e "${EXTERNAL_ROOT}"
+          test -z "$(docker ps -aq --filter label=archguard.phase=12.8b 2>/dev/null)"
+          test -z "$(docker volume ls -q --filter label=archguard.phase=12.8b 2>/dev/null)"
+          test -z "$(docker buildx ls 2>/dev/null | awk '/archguard-phase-12-8b/{print $1}')"
+          uv run archguard readiness phase128b finalize-cleanup \
+            --source "${EVIDENCE_ROOT}" --external-root "${EXTERNAL_ROOT}"
+      - name: Validate and package source-free artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run archguard readiness phase128b package \
+            --source "${EVIDENCE_ROOT}" --archive "${ARCHIVE_PATH}"
+          uv run archguard readiness phase128b validate --archive "${ARCHIVE_PATH}"
+      - name: Report scientific status
+        shell: bash
+        run: |
+          set -euo pipefail
           {
-            echo '## Phase 12.8A preflight'
+            echo '## Phase 12.8B license and graph evidence'
             echo
-            echo '- Status: `EXTERNAL_EXECUTION_REQUIRED`'
-            echo '- Graph evidence validated: `false`'
-            echo '- Licenses verified: `false`'
-            echo "- Note: $message"
-          } >> "$GITHUB_STEP_SUMMARY"
-      - name: Cleanup only Phase 12.8A external data
+            echo '- Engineering execution: `SUCCESS`'
+            echo "- License status: \`$(jq -r .benchmark_task_redistribution "${EVIDENCE_ROOT}/license-evidence.json")\`"
+            echo '- Graph evidence status: `VALIDATED`'
+            echo '- Profile status: `REVIEW_REQUIRED`'
+            echo '- Phase 13 readiness: `false`'
+          } >> "${GITHUB_STEP_SUMMARY}"
+      - name: Upload source-free Phase 12.8B evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: archguard-phase-12-8b-license-graph-${{ github.run_id }}
+          path: ${{ env.ARCHIVE_PATH }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Cleanup Phase 12.8B temporary data
         if: always()
         shell: bash
         run: |
-          if [ -d "$EXTERNAL_ROOT" ]; then rm -rf -- "$EXTERNAL_ROOT"; fi
+          rm -rf -- "${EXTERNAL_ROOT:-${RUNNER_TEMP}/archguard-phase-12-8b-external}"
+          rm -rf -- "${EVIDENCE_ROOT:-${RUNNER_TEMP}/archguard-phase-12-8b-evidence}"
+          if [ -n "${ARCHIVE_PATH:-}" ]; then rm -f -- "${ARCHIVE_PATH}"; fi
