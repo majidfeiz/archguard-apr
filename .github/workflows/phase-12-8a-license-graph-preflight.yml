@@ -24,10 +24,15 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    env:
-      EXTERNAL_ROOT: ${{ runner.temp }}/archguard-phase-12-8a-external
     steps:
       - uses: actions/checkout@v6
+      - name: Initialize external workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          external_root="${RUNNER_TEMP}/archguard-phase-12-8a-external"
+          mkdir -p "${external_root}"
+          echo "EXTERNAL_ROOT=${external_root}" >> "${GITHUB_ENV}"
       - name: Fail closed pending explicit acquisition adapter
         shell: bash
         run: |
