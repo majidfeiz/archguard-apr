@@ -1,0 +1,18 @@
+{
+  "schema": "archguard.human-decision/v1",
+  "subject_kind": "confirmatory_protocol",
+  "reviewed_fingerprint": "921a3ffa97e866b9ce7aa3431463ab6e8efbf41814a223ffe040e978a44dd0d9",
+  "reviewer_name": "",
+  "review_timestamp": "",
+  "decision": "PENDING",
+  "checklist": {
+    "population_and_conditions_reviewed": false,
+    "endpoints_and_pairing_reviewed": false,
+    "missingness_and_exclusions_reviewed": false,
+    "tests_effect_sizes_and_multiplicity_reviewed": false,
+    "seeds_budgets_stopping_and_retries_reviewed": false,
+    "environment_provider_and_cost_decision_reviewed": false,
+    "no_optional_stopping_or_retrospective_changes": false
+  },
+  "comments": ""
+}

@@ -1,0 +1,49 @@
+name: Phase 12.8 Readiness
+
+on:
+  pull_request:
+  push:
+    branches: [phase/12.8-human-review-protocol-freeze]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - run: uv python install ${{ matrix.python }}
+      - run: uv sync --frozen --python ${{ matrix.python }}
+      - run: uv lock --check
+      - run: uv run ruff format --check . && uv run ruff check .
+      - run: uv run mypy src tests
+      - run: uv run pytest tests/unit/test_phase128_readiness.py tests/integration/test_phase128_cli.py --no-cov
+      - run: uv run pytest
+      - run: uv run archguard architecture profile compile configs/external-profiles/pysnooper-micro-pilot.yaml --output "$RUNNER_TEMP/profile-1.json"
+      - run: uv run archguard architecture profile compile configs/external-profiles/pysnooper-micro-pilot.yaml --output "$RUNNER_TEMP/profile-2.json" && cmp "$RUNNER_TEMP/profile-1.json" "$RUNNER_TEMP/profile-2.json"
+      - name: Validate pending review and gate consistency
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(jq -r .decision research/reviews/protocol-decision.json)" = PENDING
+          test "$(jq -r .decision research/reviews/pysnooper-profile-decision.json)" = PENDING
+          set +e
+          uv run archguard readiness gate --facts research/readiness-facts.json > "$RUNNER_TEMP/gate.json"
+          status=$?
+          set -e
+          test "$status" -eq 4
+          test "$(jq -r .phase_13_ready "$RUNNER_TEMP/gate.json")" = false
+          echo "REVIEW_REQUIRED: this workflow does not establish Phase 13 readiness."
+      - name: Source/gold/secret policy scan
+        run: |
+          ! rg -n '(BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|sk-[A-Za-z0-9]{20,})' research docs/phase-12.8-verification.md
+          test -z "$(find research -type f \( -name '*.patch' -o -name '*.diff' -o -name '*.log' -o -name '*.py' \) -print)"

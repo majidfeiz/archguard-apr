@@ -1,0 +1,34 @@
+name: Phase 13 Readiness Gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-only:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - run: uv python install 3.12 && uv sync --frozen
+      - name: Produce machine-readable gate report
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          uv run archguard readiness gate --facts research/readiness-facts.json | tee phase-13-readiness-report.json
+          status=${PIPESTATUS[0]}
+          set -e
+          test "$status" -eq 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase-13-readiness-report
+          path: phase-13-readiness-report.json
+          retention-days: 30
+          if-no-files-found: error

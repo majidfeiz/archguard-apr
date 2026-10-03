@@ -2,6 +2,11 @@
 
 Status: `REVIEW_REQUIRED`, not final-evaluation ready.
 
+Phase 12.8 formalizes machine-readable blocker aggregation. The Phase 12.7 ZIP has not yet been locally
+validated, the deterministic selected list has zero tasks, the PySnooper profile decision and protocol
+decision remain `PENDING`, and provider/model/pricing remain `PROVIDER_NOT_CONFIGURED`. The readiness
+gate therefore remains false; neither prose nor a manual override can change it.
+
 Phase 12.5 verified official framework metadata revisions for BugsInPy and SWE-bench and the official
 SWE-bench Verified dataset revision without acquiring its payload. It added evidence-derived readiness,
 storage/quarantine, review and qualification controls. Mandatory blockers remain: BugsInPy and dataset/

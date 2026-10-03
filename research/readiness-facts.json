@@ -1,0 +1,13 @@
+{
+  "phase_12_7_evidence": false,
+  "qualified_stable_tasks": 0,
+  "qualified_projects": 0,
+  "task_list_frozen": false,
+  "licenses_verified": false,
+  "evaluators_qualified": false,
+  "linux_x86_evidence": false,
+  "architecture_analysis_complete": false,
+  "profiles_frozen": false,
+  "protocol_frozen": false,
+  "provider_decision_recorded": false
+}

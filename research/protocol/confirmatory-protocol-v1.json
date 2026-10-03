@@ -1,0 +1,36 @@
+{
+  "schema": "archguard.confirmatory-protocol/v1",
+  "status": "PROPOSED_REVIEW_REQUIRED",
+  "population": "The frozen eligible list of reproducible, license-verified Python repair tasks qualified on native Linux x86_64; the list is currently empty and cannot be frozen.",
+  "conditions": [
+    "C0: matched single-agent execution-feedback repair",
+    "C1: full ArchGuard pipeline",
+    "C2: C1 without architecture validation",
+    "C3: C1 without graph retrieval",
+    "C4: C1 without critique/refinement"
+  ],
+  "primary_endpoint": "For each eligible task and condition, 1 only when independent functional validation passes and the frozen architecture profile reports no newly introduced forbidden violation; otherwise 0, including timeout or method failure. Compare paired task-level proportions.",
+  "secondary_endpoints": [
+    "architecture conformance and introduced-violation count",
+    "regression rate",
+    "plausible repair rate",
+    "independently validated repair rate",
+    "attempt and refinement-round counts",
+    "wall-clock runtime",
+    "reported input/output tokens and dated-price estimated cost when a provider is approved"
+  ],
+  "pairing": "Pair conditions within task and seed; aggregate repetitions within task before cross-task inference.",
+  "missingness": "Timeouts and method failures are primary failures; infrastructure failures are missing, reported by category, and included in worst/best-case sensitivity analyses.",
+  "seeds": [1729, 2718, 31415],
+  "repetitions": 3,
+  "budgets": {"maximum_tasks": 6, "maximum_concurrency": 1, "paid_provider_calls": 0, "monetary_ceiling_usd": 0},
+  "stopping": "No optional stopping. Stop only at prespecified resource, safety, or per-run timeout limits; do not replace failed selected tasks.",
+  "retry_policy": "No outcome-based retry. One infrastructure retry is permitted only when the first attempt produced no task outcome, and both attempts remain recorded.",
+  "confirmatory_tests": "Use the exact McNemar test for paired binary primary outcomes and report paired risk difference and matched odds ratio. Use task-level paired bootstrap 95% confidence intervals. Use Wilcoxon signed-rank tests for prespecified skewed continuous paired outcomes only when tie and symmetry diagnostics permit; otherwise report paired bootstrap intervals and descriptive effects.",
+  "multiplicity": "Apply Holm correction across the prespecified secondary confirmatory hypothesis family; label all other analyses exploratory.",
+  "robustness": "Report complete-case plus worst/best-case missingness sensitivity, project-cluster bootstrap, seed-level stability, and the four prespecified ablations.",
+  "exclusions": "Apply immutable-revision, license, resource, source-layout, submodule, evaluator, and Linux x86_64 eligibility rules before method outcomes are available.",
+  "environment": "Pin repository revisions, dependency lock, Python version, OCI image digest, native linux/amd64 platform, provider/model/version, configuration, and action commits in evidence.",
+  "provider": {"status": "PROVIDER_NOT_CONFIGURED", "price_table_date": null, "model": null, "monetary_ceiling_usd": 0},
+  "amendments": "A material change requires a new protocol version and new human approval; retrospective endpoint changes are forbidden."
+}
