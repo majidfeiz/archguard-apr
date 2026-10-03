@@ -15,6 +15,27 @@ PROTOCOL_SCHEMA = "archguard.confirmatory-protocol/v1"
 READINESS_SCHEMA = "archguard.phase-13-readiness/v1"
 
 
+def git_sha1_commit(value: str) -> str:
+    """Validate a full lowercase SHA-1 Git object ID used as a commit revision."""
+    check(re.fullmatch(r"[0-9a-f]{40}", value) is not None, "invalid Git SHA-1 commit ID")
+    return value
+
+
+def sha256_digest(value: str) -> str:
+    """Validate an unprefixed lowercase SHA-256 digest."""
+    check(re.fullmatch(r"[0-9a-f]{64}", value) is not None, "invalid SHA-256 digest")
+    return value
+
+
+def docker_sha256_digest(value: str) -> str:
+    """Validate a Docker image ID with an explicit SHA-256 algorithm prefix."""
+    check(
+        re.fullmatch(r"sha256:[0-9a-f]{64}", value) is not None,
+        "invalid Docker SHA-256 digest",
+    )
+    return value
+
+
 class HumanDecision(StrEnum):
     PENDING = "PENDING"
     APPROVE = "APPROVE"
@@ -77,6 +98,10 @@ class Phase127Evidence:
     framework_revision: str
     buggy_revision: str
     fixed_revision: str
+    license_file_sha256: str
+    profile_artifact_sha256: str
+    evaluator_image_digest: str
+    evaluator_image_architecture: str
     failure_signatures: tuple[str, ...]
     fixed_control: str
     evaluator: str
@@ -96,12 +121,16 @@ class Phase127Evidence:
             self.buggy_revision,
             self.fixed_revision,
         ):
-            digest(revision)
+            git_sha1_commit(revision)
+        sha256_digest(self.license_file_sha256)
+        sha256_digest(self.profile_artifact_sha256)
+        docker_sha256_digest(self.evaluator_image_digest)
+        check(self.evaluator_image_architecture == "amd64", "wrong evaluator architecture")
         check(self.archguard_version == "0.12.6", "unexpected qualification version")
         check(self.runner_os == "Linux" and self.host_architecture == "x86_64", "wrong platform")
         check(len(self.failure_signatures) == 3, "exactly three buggy runs required")
         for signature in self.failure_signatures:
-            digest(signature)
+            sha256_digest(signature)
         check(len(set(self.failure_signatures)) == 1, "buggy failure signatures differ")
         check(
             self.fixed_control == "PASSED" and self.evaluator == "QUALIFIED",

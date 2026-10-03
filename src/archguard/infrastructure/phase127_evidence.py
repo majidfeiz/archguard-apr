@@ -11,6 +11,10 @@ from archguard.domain.readiness import IMPORTED_EVIDENCE_SCHEMA, Phase127Evidenc
 from archguard.infrastructure.artifact_io import atomic_write, destination_path, read_artifact
 
 EXPECTED_SHA256 = "8d3d261e368a1c6bd585f33065cdcda39e4a1924f52ef9763a144d9559f8a498"
+EXPECTED_ARCHGUARD_COMMIT = "8db89df81afa72f8af87d751383304771c3d45ea"
+EXPECTED_FRAMEWORK_REVISION = "11c5f1eea954a42132cfd06bf257766a7963e0fd"
+EXPECTED_BUGGY_REVISION = "e21a31162f4c54be693d8ca8260e42393b39abd3"
+EXPECTED_FIXED_REVISION = "814abc34a098c1b98cb327105ac396f985d2413e"
 MAX_ARCHIVE_BYTES = 10 * 1024 * 1024
 MAX_MEMBER_BYTES = 1024 * 1024
 MAX_RATIO = 100
@@ -46,6 +50,13 @@ def _pairs(raw: str) -> dict[str, str]:
             raise ValueError("duplicate evidence field")
         result[key] = value
     return result
+
+
+def _sha256sum(raw: str, expected_name: str) -> str:
+    parts = raw.strip().split()
+    if len(parts) != 2 or parts[1] != expected_name:
+        raise ValueError("invalid SHA-256 checksum record")
+    return parts[0]
 
 
 def _read_zip(raw: bytes) -> dict[str, str]:
@@ -93,6 +104,7 @@ def validate_phase127_zip(path: Path, expected_sha256: str = EXPECTED_SHA256) ->
     acquisition = _pairs(files["acquisition-proof.txt"])
     buggy = _pairs(files["buggy-baseline-summary.txt"])
     fixed = _pairs(files["fixed-control-summary.txt"])
+    image = _pairs(files["evaluator-image.txt"])
     cleanup = _pairs(files["cleanup-and-quarantine.txt"])
     conclusion = _pairs(files["conclusion.txt"])
     signatures = tuple(
@@ -107,6 +119,14 @@ def validate_phase127_zip(path: Path, expected_sha256: str = EXPECTED_SHA256) ->
     )
     if metadata.get("schema") != "archguard.phase-12.7-x86-qualification/v1":
         raise ValueError("wrong source evidence schema")
+    expected_revisions = {
+        "archguard_commit": EXPECTED_ARCHGUARD_COMMIT,
+        "bugsinpy_revision": EXPECTED_FRAMEWORK_REVISION,
+        "buggy_revision": EXPECTED_BUGGY_REVISION,
+        "fixed_revision": EXPECTED_FIXED_REVISION,
+    }
+    if any(metadata.get(key) != value for key, value in expected_revisions.items()):
+        raise ValueError("unexpected Git revision evidence")
     if required_true != ("true", "true", "true"):
         raise ValueError("revision verification incomplete")
     if buggy.get("classification") != "STABLE" or buggy.get("expected_failure_runs") != "3":
@@ -132,6 +152,10 @@ def validate_phase127_zip(path: Path, expected_sha256: str = EXPECTED_SHA256) ->
         framework_revision=metadata["bugsinpy_revision"],
         buggy_revision=metadata["buggy_revision"],
         fixed_revision=metadata["fixed_revision"],
+        license_file_sha256=acquisition["license_file_sha256"],
+        profile_artifact_sha256=_sha256sum(files["profile-sha256.txt"], "pysnooper-profile.json"),
+        evaluator_image_digest=image["evaluator_image_id"],
+        evaluator_image_architecture=image["evaluator_image_architecture"],
         failure_signatures=signatures,
         fixed_control=fixed["trusted_fixed_control"],
         evaluator=fixed["evaluator"],
