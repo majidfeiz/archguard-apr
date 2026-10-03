@@ -9,13 +9,22 @@ import typer
 from archguard.application.services.readiness import aggregate_readiness, validate_human_decision
 from archguard.infrastructure.phase127_evidence import import_phase127_zip, validate_phase127_zip
 from archguard.infrastructure.phase128a_artifacts import validate_phase128a_artifacts
+from archguard.infrastructure.phase128b_evidence import (
+    create_evidence_zip,
+    finalize_cleanup,
+    import_evidence_zip,
+    produce_evidence,
+    validate_evidence_zip,
+)
 from archguard.infrastructure.readiness_artifacts import load_human_decision, load_json
 
 app = typer.Typer(no_args_is_help=True)
 evidence_app = typer.Typer(no_args_is_help=True)
 decision_app = typer.Typer(no_args_is_help=True)
+phase128b_app = typer.Typer(no_args_is_help=True)
 app.add_typer(evidence_app, name="evidence")
 app.add_typer(decision_app, name="decision")
+app.add_typer(phase128b_app, name="phase128b")
 
 
 def emit(value: object) -> None:
@@ -81,3 +90,64 @@ def phase128a_validate(root: Annotated[Path, typer.Option("--root")] = Path("res
         emit(validate_phase128a_artifacts(root))
     except (OSError, ValueError, json.JSONDecodeError):
         fail("INVALID_PHASE_12_8A_ARTIFACT")
+
+
+@phase128b_app.command("produce")
+def phase128b_produce(
+    external_root: Annotated[Path, typer.Option("--external-root")],
+    output: Annotated[Path, typer.Option("--output")],
+    repository_root: Annotated[Path, typer.Option("--repository-root")] = Path("."),
+    github_run_id: Annotated[str, typer.Option("--github-run-id")] = "local",
+    github_job: Annotated[str, typer.Option("--github-job")] = "local",
+) -> None:
+    """Acquire the authorized pilot and produce source-free evidence."""
+    try:
+        emit(
+            produce_evidence(
+                external_root, output, repository_root.resolve(), github_run_id, github_job
+            )
+        )
+    except (OSError, ValueError, json.JSONDecodeError):
+        fail("INVALID_PHASE_12_8B_EXECUTION")
+
+
+@phase128b_app.command("package")
+def phase128b_package(
+    source: Annotated[Path, typer.Option("--source")],
+    archive: Annotated[Path, typer.Option("--archive")],
+) -> None:
+    try:
+        create_evidence_zip(source, archive)
+        emit({"status": "packaged", "archive": archive.name})
+    except (OSError, ValueError):
+        fail("INVALID_PHASE_12_8B_EVIDENCE")
+
+
+@phase128b_app.command("finalize-cleanup")
+def phase128b_finalize_cleanup(
+    source: Annotated[Path, typer.Option("--source")],
+    external_root: Annotated[Path, typer.Option("--external-root")],
+) -> None:
+    try:
+        emit(finalize_cleanup(source, external_root))
+    except (OSError, ValueError):
+        fail("INVALID_PHASE_12_8B_CLEANUP")
+
+
+@phase128b_app.command("validate")
+def phase128b_validate(archive: Annotated[Path, typer.Option("--archive")]) -> None:
+    try:
+        emit({"status": "valid", **validate_evidence_zip(archive)})
+    except (OSError, ValueError, KeyError):
+        fail("INVALID_PHASE_12_8B_EVIDENCE")
+
+
+@phase128b_app.command("import")
+def phase128b_import(
+    archive: Annotated[Path, typer.Option("--archive")],
+    output: Annotated[Path, typer.Option("--output")],
+) -> None:
+    try:
+        emit({"status": "imported", **import_evidence_zip(archive, output)})
+    except (OSError, ValueError, KeyError):
+        fail("INVALID_PHASE_12_8B_EVIDENCE")
