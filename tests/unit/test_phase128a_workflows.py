@@ -22,7 +22,7 @@ def test_external_workspace_is_initialized_at_runtime_before_use(repository_root
     path = repository_root / ".github" / "workflows" / WORKFLOWS[0]
     source = path.read_text(encoding="utf-8")
     initialization = source.index("- name: Initialize external workspace")
-    first_consumer = source.index("- name: Fail closed pending explicit acquisition adapter")
+    first_consumer = source.index("- name: Validate pending external execution gate")
     cleanup = source.index("- name: Cleanup only Phase 12.8A external data")
 
     assert initialization < first_consumer < cleanup
@@ -30,3 +30,15 @@ def test_external_workspace_is_initialized_at_runtime_before_use(repository_root
     assert 'mkdir -p "${external_root}"' in source
     assert 'echo "EXTERNAL_ROOT=${external_root}" >> "${GITHUB_ENV}"' in source
     assert source.index('if [ -d "$EXTERNAL_ROOT" ]') > initialization
+
+
+def test_preflight_reports_pending_without_claiming_readiness(repository_root: Path) -> None:
+    path = repository_root / ".github" / "workflows" / WORKFLOWS[0]
+    source = path.read_text(encoding="utf-8")
+
+    assert "exit 4" not in source
+    assert source.count("EXTERNAL_EXECUTION_REQUIRED") >= 3
+    assert ".graph_evidence_validated research/readiness-facts.json" in source
+    assert ".licenses_verified research/readiness-facts.json" in source
+    assert "GITHUB_STEP_SUMMARY" in source
+    assert "no readiness gate was resolved" in source
