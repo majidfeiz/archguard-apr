@@ -26,3 +26,6 @@ statistics remain proposed pending human review; Phase 13 remains blocked.
 Phase 12.6 registered a resource-constrained qualification run, not a repair-effectiveness experiment.
 PySnooper-2 reproduced stably and its evaluator qualified; PySnooper-1 did not reproduce. No model
 patch, provider call, outcome comparison or scientific claim was produced.
+Phase 12.8A prepares license/graph evidence and an outcome-blind pilot registry. It registers no new
+execution: one candidate is known but ineligible pending framework licensing, zero pilot tasks are
+selected, and the proposed power/design amendment remains review-required.

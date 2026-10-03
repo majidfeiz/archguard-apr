@@ -1,0 +1,21 @@
+{
+  "ambiguous_modules": [],
+  "cycle_count": null,
+  "dependency_edges": null,
+  "fingerprint": "377ab56b0e756c3a286f89746b4a7ede313b5823eefa4488816f94592dc3112e",
+  "graph_fingerprint": null,
+  "limitations": [
+    "External immutable source acquisition has not been authorized.",
+    "No source-free graph artifact has been imported.",
+    "Dynamic imports and runtime dependencies may be invisible to static analysis."
+  ],
+  "module_count": null,
+  "profile_fingerprint": "e2694d6a8016382036a3670476d75a0ca16d7f9872678156d16fba6de0f441f1",
+  "project_id": "pysnooper",
+  "revision": "e21a31162f4c54be693d8ca8260e42393b39abd3",
+  "schema": "archguard.architecture-graph-evidence/v1",
+  "snapshot_fingerprint": null,
+  "status": "EXTERNAL_EXECUTION_REQUIRED",
+  "unassigned_modules": [],
+  "violation_count": null
+}

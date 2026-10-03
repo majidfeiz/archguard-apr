@@ -1,0 +1,30 @@
+name: Phase 12.8A Linux x86 Pilot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-12-8a-linux-x86-pilot
+  cancel-in-progress: false
+
+jobs:
+  pilot-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Require eligible canonical selection
+        run: |
+          set -euo pipefail
+          count="$(jq '.selected_tasks | length' research/pilots/phase-12.8a-plan.json)"
+          test "$count" -ge 4
+          test "$count" -le 6
+          test "$(jq -r .status research/pilots/phase-12.8a-plan.json)" = READY_FOR_EXTERNAL_PILOT
+          test "$(df --output=avail -B1 "$RUNNER_TEMP" | tail -1)" -ge 4294967296
+      - name: No execution without task adapters
+        run: |
+          echo 'Fail closed: reviewed task-specific Docker adapters and frozen eligible selection required.' >&2
+          exit 4

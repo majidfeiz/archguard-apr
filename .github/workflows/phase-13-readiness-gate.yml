@@ -16,6 +16,8 @@ jobs:
         with:
           version: "0.11.32"
       - run: uv python install 3.12 && uv sync --frozen
+      - name: Validate Phase 12.8A evidence when present
+        run: uv run archguard readiness phase128a-validate --root research
       - name: Produce machine-readable gate report
         id: gate
         shell: bash

@@ -10,6 +10,9 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 Version 0.12.8 adds fail-closed Phase 12.7 evidence ingestion, human review and protocol-freeze
 contracts, deterministic representative-task selection policy, and a factual Phase 13 readiness gate.
+Phase 12.8A additionally prepares separately scoped license evidence, revision/profile-bound graph
+evidence, outcome-blind pilot selection, and prospective power scenarios; external execution and human
+review remain required.
 Human decisions remain pending and no Phase 13 experiment is run. Version 0.12.6 added a strict
 low-resource local micro-pilot: two real BugsInPy tasks were attempted,
 one stable task/evaluator qualified, and its architecture profile remains review-required. No paid
