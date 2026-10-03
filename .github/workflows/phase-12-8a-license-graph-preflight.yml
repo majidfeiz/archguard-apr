@@ -33,14 +33,26 @@ jobs:
           external_root="${RUNNER_TEMP}/archguard-phase-12-8a-external"
           mkdir -p "${external_root}"
           echo "EXTERNAL_ROOT=${external_root}" >> "${GITHUB_ENV}"
-      - name: Fail closed pending explicit acquisition adapter
+      - name: Validate pending external execution gate
         shell: bash
         run: |
           set -euo pipefail
           test "$(uname -m)" = x86_64
           test "$(df --output=avail -B1 "$RUNNER_TEMP" | tail -1)" -ge 4294967296
-          echo 'EXTERNAL_EXECUTION_REQUIRED: immutable acquisition and source-free evidence adapter is not yet authorized.'
-          exit 4
+          test "$(jq -r .status research/graph-evidence/pysnooper-2.pending.json)" = EXTERNAL_EXECUTION_REQUIRED
+          test "$(jq -r .status research/licenses/phase-12.8a-license-evidence.json)" = EXTERNAL_EXECUTION_REQUIRED
+          test "$(jq -r .graph_evidence_validated research/readiness-facts.json)" = false
+          test "$(jq -r .licenses_verified research/readiness-facts.json)" = false
+          message='Immutable acquisition and source-free evidence execution remain required; no readiness gate was resolved.'
+          echo "::notice title=Phase 12.8A external execution required::$message"
+          {
+            echo '## Phase 12.8A preflight'
+            echo
+            echo '- Status: `EXTERNAL_EXECUTION_REQUIRED`'
+            echo '- Graph evidence validated: `false`'
+            echo '- Licenses verified: `false`'
+            echo "- Note: $message"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Cleanup only Phase 12.8A external data
         if: always()
         shell: bash
