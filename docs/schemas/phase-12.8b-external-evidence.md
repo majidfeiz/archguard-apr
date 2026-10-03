@@ -19,5 +19,8 @@ Validate or import a downloaded archive without executing target code:
 
 ```console
 uv run archguard readiness phase128b validate --archive evidence.zip
-uv run archguard readiness phase128b import --archive evidence.zip --output /tmp/phase-12.8b-import
+uv run archguard readiness phase128b import --archive evidence.zip --output /tmp/phase-12.8b-import.json
 ```
+
+The import is one canonical `archguard.phase-12.8b-evidence-import/v1` JSON document. Repeating the
+same import is byte-idempotent; an existing non-identical destination is rejected.

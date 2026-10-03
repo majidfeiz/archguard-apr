@@ -18,6 +18,7 @@ from archguard.domain.phase128b import (
     Phase128BManifest,
     fingerprinted,
 )
+from archguard.domain.readiness import readiness_report
 from archguard.infrastructure import phase128b_evidence as evidence
 
 SHA = "a" * 64
@@ -40,7 +41,10 @@ def write_valid_directory(root: Path) -> Path:
             ],
         },
     )
-    licenses = fingerprinted(LICENSE_REGISTRY_SCHEMA, {"records": []})
+    licenses = fingerprinted(
+        LICENSE_REGISTRY_SCHEMA,
+        {"records": [], "benchmark_task_redistribution": "UNRESOLVED"},
+    )
     graph = fingerprinted(
         GRAPH_EVIDENCE_SCHEMA,
         {
@@ -82,8 +86,10 @@ def write_valid_directory(root: Path) -> Path:
             "archguard.phase-12.8b-readiness-summary/v1",
             {
                 "phase_13_ready": False,
+                "architecture_analysis_complete": False,
                 "profile_status": "REVIEW_REQUIRED",
                 "protocol_status": "REVIEW_REQUIRED",
+                "resolved_blocker_codes": ["GRAPH_EVIDENCE_EXTERNAL_EXECUTION_REQUIRED"],
             },
         ),
     }
@@ -153,6 +159,25 @@ def test_archive_round_trip_has_exact_allowlist(tmp_path: Path) -> None:
     assert evidence.validate_evidence_zip(archive)["task_id"] == "PySnooper-2"
     with zipfile.ZipFile(archive) as value:
         assert set(value.namelist()) == ARCHIVE_MEMBERS
+
+
+def test_import_is_deterministic_idempotent_and_rejects_contradiction(tmp_path: Path) -> None:
+    source = write_valid_directory(tmp_path / "source")
+    archive = tmp_path / "evidence.zip"
+    evidence.create_evidence_zip(source, archive)
+    first = tmp_path / "first.json"
+    second = tmp_path / "second.json"
+
+    evidence.import_evidence_zip(archive, first)
+    evidence.import_evidence_zip(archive, second)
+    before = first.read_bytes()
+    evidence.import_evidence_zip(archive, first)
+
+    assert first.read_bytes() == second.read_bytes() == before
+    assert evidence.validate_imported_evidence(first)["schema"] == evidence.IMPORTED_EVIDENCE_SCHEMA
+    first.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="contradictory"):
+        evidence.import_evidence_zip(archive, first)
 
 
 @pytest.mark.parametrize("unsafe", ["../escape.json", "/absolute.json"])
@@ -242,3 +267,59 @@ def test_graph_generation_is_byte_identical_and_bound_to_profile(
     assert first["canonical_graph_fingerprint"] == second["canonical_graph_fingerprint"]
     assert first["profile_fingerprint"] == evidence.PROFILE_FINGERPRINT
     assert first["repository_revision"] == evidence.BUGGY_REVISION
+
+
+def test_tracked_import_identity_and_partial_status(repository_root: Path) -> None:
+    path = repository_root / "research/evidence/phase-12.8b-license-graph.json"
+    imported = evidence.validate_imported_evidence(path)
+    graph = imported["evidence"]["graph_evidence"]
+    licenses = imported["evidence"]["license_evidence"]
+
+    assert imported["archive_sha256"] == (
+        "5a793348ba02ef002ee1cadd826d2dcc049089d4da928bbf41e1eeb6b90c8cef"
+    )
+    assert imported["fingerprint"] == (
+        "6277810062743dfd274fc0e03a51a0d6f29b79ba6da45ab9fbabff99b0197648"
+    )
+    assert imported["manifest"]["github_run_id"] == "37152285061"
+    assert graph["fingerprint"] == (
+        "e08af7f18e793a17e06721127ebf43d791c299a92702dba5c06d932ab527ab1e"
+    )
+    assert graph["constraint_evaluation"]["partial"] is True
+    assert graph["constraint_evaluation"]["passed"] is False
+    assert graph["unassigned_modules"] == 2
+    assert licenses["benchmark_task_redistribution"] == "UNRESOLVED"
+
+
+def test_import_resolves_only_graph_execution_blocker(repository_root: Path) -> None:
+    facts = json.loads((repository_root / "research/readiness-facts.json").read_text())
+    report = readiness_report(facts)
+
+    assert "GRAPH_EVIDENCE_EXTERNAL_EXECUTION_REQUIRED" not in report["blocker_codes"]
+    assert report["phase_13_ready"] is False
+    assert set(report["blocker_codes"]) == {
+        "INSUFFICIENT_QUALIFIED_TASKS",
+        "INSUFFICIENT_PROJECT_DIVERSITY",
+        "INSUFFICIENT_CANDIDATE_POOL",
+        "PILOT_SELECTION_NOT_READY",
+        "TASK_LIST_NOT_FROZEN",
+        "LICENSES_UNVERIFIED",
+        "ARCHITECTURE_ANALYSIS_INCOMPLETE",
+        "PROFILE_REVIEW_REQUIRED",
+        "PROTOCOL_REVIEW_REQUIRED",
+        "PROVIDER_NOT_CONFIGURED",
+    }
+
+
+def test_human_decisions_remain_pending_and_import_is_source_free(repository_root: Path) -> None:
+    for name in ("pysnooper-profile-decision.json", "protocol-decision.json"):
+        decision = json.loads((repository_root / "research/reviews" / name).read_text())
+        assert decision["decision"] == "PENDING"
+        assert decision["reviewer_name"] == ""
+        assert decision["review_timestamp"] == ""
+
+    evidence_root = repository_root / "research/evidence"
+    assert not list(evidence_root.glob("*.zip"))
+    raw = (evidence_root / "phase-12.8b-license-graph.json").read_bytes()
+    assert not any(marker in raw for marker in evidence.SOURCE_MARKERS)
+    assert b'"phase_13_ready":false' in raw

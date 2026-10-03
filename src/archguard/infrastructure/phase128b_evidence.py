@@ -51,6 +51,7 @@ PROFILE_FINGERPRINT = "e2694d6a8016382036a3670476d75a0ca16d7f9872678156d16fba6de
 MAX_DOWNLOAD_BYTES = 250 * 1024 * 1024
 MAX_ARCHIVE_BYTES = 8 * 1024 * 1024
 MAX_MEMBER_BYTES = 1024 * 1024
+IMPORTED_EVIDENCE_SCHEMA = "archguard.phase-12.8b-evidence-import/v1"
 SPECS = (
     ImmutableRevision(
         "pysnooper-buggy", "https://github.com/cool-RR/PySnooper.git", BUGGY_REVISION
@@ -576,7 +577,7 @@ def create_evidence_zip(directory: Path, archive: Path) -> None:
 def validate_evidence_zip(archive: Path) -> dict[str, Any]:
     if archive.stat().st_size > MAX_ARCHIVE_BYTES:
         raise ValueError("evidence archive too large")
-    with tempfile.TemporaryDirectory(prefix="archguard-phase128b-", dir=archive.parent) as name:
+    with tempfile.TemporaryDirectory(prefix="archguard-phase128b-") as name:
         temporary = Path(name)
         with zipfile.ZipFile(archive) as source:
             infos = source.infolist()
@@ -603,12 +604,52 @@ def validate_evidence_zip(archive: Path) -> dict[str, Any]:
 
 
 def import_evidence_zip(archive: Path, destination: Path) -> dict[str, Any]:
-    result = validate_evidence_zip(archive)
-    if destination.exists():
-        raise ValueError("evidence import destination already exists")
-    destination.mkdir(parents=True)
+    manifest = validate_evidence_zip(archive)
     with zipfile.ZipFile(archive) as source:
-        for name in sorted(ARCHIVE_MEMBERS):
-            atomic_write(destination / name, source.read(name))
-    validate_evidence_directory(destination)
-    return result
+        evidence = {
+            name.removesuffix(".json").replace("-", "_"): _json(source.read(name))
+            for name in sorted(ARCHIVE_MEMBERS - {"SHA256SUMS"})
+        }
+    imported = fingerprinted(
+        IMPORTED_EVIDENCE_SCHEMA,
+        {
+            "archive_sha256": sha256(archive.read_bytes()),
+            "manifest": manifest,
+            "evidence": evidence,
+        },
+    )
+    raw = canonical_json(imported)
+    if destination.exists():
+        if destination.is_file() and destination.read_bytes() == raw:
+            return imported
+        raise ValueError("contradictory Phase 12.8B evidence already exists")
+    atomic_write(destination, raw)
+    return imported
+
+
+def validate_imported_evidence(path: Path) -> dict[str, Any]:
+    value = _json(path.read_bytes())
+    claimed = value.get("fingerprint")
+    body = {key: item for key, item in value.items() if key != "fingerprint"}
+    if value.get("schema") != IMPORTED_EVIDENCE_SCHEMA or claimed != fingerprint(body):
+        raise ValueError("invalid imported Phase 12.8B evidence")
+    manifest = value.get("manifest")
+    evidence = value.get("evidence")
+    if not isinstance(manifest, dict) or not isinstance(evidence, dict):
+        raise ValueError("incomplete imported Phase 12.8B evidence")
+    Phase128BManifest(**manifest)
+    graph = evidence.get("graph_evidence")
+    readiness = evidence.get("readiness_summary")
+    licenses = evidence.get("license_evidence")
+    if (
+        not isinstance(graph, dict)
+        or not isinstance(readiness, dict)
+        or not isinstance(licenses, dict)
+        or graph.get("fingerprint") != manifest.get("graph_fingerprint")
+        or readiness.get("phase_13_ready") is not False
+        or readiness.get("architecture_analysis_complete") is not False
+        or readiness.get("resolved_blocker_codes") != ["GRAPH_EVIDENCE_EXTERNAL_EXECUTION_REQUIRED"]
+        or licenses.get("benchmark_task_redistribution") != "UNRESOLVED"
+    ):
+        raise ValueError("contradictory imported Phase 12.8B evidence")
+    return value
