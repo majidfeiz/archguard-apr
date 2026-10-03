@@ -1,0 +1,13 @@
+{
+  "schema": "archguard.representative-task-selection/v1",
+  "status": "EXTERNAL_EXECUTION_REQUIRED",
+  "algorithm": "Filter official immutable metadata by revision, separately verified framework/dataset/project licenses, bounded size, evaluator isolation, supported layout, no submodules, and Linux x86_64 compatibility; sort by source, project, task identifier, buggy revision, fixed revision; take the first six while targeting at least four tasks across at least two projects. Never inspect outcomes or replace a selected failure.",
+  "limits": {"maximum_selected_tasks": 6, "target_minimum_tasks": 4, "minimum_projects": 2, "maximum_concurrency": 1, "retained_external_bytes": 2147483648, "new_image_bytes": 8589934592, "temporary_workspace_bytes": 21474836480, "minimum_free_bytes": 5368709120},
+  "candidates": [],
+  "selected": [],
+  "exclusions": [
+    {"subject": "BugsInPy framework", "reason": "FRAMEWORK_LICENSE_UNRESOLVED"},
+    {"subject": "SWE-bench Verified", "reason": "DATASET_LICENSE_UNRESOLVED_AND_PAYLOAD_FORBIDDEN_IN_PHASE_12_8"}
+  ],
+  "counts": {"candidate": 0, "selected": 0, "acquired": 0, "reproduced": 0, "stable": 0, "flaky": 0, "skipped": 0, "ineligible": 0}
+}

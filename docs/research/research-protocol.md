@@ -1,5 +1,10 @@
 # Preliminary research protocol
 
+Phase 12.8 consolidates the proposed confirmatory choices in
+`research/protocol/confirmatory-protocol-v1.json` (fingerprint
+`921a3ffa97e866b9ce7aa3431463ab6e8efbf41814a223ffe040e978a44dd0d9`). Its status is
+`PROPOSED_REVIEW_REQUIRED`, not frozen; the human decision template is pending.
+
 Phase 9 adds direct API adapters and offline provider-contract demonstrations. They verify integration,
 security and replay mechanisms, not LLM repair performance. Live inference is nondeterministic; record
 provider/model, reported raw usage, attempt identity, configuration and price-table provenance. Never

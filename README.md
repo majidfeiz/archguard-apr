@@ -8,7 +8,10 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.12.6 adds a strict low-resource local micro-pilot: two real BugsInPy tasks were attempted,
+Version 0.12.8 adds fail-closed Phase 12.7 evidence ingestion, human review and protocol-freeze
+contracts, deterministic representative-task selection policy, and a factual Phase 13 readiness gate.
+Human decisions remain pending and no Phase 13 experiment is run. Version 0.12.6 added a strict
+low-resource local micro-pilot: two real BugsInPy tasks were attempted,
 one stable task/evaluator qualified, and its architecture profile remains review-required. No paid
 provider or SWE-bench task ran, and Phase 13 remains blocked. Version 0.12.5 added external benchmark onboarding controls, source allowlists, external storage
 containment, license/reproduction/profile-review records, gold quarantine scans and non-forgeable

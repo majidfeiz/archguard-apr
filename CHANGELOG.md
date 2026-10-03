@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.8
+
+- Add hardened, hash-bound, source-free Phase 12.7 qualification evidence ingestion.
+- Add fingerprint-bound human profile/protocol decisions and fail-closed Phase 13 aggregation.
+- Add deterministic representative-task selection policy, pending review artifacts, and check-only CI.
+- Keep external execution, provider use, approvals, and Phase 13 experiments disabled.
+
 ## 0.12.6
 
 - Qualify one stable real BugsInPy micro-pilot task under strict disk/network/provider limits.

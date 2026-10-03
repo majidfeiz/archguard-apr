@@ -1,0 +1,60 @@
+name: Phase 13 Readiness Gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-only:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - run: uv python install 3.12 && uv sync --frozen
+      - name: Produce machine-readable gate report
+        id: gate
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          uv run archguard readiness gate --facts research/readiness-facts.json | tee phase-13-readiness-report.json
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ] && [ "$status" -ne 4 ]; then
+            echo "::error title=Readiness gate execution failed::Unexpected exit code $status"
+            exit "$status"
+          fi
+          jq -e '.schema == "archguard.phase-13-readiness/v1" and (.phase_13_ready | type == "boolean") and (.blocker_codes | type == "array")' phase-13-readiness-report.json >/dev/null
+          ready="$(jq -r .phase_13_ready phase-13-readiness-report.json)"
+          blockers="$(jq -r '.blocker_codes | join(", ")' phase-13-readiness-report.json)"
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Phase 13 readiness"
+            echo
+            echo "- Ready: \`$ready\`"
+            echo "- Blockers: ${blockers:-none}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ready" = false ]; then
+            echo "::notice title=Phase 13 review required::$blockers"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase-13-readiness-report
+          path: phase-13-readiness-report.json
+          retention-days: 30
+          if-no-files-found: error
+      - name: Enforce readiness on manual dispatch
+        if: always() && steps.gate.outcome == 'success' && github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          if [ "${{ steps.gate.outputs.ready }}" != true ]; then
+            blockers="$(jq -r '.blocker_codes | join(", ")' phase-13-readiness-report.json)"
+            echo "::error title=Phase 13 readiness blocked::$blockers"
+            exit 4
+          fi

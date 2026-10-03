@@ -1,0 +1,61 @@
+name: Phase 12.8 Linux x86 Qualification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-12-8-linux-x86-qualification
+  cancel-in-progress: false
+
+jobs:
+  frozen-list-gate:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.selection.outputs.matrix }}
+      runnable: ${{ steps.selection.outputs.runnable }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          matrix="$(jq -c '{include: .selected}' research/selection/phase-12.8-candidates.json)"
+          count="$(jq '.selected | length' research/selection/phase-12.8-candidates.json)"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          if [ "$count" -gt 0 ] && [ "$(jq -r .status research/selection/phase-12.8-candidates.json)" = FROZEN ]; then
+            echo 'runnable=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'runnable=false' >> "$GITHUB_OUTPUT"
+            echo 'EXTERNAL_EXECUTION_REQUIRED: no human-approved frozen eligible task list.'
+          fi
+
+  qualify:
+    needs: frozen-list-gate
+    if: needs.frozen-list-gate.outputs.runnable == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.frozen-list-gate.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Enforce frozen task contract
+        run: |
+          test "${{ matrix.task_id }}" != ''
+          test "$(uname -m)" = x86_64
+          test "$(df --output=avail -B1 "$RUNNER_TEMP" | tail -1)" -ge 5368709120
+      - name: Qualification adapter required
+        run: |
+          echo 'Fail closed: a reviewed task-specific acquisition/evaluator adapter is required.' >&2
+          exit 2
+      - name: Cleanup phase resources
+        if: always()
+        run: |
+          ids="$(docker ps -aq --filter label=archguard.phase=12.8)"
+          if [ -n "$ids" ]; then docker rm -f $ids; fi
+          test -z "$(docker ps -aq --filter label=archguard.phase=12.8)"
