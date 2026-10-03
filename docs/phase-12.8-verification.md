@@ -24,3 +24,8 @@ The PySnooper draft profile and protocol decisions are pending. Thus the factual
 The repository follows its established major-tag Actions policy (`actions/checkout@v6`,
 `actions/upload-artifact@v4`, `astral-sh/setup-uv@v6`); these are not immutable commit pins, which is a
 supply-chain limitation. Workflows do not claim local GitHub Actions execution.
+
+The Phase 13 workflow treats pull requests as report-validation runs: a valid fail-closed report with
+blockers is uploaded and does not make an otherwise healthy Phase 12.8 pull request fail. Manual
+dispatch is the enforcing gate and exits nonzero whenever `phase_13_ready` is false. Unexpected CLI or
+schema failures remain errors in both modes.
