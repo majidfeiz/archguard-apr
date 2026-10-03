@@ -1,4 +1,5 @@
 # Imported evidence
 
-Only a canonical source-free manifest produced by `archguard readiness evidence import` may be stored
-here. Never add downloaded ZIPs, source, patches, gold/evaluator material, or raw logs.
+Only canonical source-free JSON produced by the Phase 12.7 or Phase 12.8B readiness importers may be
+stored here. Never add downloaded ZIPs, extracted repositories, source, patches, gold/evaluator
+material, or raw logs.

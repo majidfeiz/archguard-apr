@@ -33,3 +33,7 @@ Phase 12.8B adds bounded external acquisition and source-free license/graph evid
 local implementation and its tests are engineering verification only. No external acquisition,
 benchmark execution, provider call, evidence import, or repair-effectiveness experiment is registered
 until a separately validated workflow artifact is imported.
+GitHub Actions run `37152285061` subsequently produced validated source-free license and graph
+evidence for the already-qualified PySnooper-2 feasibility task. Importing that artifact is an
+engineering evidence update, not a new task acquisition, repair run, provider evaluation, or Phase 13
+experiment. The graph report remains partial and the profile decision remains pending.
