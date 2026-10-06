@@ -88,6 +88,15 @@ def test_workflow_has_runtime_temp_exact_artifact_and_limits(repository_root: Pa
     assert "timeout-minutes: 30" in raw and "timeout 15m" in raw
 
 
+def test_readiness_workflow_accepts_amend_without_approval(repository_root: Path) -> None:
+    raw = (repository_root / ".github/workflows/phase-12-8-readiness.yml").read_text()
+    assert 'pysnooper-profile-decision.json)" = AMEND' in raw
+    assert 'protocol-decision.json)" = PENDING' in raw
+    assert "PROPOSED_REEVALUATION_REQUIRED" in raw
+    assert 'architecture_analysis_complete research/readiness-facts.json)" = false' in raw
+    assert 'profiles_frozen research/readiness-facts.json)" = false' in raw
+
+
 @pytest.mark.parametrize("unsafe", ["../manifest.json", "nested/manifest.json"])
 def test_archive_rejects_traversal_and_nested_paths(tmp_path: Path, unsafe: str) -> None:
     archive = tmp_path / "unsafe.zip"
