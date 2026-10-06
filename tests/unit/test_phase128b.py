@@ -318,9 +318,13 @@ def test_profile_is_amended_protocol_pending_and_import_is_source_free(
         (repository_root / "research/reviews/pysnooper-profile-decision.json").read_text()
     )
     protocol = json.loads((repository_root / "research/reviews/protocol-decision.json").read_text())
-    assert profile["decision"] == "AMEND"
+    assert profile["decision"] == "APPROVE"
     assert profile["reviewer_name"] == "user-authorized human reviewer"
     assert profile["review_timestamp"]
+    historical = json.loads(
+        (repository_root / "research/reviews/pysnooper-profile-amend-decision.json").read_text()
+    )
+    assert historical["decision"] == "AMEND"
     assert protocol["decision"] == "PENDING"
     assert protocol["reviewer_name"] == ""
     assert protocol["review_timestamp"] == ""

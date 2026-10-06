@@ -30,6 +30,8 @@ def load_human_decision(path: Path) -> HumanDecisionRecord:
     }
     if value.get("schema") == "archguard.human-decision/v2":
         expected.add("evidence_binding")
+    if value.get("schema") == "archguard.human-decision/v3":
+        expected.update({"approval_binding", "previous_decision_sha256"})
     if (
         set(value) != expected
         or not isinstance(value["checklist"], dict)
@@ -48,6 +50,16 @@ def load_human_decision(path: Path) -> HumanDecisionRecord:
         evidence_binding=(
             {str(k): str(v) for k, v in value["evidence_binding"].items()}
             if isinstance(value.get("evidence_binding"), dict)
+            else None
+        ),
+        approval_binding=(
+            {str(k): str(v) for k, v in value["approval_binding"].items()}
+            if isinstance(value.get("approval_binding"), dict)
+            else None
+        ),
+        previous_decision_sha256=(
+            str(value["previous_decision_sha256"])
+            if value.get("previous_decision_sha256") is not None
             else None
         ),
     )

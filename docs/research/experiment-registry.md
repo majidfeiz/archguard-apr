@@ -41,3 +41,7 @@ Phase 12.8C records the human `AMEND` decision and proposes amended profile fing
 `950cd9889d5d4335e60b7429d2feddf2230db42654e5ec844edd813596b6d6d7`. A local macOS/ARM engineering
 run completed all 14 assignments and evaluated all five rules with no violations. It is not an
 experiment or qualification; new Linux x86 evidence, import, and final human review remain required.
+Phase 12.8D imports the independently generated Linux x86 profile re-evaluation and records the
+user-authorized approval/freeze. This resolves architecture-analysis and profile-review requirements
+for PySnooper only. It is an engineering readiness update, not an experiment; global population,
+licensing, protocol, task-freeze, and provider blockers remain.
