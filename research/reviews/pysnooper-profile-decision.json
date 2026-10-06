@@ -1,18 +1,25 @@
 {
-  "schema": "archguard.human-decision/v1",
+  "schema": "archguard.human-decision/v2",
   "subject_kind": "architecture_profile",
   "reviewed_fingerprint": "e2694d6a8016382036a3670476d75a0ca16d7f9872678156d16fba6de0f441f1",
-  "reviewer_name": "",
-  "review_timestamp": "",
-  "decision": "PENDING",
+  "reviewer_name": "user-authorized human reviewer",
+  "review_timestamp": "2026-10-06T07:11:36Z",
+  "decision": "AMEND",
   "checklist": {
-    "project_and_revision_verified": false,
-    "license_evidence_reviewed": false,
-    "components_and_selectors_reviewed": false,
-    "every_rule_and_rationale_reviewed": false,
-    "graph_facts_reviewed": false,
-    "ambiguities_and_limitations_accepted": false,
-    "no_gold_or_fixed_source_used": false
+    "project_and_revision_verified": true,
+    "license_evidence_reviewed": true,
+    "components_and_selectors_reviewed": true,
+    "every_rule_and_rationale_reviewed": true,
+    "graph_facts_reviewed": true,
+    "ambiguities_and_limitations_accepted": true,
+    "no_gold_or_fixed_source_used": true
   },
-  "comments": ""
+  "comments": "The profile should be amended because setup and misc.generate_authors\nare project-maintenance and packaging modules rather than production\nruntime modules. Assigning them to a dedicated project-tooling component\nremoves incomplete assignment without introducing them into the\nproduction architecture. The amended profile must be re-evaluated using\nnew independently generated Linux x86 evidence before approval or freeze.",
+  "evidence_binding": {
+    "graph_fingerprint": "e08af7f18e793a17e06721127ebf43d791c299a92702dba5c06d932ab527ab1e",
+    "canonical_graph_fingerprint": "b1c318faba70d50225ceba74254edb18727013291de8607695334f8f0a98802c",
+    "acquisition_fingerprint": "b5820205e5339b0a64a7efdfef6bd74cb71b90d58a18f90fa9847af4123f4c1f",
+    "buggy_revision": "e21a31162f4c54be693d8ca8260e42393b39abd3",
+    "task_id": "PySnooper-2"
+  }
 }

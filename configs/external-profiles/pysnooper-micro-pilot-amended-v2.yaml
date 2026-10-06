@@ -1,0 +1,50 @@
+architecture_profile_schema_version: "1"
+id: pysnooper-micro-pilot-amended-v2
+name: PySnooper micro-pilot amended profile; Linux x86 re-evaluation required
+description: Human-requested amendment adding only project maintenance and packaging modules to project-tooling.
+assignment:
+  unassigned: error
+  ambiguous: error
+components:
+  - id: project-tooling
+    selectors:
+      - {type: module_exact, value: misc.generate_authors}
+      - {type: module_exact, value: setup}
+  - id: public-api
+    selectors:
+      - {type: module_exact, value: pysnooper}
+      - {type: module_exact, value: pysnooper.__init__}
+  - id: tracing
+    selectors:
+      - {type: module_exact, value: pysnooper.tracer}
+  - id: representation
+    selectors:
+      - {type: module_exact, value: pysnooper.variables}
+  - id: support
+    selectors:
+      - {type: module_exact, value: pysnooper.pycompat}
+      - {type: module_exact, value: pysnooper.utils}
+  - id: tests
+    selectors:
+      - {type: module_prefix, value: tests}
+rules:
+  - id: support-is-independent
+    type: allow_only_dependencies
+    source: support
+    allowed: [support]
+  - id: representation-uses-support
+    type: allow_only_dependencies
+    source: representation
+    allowed: [representation, support]
+  - id: tracing-uses-inner-components
+    type: allow_only_dependencies
+    source: tracing
+    allowed: [tracing, representation, support]
+  - id: public-api-delegates-inward
+    type: allow_only_dependencies
+    source: public-api
+    allowed: [public-api, tracing, representation, support]
+  - id: production-components-acyclic
+    type: forbid_cycles
+    components: [public-api, tracing, representation, support]
+    include_type_checking: false

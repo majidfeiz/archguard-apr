@@ -16,15 +16,32 @@ from archguard.infrastructure.phase128b_evidence import (
     produce_evidence,
     validate_evidence_zip,
 )
+from archguard.infrastructure.phase128c_evidence import (
+    finalize_cleanup as finalize_phase128c_cleanup,
+)
+from archguard.infrastructure.phase128c_evidence import (
+    import_archive as import_phase128c_archive,
+)
+from archguard.infrastructure.phase128c_evidence import (
+    package as package_phase128c,
+)
+from archguard.infrastructure.phase128c_evidence import (
+    produce as produce_phase128c,
+)
+from archguard.infrastructure.phase128c_evidence import (
+    validate_archive as validate_phase128c_archive,
+)
 from archguard.infrastructure.readiness_artifacts import load_human_decision, load_json
 
 app = typer.Typer(no_args_is_help=True)
 evidence_app = typer.Typer(no_args_is_help=True)
 decision_app = typer.Typer(no_args_is_help=True)
 phase128b_app = typer.Typer(no_args_is_help=True)
+phase128c_app = typer.Typer(no_args_is_help=True)
 app.add_typer(evidence_app, name="evidence")
 app.add_typer(decision_app, name="decision")
 app.add_typer(phase128b_app, name="phase128b")
+app.add_typer(phase128c_app, name="phase128c")
 
 
 def emit(value: object) -> None:
@@ -151,3 +168,59 @@ def phase128b_import(
         emit({"status": "imported", **import_evidence_zip(archive, output)})
     except (OSError, ValueError, KeyError):
         fail("INVALID_PHASE_12_8B_EVIDENCE")
+
+
+@phase128c_app.command("produce")
+def phase128c_produce(
+    external_root: Annotated[Path, typer.Option("--external-root")],
+    output: Annotated[Path, typer.Option("--output")],
+    repository_root: Annotated[Path, typer.Option("--repository-root")] = Path("."),
+    github_run_id: Annotated[str, typer.Option("--github-run-id")] = "local",
+) -> None:
+    try:
+        emit(produce_phase128c(external_root, output, repository_root, github_run_id))
+    except (OSError, ValueError, KeyError, json.JSONDecodeError):
+        fail("INVALID_PHASE_12_8C_EXECUTION")
+
+
+@phase128c_app.command("finalize-cleanup")
+def phase128c_finalize_cleanup(
+    source: Annotated[Path, typer.Option("--source")],
+    external_root: Annotated[Path, typer.Option("--external-root")],
+) -> None:
+    try:
+        finalize_phase128c_cleanup(source, external_root)
+        emit({"status": "complete"})
+    except (OSError, ValueError):
+        fail("INVALID_PHASE_12_8C_CLEANUP")
+
+
+@phase128c_app.command("package")
+def phase128c_package(
+    source: Annotated[Path, typer.Option("--source")],
+    archive: Annotated[Path, typer.Option("--archive")],
+) -> None:
+    try:
+        package_phase128c(source, archive)
+        emit({"status": "packaged", "archive": archive.name})
+    except (OSError, ValueError):
+        fail("INVALID_PHASE_12_8C_EVIDENCE")
+
+
+@phase128c_app.command("validate")
+def phase128c_validate(archive: Annotated[Path, typer.Option("--archive")]) -> None:
+    try:
+        emit({"status": "valid", **validate_phase128c_archive(archive)})
+    except (OSError, ValueError, KeyError):
+        fail("INVALID_PHASE_12_8C_EVIDENCE")
+
+
+@phase128c_app.command("import")
+def phase128c_import(
+    archive: Annotated[Path, typer.Option("--archive")],
+    output: Annotated[Path, typer.Option("--output")],
+) -> None:
+    try:
+        emit({"status": "imported", **import_phase128c_archive(archive, output)})
+    except (OSError, ValueError, KeyError):
+        fail("INVALID_PHASE_12_8C_EVIDENCE")

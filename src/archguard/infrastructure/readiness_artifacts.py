@@ -28,6 +28,8 @@ def load_human_decision(path: Path) -> HumanDecisionRecord:
         "checklist",
         "comments",
     }
+    if value.get("schema") == "archguard.human-decision/v2":
+        expected.add("evidence_binding")
     if (
         set(value) != expected
         or not isinstance(value["checklist"], dict)
@@ -43,4 +45,9 @@ def load_human_decision(path: Path) -> HumanDecisionRecord:
         decision=HumanDecision(str(value["decision"])),
         checklist={str(k): v for k, v in value["checklist"].items()},
         comments=str(value["comments"]),
+        evidence_binding=(
+            {str(k): str(v) for k, v in value["evidence_binding"].items()}
+            if isinstance(value.get("evidence_binding"), dict)
+            else None
+        ),
     )

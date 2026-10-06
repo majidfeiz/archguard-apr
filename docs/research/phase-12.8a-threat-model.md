@@ -13,3 +13,9 @@ buggy/fixed/metadata directories, duplicate/traversal-safe evidence packaging, a
 upload. Only the buggy tree enters static analysis. The fixed tree is identity-checked but never used
 for profile or graph generation. License uncertainty is preserved as data rather than converted into
 an engineering failure or an inferred permission.
+
+Phase 12.8C uses two exact tooling selectors so future production modules cannot be silently captured.
+It acquires only the immutable buggy revision, runs independent graph/evaluation passes, and requires
+byte identity. The flat source-free allowlist is revision/profile/graph/hash bound and rejects source,
+gold, logs, secrets, symlinks, traversal, and contradictory readiness. Local ARM evidence cannot
+qualify the profile; native Linux x86 evidence must be imported and reviewed before approval/freeze.

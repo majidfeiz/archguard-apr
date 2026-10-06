@@ -1,12 +1,18 @@
 # PySnooper architecture-profile review packet
 
-Status: `REVIEW_REQUIRED`. This packet is source-free and is not a human approval. Validated Phase
-12.8B graph evidence has been imported; the profile decision remains `PENDING`.
+Status: `PROPOSED_REEVALUATION_REQUIRED`. This packet is source-free and is not a human approval.
+Validated Phase 12.8B graph evidence has been imported; the human decision is `AMEND`.
 
 - Project/task: PySnooper / BugsInPy `PySnooper-2`
 - Buggy revision: `e21a31162f4c54be693d8ca8260e42393b39abd3`
 - Draft profile fingerprint: `e2694d6a8016382036a3670476d75a0ca16d7f9872678156d16fba6de0f441f1`
 - Graph evidence fingerprint: `e08af7f18e793a17e06721127ebf43d791c299a92702dba5c06d932ab527ab1e`
+- Proposed amended profile: `950cd9889d5d4335e60b7429d2feddf2230db42654e5ec844edd813596b6d6d7`
+- Amendment: exact selectors for `setup` and `misc.generate_authors` in `project-tooling` only;
+  production assignments and rules are unchanged and production-only rules exclude this component.
+- Local macOS/ARM engineering result: 14/14 assigned, 0 ambiguous, all 5 rules evaluated, 0 skipped,
+  0 violations, `passed=true`, with two byte-identical outputs. This is not Linux x86 qualification.
+- Linux x86 evidence import and final human approval remain pending; the profile is not frozen.
 - Canonical graph fingerprint: `b1c318faba70d50225ceba74254edb18727013291de8607695334f8f0a98802c`
 - Acquisition fingerprint: `b5820205e5339b0a64a7efdfef6bd74cb71b90d58a18f90fa9847af4123f4c1f`
 - Project license: PySnooper is `VERIFIED` as MIT at the buggy revision. BugsInPy and the SWE-bench

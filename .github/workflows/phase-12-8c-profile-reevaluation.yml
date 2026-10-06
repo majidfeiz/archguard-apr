@@ -1,0 +1,81 @@
+name: Phase 12.8C PySnooper Profile Re-evaluation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-12-8c-profile-reevaluation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  reevaluate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Initialize bounded temporary paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          external_root="${RUNNER_TEMP}/archguard-phase-12-8c-external"
+          evidence_root="${RUNNER_TEMP}/archguard-phase-12-8c-evidence"
+          validation_archive="${RUNNER_TEMP}/archguard-phase-12-8c-validation.zip"
+          mkdir -p "${external_root}"
+          echo "EXTERNAL_ROOT=${external_root}" >> "${GITHUB_ENV}"
+          echo "EVIDENCE_ROOT=${evidence_root}" >> "${GITHUB_ENV}"
+          echo "VALIDATION_ARCHIVE=${validation_archive}" >> "${GITHUB_ENV}"
+          test "$(uname -m)" = x86_64
+          test "$(df --output=avail -B1 "${RUNNER_TEMP}" | tail -1)" -ge 2147483648
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - name: Install frozen tooling
+        run: uv python install 3.12 && uv sync --frozen
+      - name: Acquire immutable buggy revision and evaluate twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 15m uv run archguard readiness phase128c produce \
+            --external-root "${EXTERNAL_ROOT}" \
+            --output "${EVIDENCE_ROOT}" \
+            --repository-root "${GITHUB_WORKSPACE}" \
+            --github-run-id "${GITHUB_RUN_ID}"
+          test "$(du -sk "${EXTERNAL_ROOT}" | cut -f1)" -le 65536
+      - name: Remove acquired source and finalize cleanup evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf -- "${EXTERNAL_ROOT}"
+          test ! -e "${EXTERNAL_ROOT}"
+          test -z "$(docker ps -aq --filter label=archguard.phase=12.8c 2>/dev/null)"
+          test -z "$(docker volume ls -q --filter label=archguard.phase=12.8c 2>/dev/null)"
+          uv run archguard readiness phase128c finalize-cleanup \
+            --source "${EVIDENCE_ROOT}" --external-root "${EXTERNAL_ROOT}"
+      - name: Validate exact source-free allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run archguard readiness phase128c package \
+            --source "${EVIDENCE_ROOT}" --archive "${VALIDATION_ARCHIVE}"
+          uv run archguard readiness phase128c validate --archive "${VALIDATION_ARCHIVE}"
+          rm -f -- "${VALIDATION_ARCHIVE}"
+          test "$(find "${EVIDENCE_ROOT}" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 9
+          test -z "$(find "${EVIDENCE_ROOT}" -mindepth 1 -maxdepth 1 ! -type f -print)"
+      - name: Upload one source-free artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: archguard-phase-12-8c-profile-reevaluation-${{ github.run_id }}
+          path: ${{ env.EVIDENCE_ROOT }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Cleanup temporary data
+        if: always()
+        shell: bash
+        run: |
+          rm -rf -- "${EXTERNAL_ROOT:-${RUNNER_TEMP}/archguard-phase-12-8c-external}"
+          rm -rf -- "${EVIDENCE_ROOT:-${RUNNER_TEMP}/archguard-phase-12-8c-evidence}"
+          rm -f -- "${VALIDATION_ARCHIVE:-${RUNNER_TEMP}/archguard-phase-12-8c-validation.zip}"

@@ -11,6 +11,7 @@ from archguard.domain.repository import check, digest
 EVIDENCE_SCHEMA = "archguard.phase-12.7-x86-qualification/v1"
 IMPORTED_EVIDENCE_SCHEMA = "archguard.phase-12.7-x86-qualification-import/v1"
 DECISION_SCHEMA = "archguard.human-decision/v1"
+BOUND_DECISION_SCHEMA = "archguard.human-decision/v2"
 PROTOCOL_SCHEMA = "archguard.confirmatory-protocol/v1"
 READINESS_SCHEMA = "archguard.phase-13-readiness/v1"
 
@@ -41,6 +42,7 @@ class HumanDecision(StrEnum):
     APPROVE = "APPROVE"
     REQUEST_CHANGES = "REQUEST_CHANGES"
     REJECT = "REJECT"
+    AMEND = "AMEND"
 
 
 @dataclass(frozen=True)
@@ -53,14 +55,41 @@ class HumanDecisionRecord:
     decision: HumanDecision
     checklist: dict[str, bool]
     comments: str
+    evidence_binding: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
-        check(self.schema == DECISION_SCHEMA, "unsupported human decision schema")
+        check(
+            self.schema in {DECISION_SCHEMA, BOUND_DECISION_SCHEMA},
+            "unsupported human decision schema",
+        )
         check(
             self.subject_kind in {"architecture_profile", "confirmatory_protocol"},
             "invalid subject",
         )
         digest(self.reviewed_fingerprint)
+        if self.schema == BOUND_DECISION_SCHEMA:
+            binding = self.evidence_binding or {}
+            check(
+                set(binding)
+                == {
+                    "graph_fingerprint",
+                    "canonical_graph_fingerprint",
+                    "acquisition_fingerprint",
+                    "buggy_revision",
+                    "task_id",
+                },
+                "invalid evidence binding",
+            )
+            for key in (
+                "graph_fingerprint",
+                "canonical_graph_fingerprint",
+                "acquisition_fingerprint",
+            ):
+                sha256_digest(binding[key])
+            git_sha1_commit(binding["buggy_revision"])
+            check(binding["task_id"] == "PySnooper-2", "wrong bound task")
+        else:
+            check(self.evidence_binding is None, "v1 decision cannot carry evidence binding")
         if self.decision == HumanDecision.PENDING:
             check(
                 not self.reviewer_name and not self.review_timestamp,
