@@ -311,12 +311,19 @@ def test_import_resolves_only_graph_execution_blocker(repository_root: Path) -> 
     }
 
 
-def test_human_decisions_remain_pending_and_import_is_source_free(repository_root: Path) -> None:
-    for name in ("pysnooper-profile-decision.json", "protocol-decision.json"):
-        decision = json.loads((repository_root / "research/reviews" / name).read_text())
-        assert decision["decision"] == "PENDING"
-        assert decision["reviewer_name"] == ""
-        assert decision["review_timestamp"] == ""
+def test_profile_is_amended_protocol_pending_and_import_is_source_free(
+    repository_root: Path,
+) -> None:
+    profile = json.loads(
+        (repository_root / "research/reviews/pysnooper-profile-decision.json").read_text()
+    )
+    protocol = json.loads((repository_root / "research/reviews/protocol-decision.json").read_text())
+    assert profile["decision"] == "AMEND"
+    assert profile["reviewer_name"] == "user-authorized human reviewer"
+    assert profile["review_timestamp"]
+    assert protocol["decision"] == "PENDING"
+    assert protocol["reviewer_name"] == ""
+    assert protocol["review_timestamp"] == ""
 
     evidence_root = repository_root / "research/evidence"
     assert not list(evidence_root.glob("*.zip"))

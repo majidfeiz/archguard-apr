@@ -36,4 +36,8 @@ until a separately validated workflow artifact is imported.
 GitHub Actions run `37152285061` subsequently produced validated source-free license and graph
 evidence for the already-qualified PySnooper-2 feasibility task. Importing that artifact is an
 engineering evidence update, not a new task acquisition, repair run, provider evaluation, or Phase 13
-experiment. The graph report remains partial and the profile decision remains pending.
+experiment. The graph report remains partial; the profile decision was pending at import time.
+Phase 12.8C records the human `AMEND` decision and proposes amended profile fingerprint
+`950cd9889d5d4335e60b7429d2feddf2230db42654e5ec844edd813596b6d6d7`. A local macOS/ARM engineering
+run completed all 14 assignments and evaluated all five rules with no violations. It is not an
+experiment or qualification; new Linux x86 evidence, import, and final human review remain required.

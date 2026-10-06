@@ -258,7 +258,10 @@ def audit_licenses(root: Path, timestamp: str) -> dict[str, Any]:
 
 
 def generate_graph_evidence(
-    source: Path, work: Path, profile_yaml: Path
+    source: Path,
+    work: Path,
+    profile_yaml: Path,
+    expected_profile_fingerprint: str = PROFILE_FINGERPRINT,
 ) -> tuple[dict[str, Any], bytes]:
     work.mkdir(parents=True)
     snapshot_path, graph_path, report_path = (
@@ -279,7 +282,7 @@ def generate_graph_evidence(
         .graph
     )
     profile = LocalArchitectureProfiles().load(profile_yaml)
-    if profile.profile_fingerprint != PROFILE_FINGERPRINT:
+    if profile.profile_fingerprint != expected_profile_fingerprint:
         raise ValueError("PROFILE_REVIEW_INVALIDATED")
     report = (
         EvaluateArchitecture(

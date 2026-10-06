@@ -8,5 +8,8 @@ timestamp/path-independent fingerprint. It contains no source, patch, gold mater
 timestamp, `PENDING|APPROVE|REQUEST_CHANGES|REJECT`, explicit checklist booleans, and comments. Pending
 templates leave identity/time blank and all checks false.
 
+`archguard.human-decision/v2` additionally permits `AMEND` and requires exact bindings to the source
+graph, canonical graph, acquisition, immutable buggy revision, and task. `AMEND` is never approval.
+
 `archguard.phase-13-readiness/v1` contains factual gate booleans, stable blocker codes, a derived
 `phase_13_ready` boolean, and a deterministic fingerprint. No manual readiness field is accepted.
