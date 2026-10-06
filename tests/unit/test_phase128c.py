@@ -28,9 +28,9 @@ CANONICAL_GRAPH_FINGERPRINT = "b1c318faba70d50225ceba74254edb18727013291de860769
 ACQUISITION_FINGERPRINT = "b5820205e5339b0a64a7efdfef6bd74cb71b90d58a18f90fa9847af4123f4c1f"
 
 
-def test_human_amend_decision_is_strictly_bound_and_not_approval(repository_root: Path) -> None:
+def test_historical_human_amend_decision_is_strictly_bound(repository_root: Path) -> None:
     decision = load_human_decision(
-        repository_root / "research/reviews/pysnooper-profile-decision.json"
+        repository_root / "research/reviews/pysnooper-profile-amend-decision.json"
     )
     assert decision.decision.value == "AMEND"
     assert decision.reviewed_fingerprint == OLD_PROFILE_FINGERPRINT
@@ -88,11 +88,13 @@ def test_workflow_has_runtime_temp_exact_artifact_and_limits(repository_root: Pa
     assert "timeout-minutes: 30" in raw and "timeout 15m" in raw
 
 
-def test_readiness_workflow_accepts_amend_without_approval(repository_root: Path) -> None:
+def test_readiness_workflow_preserves_global_blockers_after_approval(
+    repository_root: Path,
+) -> None:
     raw = (repository_root / ".github/workflows/phase-12-8-readiness.yml").read_text()
-    assert 'pysnooper-profile-decision.json)" = AMEND' in raw
+    assert 'pysnooper-profile-decision.json)" = APPROVE' in raw
     assert 'protocol-decision.json)" = PENDING' in raw
-    assert "PROPOSED_REEVALUATION_REQUIRED" in raw
+    assert 'pysnooper_amended_profile_status research/readiness-facts.json)" = FROZEN' in raw
     assert 'architecture_analysis_complete research/readiness-facts.json)" = false' in raw
     assert 'profiles_frozen research/readiness-facts.json)" = false' in raw
 

@@ -12,6 +12,7 @@ EVIDENCE_SCHEMA = "archguard.phase-12.7-x86-qualification/v1"
 IMPORTED_EVIDENCE_SCHEMA = "archguard.phase-12.7-x86-qualification-import/v1"
 DECISION_SCHEMA = "archguard.human-decision/v1"
 BOUND_DECISION_SCHEMA = "archguard.human-decision/v2"
+APPROVAL_DECISION_SCHEMA = "archguard.human-decision/v3"
 PROTOCOL_SCHEMA = "archguard.confirmatory-protocol/v1"
 READINESS_SCHEMA = "archguard.phase-13-readiness/v1"
 
@@ -56,10 +57,12 @@ class HumanDecisionRecord:
     checklist: dict[str, bool]
     comments: str
     evidence_binding: dict[str, str] | None = None
+    approval_binding: dict[str, str] | None = None
+    previous_decision_sha256: str | None = None
 
     def __post_init__(self) -> None:
         check(
-            self.schema in {DECISION_SCHEMA, BOUND_DECISION_SCHEMA},
+            self.schema in {DECISION_SCHEMA, BOUND_DECISION_SCHEMA, APPROVAL_DECISION_SCHEMA},
             "unsupported human decision schema",
         )
         check(
@@ -88,8 +91,50 @@ class HumanDecisionRecord:
                 sha256_digest(binding[key])
             git_sha1_commit(binding["buggy_revision"])
             check(binding["task_id"] == "PySnooper-2", "wrong bound task")
+            check(self.approval_binding is None, "AMEND decision cannot carry approval binding")
+            check(self.previous_decision_sha256 is None, "AMEND decision cannot carry history")
+        elif self.schema == APPROVAL_DECISION_SCHEMA:
+            binding = self.approval_binding or {}
+            check(
+                set(binding)
+                == {
+                    "canonical_archive_sha256",
+                    "github_run_id",
+                    "task_id",
+                    "buggy_revision",
+                    "manifest_fingerprint",
+                    "profile_fingerprint",
+                    "graph_fingerprint",
+                    "canonical_graph_fingerprint",
+                    "constraint_evaluation_fingerprint",
+                    "imported_evidence_fingerprint",
+                },
+                "invalid approval binding",
+            )
+            for key in (
+                "canonical_archive_sha256",
+                "manifest_fingerprint",
+                "profile_fingerprint",
+                "graph_fingerprint",
+                "canonical_graph_fingerprint",
+                "constraint_evaluation_fingerprint",
+                "imported_evidence_fingerprint",
+            ):
+                sha256_digest(binding[key])
+            git_sha1_commit(binding["buggy_revision"])
+            check(binding["task_id"] == "PySnooper-2", "wrong bound task")
+            check(binding["github_run_id"].isdigit(), "invalid GitHub run ID")
+            check(self.evidence_binding is None, "approval cannot use AMEND binding")
+            sha256_digest(self.previous_decision_sha256 or "")
+            check(self.decision == HumanDecision.APPROVE, "v3 is reserved for approval")
+            check(
+                self.reviewed_fingerprint == binding["profile_fingerprint"],
+                "approval reviewed fingerprint mismatch",
+            )
         else:
             check(self.evidence_binding is None, "v1 decision cannot carry evidence binding")
+            check(self.approval_binding is None, "v1 decision cannot carry approval binding")
+            check(self.previous_decision_sha256 is None, "v1 decision cannot carry history")
         if self.decision == HumanDecision.PENDING:
             check(
                 not self.reviewer_name and not self.review_timestamp,

@@ -311,9 +311,18 @@ def validate_archive(archive: Path) -> dict[str, Any]:
 
 def import_archive(archive: Path, destination: Path) -> dict[str, Any]:
     manifest = validate_archive(archive)
+    with zipfile.ZipFile(archive) as source:
+        evidence = {
+            name.removesuffix(".json").replace("-", "_"): _json(source.read(name))
+            for name in sorted(ARCHIVE_MEMBERS - {"SHA256SUMS"})
+        }
     value = _record(
         "evidence-import",
-        {"archive_sha256": _sha(archive.read_bytes()), "manifest": manifest},
+        {
+            "archive_sha256": _sha(archive.read_bytes()),
+            "manifest": manifest,
+            "evidence": evidence,
+        },
     )
     raw = canonical_json(value)
     if destination.exists() and destination.read_bytes() != raw:

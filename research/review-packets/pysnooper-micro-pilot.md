@@ -1,7 +1,7 @@
 # PySnooper architecture-profile review packet
 
-Status: `PROPOSED_REEVALUATION_REQUIRED`. This packet is source-free and is not a human approval.
-Validated Phase 12.8B graph evidence has been imported; the human decision is `AMEND`.
+Status: `FROZEN`. This source-free packet records the user-authorized human `APPROVE` decision for
+the amended PySnooper profile. It is not protocol, benchmark-population, or Phase 13 approval.
 
 - Project/task: PySnooper / BugsInPy `PySnooper-2`
 - Buggy revision: `e21a31162f4c54be693d8ca8260e42393b39abd3`
@@ -12,7 +12,12 @@ Validated Phase 12.8B graph evidence has been imported; the human decision is `A
   production assignments and rules are unchanged and production-only rules exclude this component.
 - Local macOS/ARM engineering result: 14/14 assigned, 0 ambiguous, all 5 rules evaluated, 0 skipped,
   0 violations, `passed=true`, with two byte-identical outputs. This is not Linux x86 qualification.
-- Linux x86 evidence import and final human approval remain pending; the profile is not frozen.
+- Linux x86 run `37433179494` evidence is imported with fingerprint
+  `2eb422f3a48222aca7f664537f0fad41441a1841886b3a61280af00e50a9639c`; all 14 modules were assigned,
+  all 5 rules evaluated, and the non-partial result passed with zero violations.
+- The approved/frozen profile fingerprint is
+  `950cd9889d5d4335e60b7429d2feddf2230db42654e5ec844edd813596b6d6d7`. The earlier AMEND decision
+  remains preserved in `research/reviews/pysnooper-profile-amend-decision.json`.
 - Canonical graph fingerprint: `b1c318faba70d50225ceba74254edb18727013291de8607695334f8f0a98802c`
 - Acquisition fingerprint: `b5820205e5339b0a64a7efdfef6bd74cb71b90d58a18f90fa9847af4123f4c1f`
 - Project license: PySnooper is `VERIFIED` as MIT at the buggy revision. BugsInPy and the SWE-bench
@@ -29,14 +34,10 @@ Validated Phase 12.8B graph evidence has been imported; the human decision is `A
 - Skipped rule: `production-components-acyclic`, reason `incomplete_assignments`. Cycle evaluation
   fails closed whenever any module lacks exactly one component assignment; this is why the zero-cycle
   graph summary does not make the profile report pass.
-- Proposed amendment, not applied: add a `project-tooling` component with exact selectors for `setup`
-  and `misc.generate_authors`. Existing dependency rules would remain unchanged and production cycle
-  scope would still exclude tooling. If accepted, compile a new profile fingerprint and rerun graph
-  evaluation before approval; do not reuse this pending decision against a changed fingerprint.
+- Historical Phase 12.8B context: the original profile left `setup` and `misc.generate_authors`
+  unassigned, causing one incomplete-assignment skip. The later exact tooling amendment and new Linux
+  x86 evidence supersede that pending review state without rewriting its evidence.
 - Limitations: static Python imports only; dynamic imports/runtime dependencies may be missed; tests are not architectural ground truth; no claim of representativeness.
 
-Reviewer choice (select exactly one manually): **APPROVE CURRENT PROFILE** only with an explicit
-justification for leaving two error-policy modules unassigned; **AMEND** by adopting or revising the
-proposed tooling component and requiring regenerated evidence; or **REJECT** with requested changes.
-Then complete every checklist item and edit `research/reviews/pysnooper-profile-decision.json`
-manually. Do not approve solely because the graph has zero reported violations: one rule was skipped.
+The final approval applies only to the amended profile and complete Linux x86 evaluation. It does not
+retroactively approve the incomplete Phase 12.8B profile.

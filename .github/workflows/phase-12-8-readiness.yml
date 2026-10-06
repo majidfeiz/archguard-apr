@@ -30,13 +30,16 @@ jobs:
       - run: uv run pytest
       - run: uv run archguard architecture profile compile configs/external-profiles/pysnooper-micro-pilot.yaml --output "$RUNNER_TEMP/profile-1.json"
       - run: uv run archguard architecture profile compile configs/external-profiles/pysnooper-micro-pilot.yaml --output "$RUNNER_TEMP/profile-2.json" && cmp "$RUNNER_TEMP/profile-1.json" "$RUNNER_TEMP/profile-2.json"
-      - name: Validate amendment review and gate consistency
+      - name: Validate profile approval and global gate consistency
         shell: bash
         run: |
           set -euo pipefail
           test "$(jq -r .decision research/reviews/protocol-decision.json)" = PENDING
-          test "$(jq -r .decision research/reviews/pysnooper-profile-decision.json)" = AMEND
-          test "$(jq -r .pysnooper_amended_profile_status research/readiness-facts.json)" = PROPOSED_REEVALUATION_REQUIRED
+          test "$(jq -r .decision research/reviews/pysnooper-profile-decision.json)" = APPROVE
+          test "$(jq -r .pysnooper_amended_profile_status research/readiness-facts.json)" = FROZEN
+          test "$(jq -r .pysnooper_architecture_analysis_complete research/readiness-facts.json)" = true
+          test "$(jq -r .pysnooper_profile_approved research/readiness-facts.json)" = true
+          test "$(jq -r .pysnooper_profile_frozen research/readiness-facts.json)" = true
           test "$(jq -r .architecture_analysis_complete research/readiness-facts.json)" = false
           test "$(jq -r .profiles_frozen research/readiness-facts.json)" = false
           set +e
