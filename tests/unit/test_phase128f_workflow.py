@@ -25,6 +25,7 @@ def test_workflow_inputs_batches_and_runner_temp(repository_root: Path) -> None:
     assert "runs-on: ubuntu-24.04" in raw
     assert "max-parallel: 1" in raw and "fail-fast: false" in raw
     assert "${{ runner.temp }}" not in raw and "${RUNNER_TEMP}" in raw
+    assert 'mkdir -p "${evidence_root}"' not in raw
 
 
 def test_workflow_sandbox_cleanup_and_single_artifact(repository_root: Path) -> None:
