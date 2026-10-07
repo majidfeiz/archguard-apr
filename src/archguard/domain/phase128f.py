@@ -33,6 +33,20 @@ class Classification(StrEnum):
     UNSUPPORTED_ENVIRONMENT = "UNSUPPORTED_ENVIRONMENT"
     INFRASTRUCTURE_FAILURE = "INFRASTRUCTURE_FAILURE"
     SKIPPED_RESOURCE_LIMIT = "SKIPPED_RESOURCE_LIMIT"
+    FIXED_CONTROL_FAILED = "FIXED_CONTROL_FAILED"
+    FIXED_CONTROL_INFRASTRUCTURE_FAILURE = "FIXED_CONTROL_INFRASTRUCTURE_FAILURE"
+
+
+class FixedControlStage(StrEnum):
+    ACQUISITION = "ACQUISITION"
+    REVISION_VALIDATION = "REVISION_VALIDATION"
+    DEPENDENCY_RESOLUTION = "DEPENDENCY_RESOLUTION"
+    IMAGE_BUILD = "IMAGE_BUILD"
+    PROJECT_INSTALL = "PROJECT_INSTALL"
+    TEST_COLLECTION = "TEST_COLLECTION"
+    TEST_EXECUTION = "TEST_EXECUTION"
+    RESULT_PARSING = "RESULT_PARSING"
+    CLEANUP = "CLEANUP"
 
 
 class Outcome(StrEnum):
@@ -168,6 +182,7 @@ class AttemptEvidence:
     tests_failed: int
     duration_milliseconds: int
     output_truncated: bool = False
+    normalized_failure_class: str | None = None
 
     def __post_init__(self) -> None:
         if self.failure_signature is not None:
@@ -204,7 +219,7 @@ def classify(
     if outcomes != {Outcome.EXPECTED_FAILURE} or None in signatures or len(signatures) != 1:
         return Classification.FLAKY
     if not fixed_control_passed:
-        return Classification.ENVIRONMENT_SENSITIVE
+        return Classification.FIXED_CONTROL_FAILED
     return Classification.STABLE
 
 

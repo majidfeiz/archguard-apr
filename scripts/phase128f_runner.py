@@ -19,6 +19,7 @@ from archguard.domain.phase128f import (
     AttemptEvidence,
     Classification,
     EvaluatorAdapter,
+    FixedControlStage,
     Outcome,
     SandboxContract,
     classify,
@@ -171,7 +172,7 @@ def _acquire_base_image(
 
 def _build_image(
     adapter: EvaluatorAdapter, build_root: Path, base: str
-) -> tuple[str, list[dict[str, str]], int]:
+) -> tuple[str, list[dict[str, str]], int, dict[str, str]]:
     tag = f"archguard-phase128f-{adapter.task_id.lower()}"
     constraints = " ".join(adapter.dependency_constraints)
     dockerfile = build_root / "Dockerfile"
@@ -216,7 +217,113 @@ def _build_image(
     image_size = int(
         _run(["docker", "image", "inspect", tag, "--format", "{{.Size}}"]).stdout.decode().strip()
     )
-    return tag, packages, image_size
+    image_id = (
+        _run(["docker", "image", "inspect", tag, "--format", "{{.Id}}"]).stdout.decode().strip()
+    )
+    return tag, packages, image_size, {"image_id": image_id, "tag": tag}
+
+
+def _sha256_record(value: Any) -> str:
+    return hashlib.sha256(canonical_json(value)).hexdigest()
+
+
+def _fixed_control_record(
+    adapter: EvaluatorAdapter,
+    attempt: AttemptEvidence,
+    dependency_environment_fingerprint: str,
+    image_identity: dict[str, str],
+) -> dict[str, Any]:
+    stage = (
+        FixedControlStage.TEST_COLLECTION
+        if attempt.normalized_failure_class == "TEST_COLLECTION_FAILED"
+        else FixedControlStage.TEST_EXECUTION
+    )
+    infrastructure = attempt.outcome in {
+        Outcome.INFRASTRUCTURE_FAILURE,
+        Outcome.RESOURCE_LIMIT,
+        Outcome.TIMEOUT,
+    }
+    failure_signature = attempt.failure_signature
+    if failure_signature is None and attempt.normalized_failure_class is not None:
+        failure_signature = _sha256_record(
+            {"normalized_failure_class": attempt.normalized_failure_class}
+        )
+    diagnostic = (
+        {
+            "command_category": "FIXED_CONTROL_EXECUTION",
+            "failure_code": f"FIXED_CONTROL_{attempt.outcome.value}",
+            "failure_stage": "FIXED_CONTROL_EXECUTION",
+            "normalized_error_class": attempt.normalized_failure_class,
+            "normalized_stderr_sha256": failure_signature,
+            "process_return_code": attempt.exit_code,
+            "retryable": attempt.outcome is Outcome.TIMEOUT,
+        }
+        if infrastructure
+        else None
+    )
+    return {
+        "attempted": True,
+        "dependency_environment_fingerprint": dependency_environment_fingerprint,
+        "duration_milliseconds": attempt.duration_milliseconds,
+        "evaluator_selector_fingerprint": _sha256_record(
+            {"argv": list(adapter.evaluator_argv), "selectors": list(adapter.test_selectors)}
+        ),
+        "exit_code": attempt.exit_code,
+        "failure_signature_sha256": failure_signature,
+        "image_identity": image_identity,
+        "infrastructure_diagnostic": diagnostic,
+        "normalized_failure_class": attempt.normalized_failure_class,
+        "outcome": attempt.outcome.value,
+        "output_truncated": attempt.output_truncated,
+        "revision": adapter.fixed_revision,
+        "stage": stage.value,
+        "tests_failed": attempt.tests_failed,
+        "tests_passed": attempt.tests_passed,
+    }
+
+
+def _prepare_project(adapter: EvaluatorAdapter) -> None:
+    """Explicit reviewed installation stage; v2 adapters declare no install mutation."""
+    if not adapter.evaluator_argv:
+        raise RuntimeError("adapter has no reviewed evaluator")
+
+
+def _fixed_control_not_executed(
+    adapter: EvaluatorAdapter,
+    failure_stage: str,
+    diagnostic: dict[str, Any],
+    dependency_environment_fingerprint: str | None,
+    image_identity: dict[str, str] | None,
+) -> dict[str, Any]:
+    stages = {
+        "SOURCE_ACQUISITION": FixedControlStage.ACQUISITION,
+        "IDENTITY_VERIFICATION": FixedControlStage.REVISION_VALIDATION,
+        "BASE_IMAGE_ACQUISITION": FixedControlStage.IMAGE_BUILD,
+        "DEPENDENCY_BUILD": FixedControlStage.DEPENDENCY_RESOLUTION,
+        "PROJECT_INSTALL": FixedControlStage.PROJECT_INSTALL,
+        "BUGGY_EXECUTION": FixedControlStage.TEST_EXECUTION,
+        "FIXED_CONTROL_EXECUTION": FixedControlStage.TEST_EXECUTION,
+    }
+    attempted = failure_stage == "FIXED_CONTROL_EXECUTION"
+    return {
+        "attempted": attempted,
+        "dependency_environment_fingerprint": dependency_environment_fingerprint,
+        "duration_milliseconds": 0,
+        "evaluator_selector_fingerprint": _sha256_record(
+            {"argv": list(adapter.evaluator_argv), "selectors": list(adapter.test_selectors)}
+        ),
+        "exit_code": diagnostic["process_return_code"] if attempted else None,
+        "failure_signature_sha256": diagnostic["normalized_stderr_sha256"],
+        "image_identity": image_identity,
+        "infrastructure_diagnostic": diagnostic,
+        "normalized_failure_class": diagnostic["failure_code"],
+        "outcome": Outcome.INFRASTRUCTURE_FAILURE.value,
+        "output_truncated": False,
+        "revision": adapter.fixed_revision,
+        "stage": stages[failure_stage].value,
+        "tests_failed": 0,
+        "tests_passed": 0,
+    }
 
 
 def _execute(adapter: EvaluatorAdapter, image: str, source: Path, name: str) -> AttemptEvidence:
@@ -274,6 +381,21 @@ def _execute(adapter: EvaluatorAdapter, image: str, source: Path, name: str) -> 
         signature = hashlib.sha256(normalized).hexdigest() if result.returncode else None
         outcome = Outcome.PASS if result.returncode == 0 else Outcome.EXPECTED_FAILURE
         text = raw.decode("utf-8", "replace")
+        collection_failed = any(
+            marker in text
+            for marker in (
+                "ERROR collecting",
+                "ImportError while importing test module",
+                "collected 0 items",
+            )
+        )
+        if collection_failed:
+            outcome = Outcome.OTHER_FAILURE
+            failure_class = "TEST_COLLECTION_FAILED"
+        elif result.returncode:
+            failure_class = "TEST_FAILURE"
+        else:
+            failure_class = None
         passed = sum(int(value) for value in re.findall(r"(\d+) passed", text))
         failed = sum(int(value) for value in re.findall(r"(\d+) failed", text))
         return AttemptEvidence(
@@ -284,9 +406,10 @@ def _execute(adapter: EvaluatorAdapter, image: str, source: Path, name: str) -> 
             failed or int(result.returncode != 0),
             min(int((time.monotonic() - started) * 1000), 1_200_000),
             len(result.stdout) + len(result.stderr) > adapter.sandbox.output_bytes,
+            failure_class,
         )
     except subprocess.TimeoutExpired:
-        return AttemptEvidence(Outcome.TIMEOUT, None, None, 0, 0, 1_200_000, True)
+        return AttemptEvidence(Outcome.TIMEOUT, None, None, 0, 0, 1_200_000, True, "TIMEOUT")
     finally:
         subprocess.run(["docker", "rm", "-f", name], capture_output=True)
 
@@ -302,6 +425,12 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
     base_size = 0
     dependency_build_status = "NOT_STARTED"
     diagnostic: dict[str, Any] | None = None
+    attempts: tuple[AttemptEvidence, ...] = ()
+    fixed_attempt: AttemptEvidence | None = None
+    evaluator_image_identity: dict[str, str] | None = None
+    dependency_environment_fingerprint: str | None = None
+    packages: list[dict[str, str]] = []
+    image_size = 0
     try:
         _safe_checkout(adapter.repository, adapter.buggy_revision, buggy)
         _safe_checkout(adapter.repository, adapter.fixed_revision, fixed)
@@ -310,8 +439,18 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
         failure_stage = "BASE_IMAGE_ACQUISITION"
         base, base_identity, base_size = _acquire_base_image(adapter, build)
         failure_stage = "DEPENDENCY_BUILD"
-        image, packages, image_size = _build_image(adapter, build, base)
+        image, packages, image_size, evaluator_image_identity = _build_image(adapter, build, base)
         dependency_build_status = "COMPLETE"
+        dependency_environment_fingerprint = _sha256_record(
+            {
+                "base_image": base_identity,
+                "constraints": list(adapter.dependency_constraints),
+                "distributions": packages,
+                "evaluator_image": evaluator_image_identity,
+            }
+        )
+        failure_stage = "PROJECT_INSTALL"
+        _prepare_project(adapter)
         failure_stage = "BUGGY_EXECUTION"
         attempts = tuple(
             _execute(adapter, image, buggy, f"phase128f-{adapter.task_id.lower()}-buggy-{index}")
@@ -322,15 +461,32 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             adapter, image, fixed, f"phase128f-{adapter.task_id.lower()}-fixed"
         )
         fixed_passed = fixed_attempt.outcome is Outcome.PASS
-        classification = classify(attempts, fixed_control_passed=fixed_passed)
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError) as error:
-        attempts = tuple(
-            AttemptEvidence(Outcome.INFRASTRUCTURE_FAILURE, None, None, 0, 0, 0) for _ in range(3)
+        classification = (
+            Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE
+            if fixed_attempt.outcome
+            in {Outcome.INFRASTRUCTURE_FAILURE, Outcome.RESOURCE_LIMIT, Outcome.TIMEOUT}
+            else classify(attempts, fixed_control_passed=fixed_passed)
         )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError) as error:
+        if len(attempts) != 3:
+            attempts = tuple(
+                AttemptEvidence(
+                    Outcome.INFRASTRUCTURE_FAILURE,
+                    None,
+                    None,
+                    0,
+                    0,
+                    0,
+                    normalized_failure_class="PRE_EXECUTION_INFRASTRUCTURE_FAILURE",
+                )
+                for _ in range(3)
+            )
         fixed_passed = False
-        classification = Classification.INFRASTRUCTURE_FAILURE
-        packages = []
-        image_size = 0
+        classification = (
+            Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE
+            if failure_stage == "FIXED_CONTROL_EXECUTION"
+            else Classification.INFRASTRUCTURE_FAILURE
+        )
         return_code = error.returncode if isinstance(error, subprocess.CalledProcessError) else None
         stderr = error.stderr if isinstance(error, subprocess.CalledProcessError) else b""
         if isinstance(stderr, str):
@@ -355,14 +511,54 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
         }
         if failure_stage == "DEPENDENCY_BUILD":
             dependency_build_status = "FAILED"
+    non_scientific = {
+        Classification.INFRASTRUCTURE_FAILURE,
+        Classification.FIXED_CONTROL_FAILED,
+        Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE,
+    }
     prior = (
-        "NOT_EVALUATED_INFRASTRUCTURE_FAILURE"
+        "NOT_EVALUATED_FIXED_CONTROL_REVIEW_REQUIRED"
+        if classification
+        in {
+            Classification.FIXED_CONTROL_FAILED,
+            Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE,
+        }
+        else "NOT_EVALUATED_INFRASTRUCTURE_FAILURE"
         if classification is Classification.INFRASTRUCTURE_FAILURE
         else prior_evidence_status(adapter.task_id, classification)
     )
     decision = qualification_decision(classification, fixed_passed)
     if prior == "EVIDENCE_CONFLICT_REVIEW_REQUIRED":
         decision = "NOT_QUALIFIED"
+    if fixed_attempt is not None:
+        assert dependency_environment_fingerprint is not None
+        assert evaluator_image_identity is not None
+        fixed_control = _fixed_control_record(
+            adapter,
+            fixed_attempt,
+            dependency_environment_fingerprint,
+            evaluator_image_identity,
+        )
+    else:
+        assert diagnostic is not None
+        fixed_control = _fixed_control_not_executed(
+            adapter,
+            failure_stage,
+            diagnostic,
+            dependency_environment_fingerprint,
+            evaluator_image_identity,
+        )
+    buggy_signatures = {attempt.failure_signature for attempt in attempts}
+    buggy_result_status = (
+        "BUGGY_RESULT"
+        if len(attempts) == 3
+        and all(attempt.outcome is Outcome.EXPECTED_FAILURE for attempt in attempts)
+        and None not in buggy_signatures
+        and len(buggy_signatures) == 1
+        else "INFRASTRUCTURE_FAILURE"
+        if any(attempt.outcome is Outcome.INFRASTRUCTURE_FAILURE for attempt in attempts)
+        else "INVALID_EVALUATOR_RESULT"
+    )
     return {
         "adapter_fingerprint": adapter.fingerprint,
         "buggy_attempts": [
@@ -373,15 +569,21 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             for attempt in attempts
         ],
         "buggy_revision": adapter.buggy_revision,
+        "buggy_result_status": buggy_result_status,
+        "buggy_environment_fingerprint": dependency_environment_fingerprint,
         "classification": classification.value,
         "scientific_classification": (
-            None
-            if classification is Classification.INFRASTRUCTURE_FAILURE
-            else classification.value
+            None if classification in non_scientific else classification.value
         ),
         "execution_status": (
             "INFRASTRUCTURE_FAILURE"
             if classification is Classification.INFRASTRUCTURE_FAILURE
+            else "FIXED_CONTROL_FAILED"
+            if classification
+            in {
+                Classification.FIXED_CONTROL_FAILED,
+                Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE,
+            }
             else "SCIENTIFIC_RESULT"
         ),
         "infrastructure_diagnostic": diagnostic,
@@ -389,6 +591,7 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
         "dependency_build_status": dependency_build_status,
         "dependency_artifacts": packages,
         "fixed_control_passed": fixed_passed,
+        "fixed_control": fixed_control,
         "fixed_revision": adapter.fixed_revision,
         "prior_evidence_status": prior,
         "qualification_decision": decision,
@@ -402,7 +605,7 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
                 attempt.duration_milliseconds for attempt in attempts
             )
             + fixed_attempt.duration_milliseconds
-            if "fixed_attempt" in locals()
+            if fixed_attempt is not None
             else 0,
             "measured_image_bytes": image_size,
             "measured_base_image_bytes": base_size,

@@ -33,6 +33,7 @@
   "phase_12_8f_adapter_registry": "research/evaluators/adapter-registry-v2.json",
   "phase_12_8f_adapter_registry_fingerprint": "5575f5a88934ad998bb6c0c6da415708690a783e1dc8b636db2804ed4eed3d5f",
   "phase_12_8f_failed_run_record": "research/evidence/phase-12.8f-failed-run-37643825730.json",
+  "phase_12_8f_fixed_control_diagnostic_run": "research/evidence/phase-12.8f-run-37672954475.json",
   "selected_pilot_tasks": 0,
   "graph_evidence_validated": true,
   "linux_x86_graph_execution": true,

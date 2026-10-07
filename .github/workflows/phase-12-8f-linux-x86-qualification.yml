@@ -1,29 +1,15 @@
-name: Phase 12.8F Linux x86 Evaluator Qualification
+name: Phase 12.8F.2 Batch A Fixed-Control Diagnostics
 
 on:
   workflow_dispatch:
     inputs:
       task_id:
-        description: Selected task or bounded batch
+        description: Fixed diagnostic batch (Batch B is prohibited)
         required: true
         default: batch-a
         type: choice
         options:
           - batch-a
-          - batch-b
-          - PySnooper-1
-          - PySnooper-3
-          - black-1
-          - cookiecutter-4
-          - black-2
-          - black-3
-          - black-4
-          - all
-      confirm_all_adapters_preflighted:
-        description: Required only for all after individual adapter preflights pass
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -59,9 +45,7 @@ jobs:
           test "$(uname -s)" = Linux
           test "$(uname -m)" = x86_64
           test "$(df --output=avail -B1 "${RUNNER_TEMP}" | tail -1)" -ge 8589934592
-          if [ "${{ inputs.task_id }}" = all ]; then
-            test "${{ inputs.confirm_all_adapters_preflighted }}" = true
-          fi
+          test "${{ inputs.task_id }}" = batch-a
       - name: Declare controlled network and resource policy
         shell: bash
         run: |
@@ -96,7 +80,7 @@ jobs:
           set -euo pipefail
           timeout 350m python3 scripts/phase128f_runner.py \
             --adapters research/evaluators/adapter-registry-v2.json \
-            --selection "${{ inputs.task_id }}" \
+            --selection batch-a \
             --external-root "${EXTERNAL_ROOT}" \
             --output "${RESULTS_PATH}"
       - name: Enforce transfer, disk, leakage, and cleanup gates
@@ -142,7 +126,7 @@ jobs:
           python3 scripts/phase128f_evidence.py validate --archive "${VALIDATION_ZIP}"
           test "$(wc -c < "${VALIDATION_ZIP}")" -le 10485760
           rm -f -- "${VALIDATION_ZIP}"
-          selection="${{ inputs.task_id }}"
+          selection="batch-a"
           echo "ARTIFACT_NAME=archguard-phase-12-8f-qualification-${selection}-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
       - name: Upload one source-free qualification Artifact
         uses: actions/upload-artifact@v7
@@ -177,7 +161,7 @@ jobs:
           test -z "$(docker ps -aq --filter label=archguard.phase=12.8f)"
           test -z "$(docker images -q --filter label=archguard.phase=12.8f)"
           python3 scripts/phase128f_job_summary.py \
-            --selection "${{ inputs.task_id }}" \
+            --selection batch-a \
             --results "${RESULTS_PATH:-${RUNNER_TEMP}/archguard-phase-12-8f-results.json}" \
             --security-scan "${SECURITY_SCAN_PATH:-${RUNNER_TEMP}/archguard-phase-12-8f-security-scan.json}" \
             --output "${GITHUB_STEP_SUMMARY}"

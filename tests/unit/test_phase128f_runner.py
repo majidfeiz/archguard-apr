@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from archguard.domain.phase128f import AttemptEvidence, Outcome
 from scripts import phase128f_runner as runner
 from scripts.phase128f_registry import adapters
 from scripts.phase128f_security_scan import scan
@@ -145,3 +146,215 @@ def test_cleanup_removes_only_labeled_and_newly_pulled_images(
     assert ["docker", "image", "rm", "python:3.8.1"] in commands
     assert not root.exists()
     assert not runner.OWNED_BASE_REFERENCES
+
+
+def _run_with_fixed_attempt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fixed: AttemptEvidence
+) -> dict[str, Any]:
+    buggy = AttemptEvidence(
+        Outcome.EXPECTED_FAILURE,
+        1,
+        "a" * 64,
+        0,
+        1,
+        100,
+        normalized_failure_class="TEST_FAILURE",
+    )
+    attempts = iter((buggy, buggy, buggy, fixed))
+    monkeypatch.setattr(runner, "_safe_checkout", lambda *args: None)
+    monkeypatch.setattr(runner, "_verify_identities", lambda *args: None)
+    monkeypatch.setattr(
+        runner,
+        "_acquire_base_image",
+        lambda *args: (
+            "base",
+            {
+                "architecture": "amd64",
+                "image_id": "sha256:" + "b" * 64,
+                "operating_system": "linux",
+            },
+            10,
+        ),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_build_image",
+        lambda *args: (
+            "image",
+            [{"filename": "dependency.whl", "sha256": "c" * 64}],
+            20,
+            {"image_id": "sha256:" + "d" * 64, "tag": "image"},
+        ),
+    )
+    monkeypatch.setattr(runner, "_execute", lambda *args: next(attempts))
+    return runner.qualify(adapters()[1], tmp_path, tmp_path)
+
+
+def test_fixed_control_passes_with_bound_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fixed = AttemptEvidence(Outcome.PASS, 0, None, 1, 0, 100)
+    result = _run_with_fixed_attempt(monkeypatch, tmp_path, fixed)
+    assert result["classification"] == "STABLE"
+    assert result["qualification_decision"] == "QUALIFIED"
+    assert result["fixed_control"]["outcome"] == "PASS"
+    assert (
+        result["fixed_control"]["dependency_environment_fingerprint"]
+        == (result["buggy_environment_fingerprint"])
+    )
+
+
+@pytest.mark.parametrize(
+    ("fixed", "classification", "stage"),
+    [
+        (
+            AttemptEvidence(
+                Outcome.EXPECTED_FAILURE,
+                1,
+                "e" * 64,
+                0,
+                1,
+                100,
+                normalized_failure_class="TEST_FAILURE",
+            ),
+            "FIXED_CONTROL_FAILED",
+            "TEST_EXECUTION",
+        ),
+        (
+            AttemptEvidence(
+                Outcome.OTHER_FAILURE,
+                2,
+                "f" * 64,
+                0,
+                0,
+                100,
+                normalized_failure_class="TEST_COLLECTION_FAILED",
+            ),
+            "FIXED_CONTROL_FAILED",
+            "TEST_COLLECTION",
+        ),
+        (
+            AttemptEvidence(
+                Outcome.TIMEOUT,
+                None,
+                None,
+                0,
+                0,
+                1_200_000,
+                True,
+                "TIMEOUT",
+            ),
+            "FIXED_CONTROL_INFRASTRUCTURE_FAILURE",
+            "TEST_EXECUTION",
+        ),
+    ],
+)
+def test_fixed_failure_is_not_false_environment_sensitive(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    fixed: AttemptEvidence,
+    classification: str,
+    stage: str,
+) -> None:
+    result = _run_with_fixed_attempt(monkeypatch, tmp_path, fixed)
+    assert result["classification"] == classification
+    assert result["scientific_classification"] is None
+    assert result["qualification_decision"] == "NOT_QUALIFIED"
+    assert result["fixed_control"]["stage"] == stage
+
+
+@pytest.mark.parametrize(
+    ("failure_stage", "expected_stage"),
+    [("DEPENDENCY_BUILD", "DEPENDENCY_RESOLUTION"), ("PROJECT_INSTALL", "PROJECT_INSTALL")],
+)
+def test_pre_fixed_failure_stage_is_preserved(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    failure_stage: str,
+    expected_stage: str,
+) -> None:
+    monkeypatch.setattr(runner, "_safe_checkout", lambda *args: None)
+    monkeypatch.setattr(runner, "_verify_identities", lambda *args: None)
+    monkeypatch.setattr(
+        runner,
+        "_acquire_base_image",
+        lambda *args: (
+            "base",
+            {
+                "architecture": "amd64",
+                "image_id": "sha256:" + "b" * 64,
+                "operating_system": "linux",
+            },
+            10,
+        ),
+    )
+    if failure_stage == "DEPENDENCY_BUILD":
+        monkeypatch.setattr(
+            runner,
+            "_build_image",
+            lambda *args: (_ for _ in ()).throw(RuntimeError("build failed")),
+        )
+    else:
+        monkeypatch.setattr(
+            runner,
+            "_build_image",
+            lambda *args: ("image", [], 20, {"image_id": "id", "tag": "image"}),
+        )
+        monkeypatch.setattr(
+            runner,
+            "_prepare_project",
+            lambda *args: (_ for _ in ()).throw(RuntimeError("install failed")),
+        )
+    result = runner.qualify(adapters()[0], tmp_path, tmp_path)
+    assert result["fixed_control"]["attempted"] is False
+    assert result["fixed_control"]["stage"] == expected_stage
+    assert result["infrastructure_diagnostic"]["failure_stage"] == failure_stage
+
+
+def test_absent_fixed_revision_is_acquisition_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = 0
+
+    def checkout(*args: Any) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise subprocess.CalledProcessError(128, ["git", "checkout"], stderr=b"missing")
+
+    monkeypatch.setattr(runner, "_safe_checkout", checkout)
+    result = runner.qualify(adapters()[0], tmp_path, tmp_path)
+    assert result["fixed_control"]["stage"] == "ACQUISITION"
+    assert result["fixed_control"]["attempted"] is False
+    assert result["qualification_decision"] == "NOT_QUALIFIED"
+
+
+def test_normalized_signature_is_deterministic_and_output_is_bounded(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    outputs = iter(
+        (
+            b"FAILED /tmp/one/test.py after 1.23s\n",
+            b"FAILED /tmp/two/test.py after 9.87s\n",
+        )
+    )
+
+    def fake_run(command: list[str], **_: Any) -> subprocess.CompletedProcess[bytes]:
+        if command[:3] == ["docker", "rm", "-f"]:
+            return subprocess.CompletedProcess(command, 0, b"", b"")
+        return subprocess.CompletedProcess(command, 1, next(outputs), b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    adapter = adapters()[0]
+    first = runner._execute(adapter, "image", tmp_path, "one")
+    second = runner._execute(adapter, "image", tmp_path, "two")
+    assert first.failure_signature == second.failure_signature
+
+    oversized = b"x" * (adapter.sandbox.output_bytes + 1)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 1, oversized, b""),
+    )
+    bounded = runner._execute(adapter, "image", tmp_path, "bounded")
+    assert bounded.output_truncated is True

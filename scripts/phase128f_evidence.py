@@ -63,10 +63,7 @@ def assemble(
             "archguard.phase-12.8f-fixed-controls/v1",
             {
                 "controls": [
-                    {
-                        "fixed_control_passed": result["fixed_control_passed"],
-                        "task_id": result["task_id"],
-                    }
+                    {"result": result["fixed_control"], "task_id": result["task_id"]}
                     for result in results
                 ]
             },

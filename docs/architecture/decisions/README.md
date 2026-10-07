@@ -19,3 +19,4 @@ ADR-0003 accepts canonical read-only repository analysis for Phase 2.
 - [ADR-0022](ADR-0022-bounded-external-evidence.md): bounded immutable external evidence
 - [ADR-0023](ADR-0023-outcome-blind-candidate-pool.md): outcome-blind licensed candidate preparation
 - [ADR-0024](ADR-0024-sandboxed-evaluator-qualification.md): sandboxed evaluator qualification
+- [ADR-0025](ADR-0025-fixed-control-evidence.md): fixed-control evidence and classification semantics
