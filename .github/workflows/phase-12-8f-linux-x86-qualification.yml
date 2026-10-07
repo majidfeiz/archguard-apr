@@ -49,7 +49,6 @@ jobs:
           evidence_root="${RUNNER_TEMP}/archguard-phase-12-8f-evidence"
           results_path="${RUNNER_TEMP}/archguard-phase-12-8f-results.json"
           validation_zip="${RUNNER_TEMP}/archguard-phase-12-8f-validation.zip"
-          mkdir -p "${evidence_root}"
           echo "EXTERNAL_ROOT=${external_root}" >> "${GITHUB_ENV}"
           echo "EVIDENCE_ROOT=${evidence_root}" >> "${GITHUB_ENV}"
           echo "RESULTS_PATH=${results_path}" >> "${GITHUB_ENV}"
