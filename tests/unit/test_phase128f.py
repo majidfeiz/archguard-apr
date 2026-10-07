@@ -32,6 +32,7 @@ from archguard.infrastructure.phase128f_evidence import (
 )
 from scripts.phase128f_evidence import assemble
 from scripts.phase128f_registry import adapters, registry
+from scripts.phase128f_security_scan import scan
 
 SHA = "a" * 64
 
@@ -56,16 +57,22 @@ def test_exact_selected_membership_batches_and_no_replacements(repository_root: 
 
 
 def test_adapter_registry_is_deterministic_complete_and_immutable(repository_root: Path) -> None:
-    tracked = (repository_root / "research/evaluators/adapter-registry-v1.json").read_bytes()
+    tracked = (repository_root / "research/evaluators/adapter-registry-v2.json").read_bytes()
     assert tracked == canonical_json(registry())
     values = adapters()
     assert len(values) == 7
     assert registry()["fingerprint"] == (
-        "614c00ef6d6b8ef370ee99732d5c3534ba066b1347121f8c86d2fd94329974ef"
+        "5575f5a88934ad998bb6c0c6da415708690a783e1dc8b636db2804ed4eed3d5f"
     )
     assert len({item.fingerprint for item in values}) == 7
     assert all(len(item.buggy_revision) == len(item.fixed_revision) == 40 for item in values)
     assert all(item.availability == "AVAILABLE" for item in values)
+    assert all(item.evaluator_argv[0] == "python" for item in values)
+    assert all(item.constraint_set_fingerprint for item in values)
+    empty = [item for item in values if item.upstream_requirements_empty]
+    assert {item.task_id for item in empty} == {"PySnooper-1", "PySnooper-3"}
+    assert all(item.dependency_constraints for item in empty)
+    assert len({item.constraint_set_fingerprint for item in empty}) == 2
     pool = json.loads((repository_root / "research/candidates/candidate-pool-v1.json").read_text())
     candidates = {item["task_id"]: item for item in pool["observed"]}
     for adapter in values:
@@ -198,14 +205,26 @@ def result(task_id: str = "black-1") -> dict[str, Any]:
     ]
     return {
         "adapter_fingerprint": adapter.fingerprint,
+        "base_image_identity": {
+            "architecture": "amd64",
+            "declared_reference": f"python:{adapter.python_version}",
+            "image_id": "sha256:" + SHA,
+            "operating_system": "linux",
+            "repository_digests": [],
+            "repository_tags": [f"python:{adapter.python_version}"],
+        },
         "buggy_attempts": attempts,
         "buggy_revision": adapter.buggy_revision,
         "classification": "STABLE",
         "dependency_artifacts": [{"filename": "dependency.whl", "sha256": SHA}],
+        "dependency_build_status": "COMPLETE",
+        "execution_status": "SCIENTIFIC_RESULT",
         "fixed_control_passed": True,
         "fixed_revision": adapter.fixed_revision,
+        "infrastructure_diagnostic": None,
         "prior_evidence_status": "NO_PRIOR_EVIDENCE",
         "qualification_decision": "QUALIFIED",
+        "scientific_classification": "STABLE",
         "resources": {
             "cpu_limit": 2,
             "memory_limit_bytes": 2 * 1024**3,
@@ -221,12 +240,24 @@ def result(task_id: str = "black-1") -> dict[str, Any]:
 def evidence(repository_root: Path, tmp_path: Path) -> tuple[Path, Path]:
     results = tmp_path / "results.json"
     results.write_text(json.dumps([result()]), encoding="utf-8")
+    security = tmp_path / "security.json"
+    security.write_bytes(
+        canonical_json(
+            scan(
+                (
+                    results,
+                    repository_root / "research/evaluators/adapter-registry-v2.json",
+                )
+            )
+        )
+    )
     root = tmp_path / "evidence"
     assemble(
         results,
-        repository_root / "research/evaluators/adapter-registry-v1.json",
+        repository_root / "research/evaluators/adapter-registry-v2.json",
         root,
         "12345",
+        security,
     )
     archive = tmp_path / "evidence.zip"
     package(root, archive)
@@ -250,6 +281,23 @@ def test_artifact_allowlist_packaging_and_deterministic_import(
     imported = json.loads(before)
     assert imported["phase_13_ready"] is False
     assert imported["qualification"]["results"][0]["task_id"] == "black-1"
+
+
+def test_successful_scanner_receipt_is_required_before_assembly(
+    repository_root: Path, tmp_path: Path
+) -> None:
+    results = tmp_path / "results.json"
+    results.write_text(json.dumps([result()]), encoding="utf-8")
+    receipt = tmp_path / "security.json"
+    receipt.write_text(json.dumps({"status": "FAILED"}), encoding="utf-8")
+    with pytest.raises(ValueError, match="successful security scan"):
+        assemble(
+            results,
+            repository_root / "research/evaluators/adapter-registry-v2.json",
+            tmp_path / "evidence",
+            "12345",
+            receipt,
+        )
 
 
 @pytest.mark.parametrize("name", ["../escape", "/absolute", "unexpected.json"])
@@ -317,6 +365,48 @@ def test_import_rejects_changed_adapter_identity_and_accepts_conflict_hold() -> 
     _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [conflict]})
 
 
+def test_source_free_infrastructure_diagnostic_is_validated() -> None:
+    failed = result("PySnooper-1")
+    failed.update(
+        {
+            "base_image_identity": None,
+            "buggy_attempts": [
+                {
+                    "duration_milliseconds": 0,
+                    "exit_code": None,
+                    "failure_signature": None,
+                    "outcome": "INFRASTRUCTURE_FAILURE",
+                    "output_truncated": False,
+                    "tests_failed": 0,
+                    "tests_passed": 0,
+                }
+                for _ in range(3)
+            ],
+            "classification": "INFRASTRUCTURE_FAILURE",
+            "dependency_artifacts": [],
+            "dependency_build_status": "NOT_STARTED",
+            "execution_status": "INFRASTRUCTURE_FAILURE",
+            "fixed_control_passed": False,
+            "infrastructure_diagnostic": {
+                "command_category": "BASE_IMAGE_ACQUISITION",
+                "failure_code": "BASE_IMAGE_ACQUISITION_FAILED",
+                "failure_stage": "BASE_IMAGE_ACQUISITION",
+                "normalized_error_class": "CalledProcessError",
+                "normalized_stderr_sha256": SHA,
+                "process_return_code": 1,
+                "retryable": True,
+            },
+            "prior_evidence_status": "NOT_EVALUATED_INFRASTRUCTURE_FAILURE",
+            "qualification_decision": "NOT_QUALIFIED",
+            "scientific_classification": None,
+        }
+    )
+    _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [failed]})
+    failed["prior_evidence_status"] = "EVIDENCE_CONFLICT_REVIEW_REQUIRED"
+    with pytest.raises(ValueError, match="incomplete infrastructure diagnostic"):
+        _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [failed]})
+
+
 def test_frozen_state_and_phase13_remain_unchanged(repository_root: Path) -> None:
     expected = {
         "research/profiles/pysnooper-profile-freeze.json": (
@@ -329,3 +419,13 @@ def test_frozen_state_and_phase13_remain_unchanged(repository_root: Path) -> Non
     for path, digest in expected.items():
         assert hashlib.sha256((repository_root / path).read_bytes()).hexdigest() == digest
     assert registry()["phase_13_ready"] is False
+    verification = (repository_root / "docs/phase-12.8f-verification.md").read_text()
+    assert "37643825730" in verification and "not imported" in verification
+    failed = json.loads(
+        (repository_root / "research/evidence/phase-12.8f-failed-run-37643825730.json").read_text()
+    )
+    supplied = failed.pop("fingerprint")
+    from archguard.domain.orchestration import fingerprint
+
+    assert supplied == fingerprint(failed)
+    assert failed["qualified_tasks"] == 0 and failed["imported"] is False

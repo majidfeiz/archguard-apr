@@ -49,10 +49,12 @@ jobs:
           evidence_root="${RUNNER_TEMP}/archguard-phase-12-8f-evidence"
           results_path="${RUNNER_TEMP}/archguard-phase-12-8f-results.json"
           validation_zip="${RUNNER_TEMP}/archguard-phase-12-8f-validation.zip"
+          security_scan_path="${RUNNER_TEMP}/archguard-phase-12-8f-security-scan.json"
           echo "EXTERNAL_ROOT=${external_root}" >> "${GITHUB_ENV}"
           echo "EVIDENCE_ROOT=${evidence_root}" >> "${GITHUB_ENV}"
           echo "RESULTS_PATH=${results_path}" >> "${GITHUB_ENV}"
           echo "VALIDATION_ZIP=${validation_zip}" >> "${GITHUB_ENV}"
+          echo "SECURITY_SCAN_PATH=${security_scan_path}" >> "${GITHUB_ENV}"
           echo "TRANSFER_START=$(cat /sys/class/net/eth0/statistics/rx_bytes)" >> "${GITHUB_ENV}"
           test "$(uname -s)" = Linux
           test "$(uname -m)" = x86_64
@@ -65,9 +67,11 @@ jobs:
         run: |
           set -euo pipefail
           cat <<'EOF'
-          Allowed hosts: github.com, api.github.com, pypi.org, files.pythonhosted.org
+          Allowed hosts: github.com, api.github.com, registry-1.docker.io, auth.docker.io,
+            production.cloudflare.docker.com, pypi.org, files.pythonhosted.org
           Repositories: soarsmu/BugsInPy, cool-RR/PySnooper, psf/black, cookiecutter/cookiecutter
           Package indexes: https://pypi.org/simple/ and distribution files under https://files.pythonhosted.org/
+          Base images: Docker Hub official python:<exact-version>, pulled for linux/amd64
           Credentials: none
           Aggregate transfer ceiling: 2147483648 bytes
           Temporary disk ceiling: 8589934592 bytes
@@ -80,9 +84,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/phase128f_registry.py --output "${RUNNER_TEMP}/adapters-regenerated.json"
-          cmp "${RUNNER_TEMP}/adapters-regenerated.json" research/evaluators/adapter-registry-v1.json
-          test "$(jq -r .candidate_registry_fingerprint research/evaluators/adapter-registry-v1.json)" = d1068112a12c63e24ee780ad9b31b05c04f9b1417efa50ffa04a1b8b4aac1903
-          test "$(jq -r .selection_policy_fingerprint research/evaluators/adapter-registry-v1.json)" = 0987d60ff9b5c2071f0c1dd82a91c680a6aafa885a37b12003bc34dc4add7e01
+          cmp "${RUNNER_TEMP}/adapters-regenerated.json" research/evaluators/adapter-registry-v2.json
+          test "$(jq -r .candidate_registry_fingerprint research/evaluators/adapter-registry-v2.json)" = d1068112a12c63e24ee780ad9b31b05c04f9b1417efa50ffa04a1b8b4aac1903
+          test "$(jq -r .selection_policy_fingerprint research/evaluators/adapter-registry-v2.json)" = 0987d60ff9b5c2071f0c1dd82a91c680a6aafa885a37b12003bc34dc4add7e01
           test "$(jq -c .selected_identifiers research/candidates/candidate-pool-v1.json)" = '["PySnooper-1","black-1","cookiecutter-4","PySnooper-2","black-2","PySnooper-3","black-3","black-4"]'
       - name: Execute selected adapters serially in hardened containers
         shell: bash
@@ -91,7 +95,7 @@ jobs:
         run: |
           set -euo pipefail
           timeout 350m python3 scripts/phase128f_runner.py \
-            --adapters research/evaluators/adapter-registry-v1.json \
+            --adapters research/evaluators/adapter-registry-v2.json \
             --selection "${{ inputs.task_id }}" \
             --external-root "${EXTERNAL_ROOT}" \
             --output "${RESULTS_PATH}"
@@ -110,8 +114,10 @@ jobs:
           test -z "$(docker images -q --filter label=archguard.phase=12.8f)" || gate_failed=1
           if [ -f "${RESULTS_PATH:-}" ]; then
             test "$(wc -c < "${RESULTS_PATH}")" -le 1048576 || gate_failed=1
-            ! rg -n '(BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|sk-[A-Za-z0-9]{20,}|^diff --git|^@@ |"(patch|gold|reference_patch|raw_log|source|fixed_code)")' \
-              "${RESULTS_PATH}" research/evaluators/adapter-registry-v1.json || gate_failed=1
+            PYTHONPATH=src python3 scripts/phase128f_security_scan.py \
+              --input "${RESULTS_PATH}" \
+              --input research/evaluators/adapter-registry-v2.json \
+              --output "${SECURITY_SCAN_PATH}" || gate_failed=1
           else
             echo "Security scan could not validate missing results evidence" >&2
             gate_failed=1
@@ -126,15 +132,16 @@ jobs:
           set -euo pipefail
           python3 scripts/phase128f_evidence.py assemble \
             --results "${RESULTS_PATH}" \
-            --adapters research/evaluators/adapter-registry-v1.json \
+            --adapters research/evaluators/adapter-registry-v2.json \
             --output "${EVIDENCE_ROOT}" \
             --run-id "${GITHUB_RUN_ID}" \
+            --security-scan "${SECURITY_SCAN_PATH}" \
             --transfer-bytes "${TRANSFER_BYTES}"
           python3 scripts/phase128f_evidence.py package \
             --source "${EVIDENCE_ROOT}" --archive "${VALIDATION_ZIP}"
           python3 scripts/phase128f_evidence.py validate --archive "${VALIDATION_ZIP}"
           test "$(wc -c < "${VALIDATION_ZIP}")" -le 10485760
-          rm -f -- "${VALIDATION_ZIP}" "${RESULTS_PATH}"
+          rm -f -- "${VALIDATION_ZIP}"
           selection="${{ inputs.task_id }}"
           echo "ARTIFACT_NAME=archguard-phase-12-8f-qualification-${selection}-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
       - name: Upload one source-free qualification Artifact
@@ -145,15 +152,35 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
-      - name: Always clean Phase 12.8F resources
+      - name: Always clean Phase 12.8F resources and write job summary
         if: always()
         shell: bash
+        env:
+          PYTHONPATH: src
         run: |
+          set -euo pipefail
           ids="$(docker ps -aq --filter label=archguard.phase=12.8f 2>/dev/null)"
           if [ -n "${ids}" ]; then docker rm -f ${ids}; fi
           images="$(docker images -q --filter label=archguard.phase=12.8f 2>/dev/null)"
           if [ -n "${images}" ]; then docker image rm -f ${images}; fi
+          if [ -d "${EXTERNAL_ROOT:-}" ]; then
+            while IFS= read -r marker; do
+              reference="$(cat "${marker}")"
+              case "${reference}" in
+                python:[0-9]*.[0-9]*.[0-9]*) docker image rm "${reference}" 2>/dev/null || true ;;
+                *) echo "Refusing unexpected owned base reference" >&2; exit 1 ;;
+              esac
+            done < <(find "${EXTERNAL_ROOT}" -name owned-base-reference.txt -type f -print)
+          fi
           rm -rf -- "${EXTERNAL_ROOT:-${RUNNER_TEMP}/archguard-phase-12-8f-external}"
           rm -rf -- "${EVIDENCE_ROOT:-${RUNNER_TEMP}/archguard-phase-12-8f-evidence}"
+          test -z "$(docker ps -aq --filter label=archguard.phase=12.8f)"
+          test -z "$(docker images -q --filter label=archguard.phase=12.8f)"
+          python3 scripts/phase128f_job_summary.py \
+            --selection "${{ inputs.task_id }}" \
+            --results "${RESULTS_PATH:-${RUNNER_TEMP}/archguard-phase-12-8f-results.json}" \
+            --security-scan "${SECURITY_SCAN_PATH:-${RUNNER_TEMP}/archguard-phase-12-8f-security-scan.json}" \
+            --output "${GITHUB_STEP_SUMMARY}"
           rm -f -- "${RESULTS_PATH:-${RUNNER_TEMP}/archguard-phase-12-8f-results.json}"
           rm -f -- "${VALIDATION_ZIP:-${RUNNER_TEMP}/archguard-phase-12-8f-validation.zip}"
+          rm -f -- "${SECURITY_SCAN_PATH:-${RUNNER_TEMP}/archguard-phase-12-8f-security-scan.json}"

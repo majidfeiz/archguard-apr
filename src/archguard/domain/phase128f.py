@@ -1,5 +1,6 @@
 """Phase 12.8F sandboxed evaluator-qualification contracts."""
 
+import re
 from dataclasses import asdict, dataclass
 from enum import StrEnum
 
@@ -7,7 +8,7 @@ from archguard.domain.orchestration import fingerprint, valid_id
 from archguard.domain.readiness import git_sha1_commit, sha256_digest
 from archguard.domain.repository import check
 
-ADAPTER_SCHEMA = "archguard.evaluator-adapter/v1"
+ADAPTER_SCHEMA = "archguard.evaluator-adapter/v2"
 QUALIFICATION_SCHEMA = "archguard.qualification-evidence/v1"
 SELECTED_TASKS = (
     "PySnooper-1",
@@ -82,9 +83,12 @@ class EvaluatorAdapter:
     fixed_revision: str
     python_version: str
     dependency_locator: str
-    dependency_sha256: str
+    upstream_requirements_sha256: str
+    upstream_requirements_empty: bool
     dependency_constraints: tuple[str, ...]
-    evaluator_entry_point: str
+    constraint_set_fingerprint: str
+    constraint_provenance: str
+    evaluator_argv: tuple[str, ...]
     test_selectors: tuple[str, ...]
     expected_buggy_outcome: str
     fixed_success: str
@@ -104,15 +108,42 @@ class EvaluatorAdapter:
         check(self.repository.startswith("https://github.com/"), "official repository required")
         git_sha1_commit(self.buggy_revision)
         git_sha1_commit(self.fixed_revision)
-        sha256_digest(self.dependency_sha256)
+        sha256_digest(self.upstream_requirements_sha256)
+        sha256_digest(self.constraint_set_fingerprint)
         sha256_digest(self.source_license_sha256)
         check(
             bool(self.dependency_constraints)
-            and all("==" in item for item in self.dependency_constraints),
+            and all(
+                re.fullmatch(r"[A-Za-z0-9_.-]+==[A-Za-z0-9_.+-]+", item)
+                for item in self.dependency_constraints
+            ),
             "exact dependency constraints required",
         )
+        check(bool(self.evaluator_argv) and bool(self.test_selectors), "incomplete evaluator")
         check(
-            bool(self.evaluator_entry_point) and bool(self.test_selectors), "incomplete evaluator"
+            self.evaluator_argv[:3]
+            in {("python", "-m", "pytest"), ("python", "-m", "unittest"), ("python", "-m", "tox")},
+            "unreviewed evaluator argv",
+        )
+        check(
+            all(item and "\x00" not in item for item in self.evaluator_argv),
+            "invalid evaluator argv",
+        )
+        check(
+            self.constraint_set_fingerprint
+            == fingerprint({"constraints": list(self.dependency_constraints)}),
+            "constraint fingerprint mismatch",
+        )
+        check(
+            self.constraint_provenance.startswith("BugsInPy@"), "unreviewed constraint provenance"
+        )
+        check(
+            self.upstream_requirements_empty
+            == (
+                self.upstream_requirements_sha256
+                == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            ),
+            "requirements empty-state mismatch",
         )
         check(self.expected_buggy_outcome == "TEST_FAILURE", "unsupported expected outcome")
         check(self.fixed_success == "EXIT_ZERO", "unsupported fixed-control condition")

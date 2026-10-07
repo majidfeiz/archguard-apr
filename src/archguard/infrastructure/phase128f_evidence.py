@@ -22,40 +22,40 @@ from archguard.infrastructure.json_codec import unique_object
 
 CANDIDATE_FINGERPRINT = "d1068112a12c63e24ee780ad9b31b05c04f9b1417efa50ffa04a1b8b4aac1903"
 POLICY_FINGERPRINT = "0987d60ff9b5c2071f0c1dd82a91c680a6aafa885a37b12003bc34dc4add7e01"
-ADAPTER_REGISTRY_FINGERPRINT = "614c00ef6d6b8ef370ee99732d5c3534ba066b1347121f8c86d2fd94329974ef"
+ADAPTER_REGISTRY_FINGERPRINT = "5575f5a88934ad998bb6c0c6da415708690a783e1dc8b636db2804ed4eed3d5f"
 ADAPTER_IDENTITIES = {
     "PySnooper-1": (
-        "55a0d0a4ef2bd8f25d9670330213652b36db785ce50b8bc1d14ab3436f35aed4",
+        "1ad10c19e8fda53180666da7ef1fb1723652cc61b71c15b7efd6f37e19f3e7af",
         "e21a31162f4c54be693d8ca8260e42393b39abd3",
         "56f22f8ffe1c6b2be4d2cf3ad1987fdb66113da2",
     ),
     "PySnooper-3": (
-        "5154411ea789035bd87e40c7233e52dc9dbfc6b52fc85dd6f7657b89cbc67318",
+        "41c254922a6bbb4dad7eb078a44708cdb55805d329f9805edc3ad356f5003662",
         "6e3d797be3fa0a746fb5b1b7c7fea78eb926c208",
         "15555ed760000b049aff8fecc79d29339c1224c3",
     ),
     "black-1": (
-        "abe97bc7988fe61f8d0c7d64c0f81b4e25cfc1a7f1a83a6a38e0a6461702e5d5",
+        "7d08b9f8f51ff4984fb67a5c5510532dd608a985aa9f29ea33c0a799f93352e8",
         "26c9465a22c732ab1e17b0dec578fa3432e9b558",
         "c0a7582e3d4cc8bec3b7f5a6c52b36880dcb57d7",
     ),
     "cookiecutter-4": (
-        "4b056f193ff22f8637ccb429d85123aba8cde8f68ab8f3f5506d380cefcd6685",
+        "9979bdc6351f42b3dac14c3ebb9ff06a70bc59864fbd293df526149ed819a06f",
         "9568ab6ecd2d6836646006c59473c4a4ac0dee04",
         "457a1a4e862aab4102b644ff1d2b2e2b5a766b3c",
     ),
     "black-2": (
-        "32b13fa6c4b070849ee30f02f53e8e9ae061cafa88ebf0174e7c9f49ff1f790b",
+        "f59d4429f66d9b91f8a2b6d0e9eb09f5ca217cd86fdbd7587d76af972662bf48",
         "c8ca6b2b9ff3510bee12129824cebfc2fc51e5b2",
         "892eddacd215d685e136686b7f629ade70adca83",
     ),
     "black-3": (
-        "d9b829007f76342f37ca6a4caaae46fa0df172ed2813526887bcce65de04c304",
+        "0fce6a06fbe89ec9b88bda5c14fbd430b3a864b68bcc8736a636a5c5caeb515f",
         "8126b4f6a9342290de4655e6a8a78cd288ce7daa",
         "7a14a37981862ef418f3cdb4a7e2375856f97529",
     ),
     "black-4": (
-        "713af35b6b7b6e9fd412e4d4ffafba803d4d471274f242cb8ba3f8462bb81e35",
+        "fa77421323136ea9b6ee3fef805e9b1e9d2f1eeef5e09a6c4cb512e19dab1fa5",
         "65ea568e3301951f26e0e3b98f6d5dc80132e917",
         "c7495b9aa098ef7a358fc74556359d21c6a4ba11",
     ),
@@ -127,6 +127,35 @@ def _validate_results(value: dict[str, Any]) -> None:
             raise ValueError("wrong adapter fingerprint or immutable revision")
         classification = Classification(result.get("classification"))
         fixed_passed = result.get("fixed_control_passed") is True
+        base_identity = result.get("base_image_identity")
+        if classification is not Classification.INFRASTRUCTURE_FAILURE and (
+            not isinstance(base_identity, dict)
+            or base_identity.get("architecture") != "amd64"
+            or base_identity.get("operating_system") != "linux"
+            or not base_identity.get("image_id")
+            or result.get("dependency_build_status") != "COMPLETE"
+        ):
+            raise ValueError("missing base image or dependency-build identity")
+        if classification is Classification.INFRASTRUCTURE_FAILURE:
+            diagnostic = result.get("infrastructure_diagnostic")
+            if (
+                result.get("scientific_classification") is not None
+                or result.get("execution_status") != "INFRASTRUCTURE_FAILURE"
+                or not isinstance(diagnostic, dict)
+                or diagnostic.get("failure_stage")
+                not in {
+                    "SOURCE_ACQUISITION",
+                    "IDENTITY_VERIFICATION",
+                    "BASE_IMAGE_ACQUISITION",
+                    "DEPENDENCY_BUILD",
+                    "BUGGY_EXECUTION",
+                    "FIXED_CONTROL_EXECUTION",
+                    "SECURITY_SCAN",
+                    "CLEANUP",
+                }
+                or result.get("prior_evidence_status") != "NOT_EVALUATED_INFRASTRUCTURE_FAILURE"
+            ):
+                raise ValueError("incomplete infrastructure diagnostic")
         prior = result.get("prior_evidence_status")
         expected_decision = qualification_decision(classification, fixed_passed)
         if prior == "EVIDENCE_CONFLICT_REVIEW_REQUIRED":
@@ -154,6 +183,12 @@ def _validate_results(value: dict[str, Any]) -> None:
             )
             if classify(parsed, fixed_control_passed=fixed_passed) is not classification:
                 raise ValueError("classification inconsistent with run evidence")
+            if classification is Classification.INFRASTRUCTURE_FAILURE and any(
+                attempt.duration_milliseconds == 0
+                and result["infrastructure_diagnostic"].get("failure_stage") is None
+                for attempt in parsed
+            ):
+                raise ValueError("zero-duration failure requires pre-execution stage")
         if classification is Classification.STABLE:
             signatures = {
                 attempt.get("failure_signature")
@@ -167,6 +202,12 @@ def _validate_results(value: dict[str, Any]) -> None:
             and result.get("qualification_decision") == "QUALIFIED"
         ):
             raise ValueError("evidence conflict cannot qualify task")
+        for artifact in result.get("dependency_artifacts", []):
+            if not isinstance(artifact, dict) or not artifact.get("filename"):
+                raise ValueError("invalid acquired dependency identity")
+            digest = artifact.get("sha256")
+            if not isinstance(digest, str) or len(digest) != 64:
+                raise ValueError("invalid acquired dependency hash")
 
 
 def validate_directory(root: Path) -> dict[str, Any]:

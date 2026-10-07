@@ -48,3 +48,11 @@ def test_workflow_sandbox_cleanup_and_single_artifact(repository_root: Path) -> 
     ):
         assert text in (repository_root / "scripts/phase128f_runner.py").read_text()
     assert "2147483648" in raw and "8589934592" in raw and "10485760" in raw
+    assert "phase128f_security_scan.py" in raw
+    assert '--output "${SECURITY_SCAN_PATH}" || gate_failed=1' in raw
+    assert "rg -n" not in raw
+    assert "phase128f_job_summary.py" in raw
+    runner = (repository_root / "scripts/phase128f_runner.py").read_text()
+    assert '"pull", "--platform", "linux/amd64"' in runner
+    assert "> 1" in runner
+    assert "owned-base-reference.txt" in raw and "label=archguard.phase=12.8f" in raw

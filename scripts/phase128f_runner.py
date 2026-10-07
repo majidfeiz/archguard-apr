@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import time
@@ -29,8 +28,17 @@ from archguard.domain.phase128f import (
 
 MAX_TRANSFER = 2 * 1024**3
 MAX_DISK = 8 * 1024**3
-ALLOWED_HOSTS = ("github.com", "api.github.com", "pypi.org", "files.pythonhosted.org")
+ALLOWED_HOSTS = (
+    "github.com",
+    "api.github.com",
+    "registry-1.docker.io",
+    "auth.docker.io",
+    "production.cloudflare.docker.com",
+    "pypi.org",
+    "files.pythonhosted.org",
+)
 BUGSINPY_REVISION = "11c5f1eea954a42132cfd06bf257766a7963e0fd"
+OWNED_BASE_REFERENCES: set[str] = set()
 
 
 def _run(
@@ -43,6 +51,7 @@ def _adapter(value: dict[str, Any]) -> EvaluatorAdapter:
     value = dict(value)
     value["test_selectors"] = tuple(value["test_selectors"])
     value["dependency_constraints"] = tuple(value["dependency_constraints"])
+    value["evaluator_argv"] = tuple(value["evaluator_argv"])
     value["sandbox"] = SandboxContract(**value["sandbox"])
     return EvaluatorAdapter(**value)
 
@@ -104,16 +113,66 @@ def _verify_identities(adapter: EvaluatorAdapter, source: Path, framework: Path)
         raise RuntimeError("source license identity mismatch")
     relative = adapter.dependency_locator.split(":", 1)[1]
     dependency_path = framework / relative
-    if hashlib.sha256(dependency_path.read_bytes()).hexdigest() != adapter.dependency_sha256:
+    if (
+        hashlib.sha256(dependency_path.read_bytes()).hexdigest()
+        != adapter.upstream_requirements_sha256
+    ):
         raise RuntimeError("dependency metadata identity mismatch")
 
 
-def _build_image(
+def _acquire_base_image(
     adapter: EvaluatorAdapter, build_root: Path
+) -> tuple[str, dict[str, Any], int]:
+    reference = f"python:{adapter.python_version}"
+    existed = (
+        subprocess.run(
+            ["docker", "image", "inspect", reference], capture_output=True, check=False
+        ).returncode
+        == 0
+    )
+    _run(["docker", "pull", "--platform", "linux/amd64", reference], timeout=1200)
+    if not existed:
+        OWNED_BASE_REFERENCES.add(reference)
+        (build_root / "owned-base-reference.txt").write_text(reference + "\n", encoding="ascii")
+    details = json.loads(_run(["docker", "image", "inspect", reference]).stdout)[0]
+    if details.get("Architecture") != "amd64" or details.get("Os") != "linux":
+        raise RuntimeError("base image platform identity mismatch")
+    tags = details.get("RepoTags") or []
+    if reference not in tags:
+        raise RuntimeError("base image repository/tag identity mismatch")
+    identity = {
+        "architecture": details["Architecture"],
+        "declared_reference": reference,
+        "image_id": details["Id"],
+        "operating_system": details["Os"],
+        "repository_digests": sorted(details.get("RepoDigests") or []),
+        "repository_tags": sorted(tags),
+    }
+    owned_reference = f"archguard-phase128f-base-{adapter.python_version}"
+    base_dockerfile = build_root / "BaseDockerfile"
+    base_dockerfile.write_text(f"FROM {reference}\n", encoding="utf-8")
+    _run(
+        [
+            "docker",
+            "build",
+            "--pull=false",
+            "--platform=linux/amd64",
+            "--label=archguard.phase=12.8f",
+            "--file",
+            str(base_dockerfile),
+            "--tag",
+            owned_reference,
+            str(build_root),
+        ],
+        timeout=600,
+    )
+    return owned_reference, identity, int(details.get("Size", 0))
+
+
+def _build_image(
+    adapter: EvaluatorAdapter, build_root: Path, base: str
 ) -> tuple[str, list[dict[str, str]], int]:
     tag = f"archguard-phase128f-{adapter.task_id.lower()}"
-    base = f"python:{adapter.python_version}"
-    _run(["docker", "image", "inspect", base], timeout=30)
     constraints = " ".join(adapter.dependency_constraints)
     dockerfile = build_root / "Dockerfile"
     dockerfile.write_text(
@@ -139,6 +198,7 @@ def _build_image(
         [
             "docker",
             "build",
+            "--pull=false",
             "--network=default",
             "--platform=linux/amd64",
             "--label=archguard.phase=12.8f",
@@ -161,7 +221,7 @@ def _build_image(
 
 def _execute(adapter: EvaluatorAdapter, image: str, source: Path, name: str) -> AttemptEvidence:
     started = time.monotonic()
-    command = [adapter.evaluator_entry_point, *adapter.test_selectors]
+    command = [*adapter.evaluator_argv, *adapter.test_selectors]
     preparation = "touch tests/__init__.py && " if adapter.project == "black" else ""
     docker = [
         "docker",
@@ -196,12 +256,18 @@ def _execute(adapter: EvaluatorAdapter, image: str, source: Path, name: str) -> 
         image,
         "sh",
         "-c",
-        "cp -a /input/. /source && " + preparation + "exec " + shlex.join(command),
+        "cp -a /input/. /source && " + preparation + 'exec "$@"',
+        "evaluator",
+        *command,
     ]
     try:
         result = subprocess.run(
             docker, capture_output=True, timeout=adapter.sandbox.timeout_seconds
         )
+        if result.returncode in {125, 126, 127}:
+            raise subprocess.CalledProcessError(
+                result.returncode, docker, output=result.stdout, stderr=result.stderr
+            )
         raw = (result.stdout + result.stderr)[: adapter.sandbox.output_bytes]
         normalized = re.sub(rb"\d+(?:\.\d+)?s", b"<duration>", raw)
         normalized = re.sub(rb"/[^\s:]+", b"<path>", normalized)
@@ -231,21 +297,33 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
     fixed = task_root / "fixed"
     build = task_root / "build"
     build.mkdir(parents=True)
+    failure_stage = "SOURCE_ACQUISITION"
+    base_identity: dict[str, Any] | None = None
+    base_size = 0
+    dependency_build_status = "NOT_STARTED"
+    diagnostic: dict[str, Any] | None = None
     try:
         _safe_checkout(adapter.repository, adapter.buggy_revision, buggy)
         _safe_checkout(adapter.repository, adapter.fixed_revision, fixed)
+        failure_stage = "IDENTITY_VERIFICATION"
         _verify_identities(adapter, buggy, framework)
-        image, packages, image_size = _build_image(adapter, build)
+        failure_stage = "BASE_IMAGE_ACQUISITION"
+        base, base_identity, base_size = _acquire_base_image(adapter, build)
+        failure_stage = "DEPENDENCY_BUILD"
+        image, packages, image_size = _build_image(adapter, build, base)
+        dependency_build_status = "COMPLETE"
+        failure_stage = "BUGGY_EXECUTION"
         attempts = tuple(
             _execute(adapter, image, buggy, f"phase128f-{adapter.task_id.lower()}-buggy-{index}")
             for index in range(1, 4)
         )
+        failure_stage = "FIXED_CONTROL_EXECUTION"
         fixed_attempt = _execute(
             adapter, image, fixed, f"phase128f-{adapter.task_id.lower()}-fixed"
         )
         fixed_passed = fixed_attempt.outcome is Outcome.PASS
         classification = classify(attempts, fixed_control_passed=fixed_passed)
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError) as error:
         attempts = tuple(
             AttemptEvidence(Outcome.INFRASTRUCTURE_FAILURE, None, None, 0, 0, 0) for _ in range(3)
         )
@@ -253,7 +331,35 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
         classification = Classification.INFRASTRUCTURE_FAILURE
         packages = []
         image_size = 0
-    prior = prior_evidence_status(adapter.task_id, classification)
+        return_code = error.returncode if isinstance(error, subprocess.CalledProcessError) else None
+        stderr = error.stderr if isinstance(error, subprocess.CalledProcessError) else b""
+        if isinstance(stderr, str):
+            stderr = stderr.encode()
+        diagnostic_bytes = stderr or str(error).encode("utf-8", "replace")
+        normalized = re.sub(
+            rb"/(?:home|Users|private|tmp)/[^\s:]+", b"<path>", diagnostic_bytes[:65536]
+        )
+        code = (
+            "BASE_IMAGE_ACQUISITION_FAILED"
+            if failure_stage == "BASE_IMAGE_ACQUISITION"
+            else f"{failure_stage}_FAILED"
+        )
+        diagnostic = {
+            "command_category": failure_stage,
+            "failure_code": code,
+            "failure_stage": failure_stage,
+            "normalized_error_class": type(error).__name__,
+            "normalized_stderr_sha256": hashlib.sha256(normalized).hexdigest(),
+            "process_return_code": return_code,
+            "retryable": failure_stage in {"SOURCE_ACQUISITION", "BASE_IMAGE_ACQUISITION"},
+        }
+        if failure_stage == "DEPENDENCY_BUILD":
+            dependency_build_status = "FAILED"
+    prior = (
+        "NOT_EVALUATED_INFRASTRUCTURE_FAILURE"
+        if classification is Classification.INFRASTRUCTURE_FAILURE
+        else prior_evidence_status(adapter.task_id, classification)
+    )
     decision = qualification_decision(classification, fixed_passed)
     if prior == "EVIDENCE_CONFLICT_REVIEW_REQUIRED":
         decision = "NOT_QUALIFIED"
@@ -268,6 +374,19 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
         ],
         "buggy_revision": adapter.buggy_revision,
         "classification": classification.value,
+        "scientific_classification": (
+            None
+            if classification is Classification.INFRASTRUCTURE_FAILURE
+            else classification.value
+        ),
+        "execution_status": (
+            "INFRASTRUCTURE_FAILURE"
+            if classification is Classification.INFRASTRUCTURE_FAILURE
+            else "SCIENTIFIC_RESULT"
+        ),
+        "infrastructure_diagnostic": diagnostic,
+        "base_image_identity": base_identity,
+        "dependency_build_status": dependency_build_status,
         "dependency_artifacts": packages,
         "fixed_control_passed": fixed_passed,
         "fixed_revision": adapter.fixed_revision,
@@ -286,6 +405,7 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             if "fixed_attempt" in locals()
             else 0,
             "measured_image_bytes": image_size,
+            "measured_base_image_bytes": base_size,
             "measured_task_tree_bytes": _tree_bytes(task_root),
         },
         "task_id": adapter.task_id,
@@ -294,19 +414,30 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
 
 def cleanup(root: Path) -> None:
     containers = (
-        _run(["docker", "ps", "-aq", "--filter", "label=archguard.phase=12.8f"], timeout=30)
+        subprocess.run(
+            ["docker", "ps", "-aq", "--filter", "label=archguard.phase=12.8f"],
+            capture_output=True,
+            check=False,
+        )
         .stdout.decode()
         .split()
     )
     if containers:
         subprocess.run(["docker", "rm", "-f", *containers], check=False, capture_output=True)
     images = (
-        _run(["docker", "images", "-q", "--filter", "label=archguard.phase=12.8f"], timeout=30)
+        subprocess.run(
+            ["docker", "images", "-q", "--filter", "label=archguard.phase=12.8f"],
+            capture_output=True,
+            check=False,
+        )
         .stdout.decode()
         .split()
     )
     if images:
         subprocess.run(["docker", "image", "rm", "-f", *images], check=False, capture_output=True)
+    for reference in sorted(OWNED_BASE_REFERENCES):
+        subprocess.run(["docker", "image", "rm", reference], check=False, capture_output=True)
+    OWNED_BASE_REFERENCES.clear()
     shutil.rmtree(root, ignore_errors=True)
 
 
