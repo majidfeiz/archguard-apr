@@ -13,6 +13,19 @@ commands, selectors and dependency-file hashes derive from BugsInPy revision
 repositories. PySnooper-1 remains NOT_REPRODUCIBLE unless a consistency run agrees; contradiction
 records `EVIDENCE_CONFLICT_REVIEW_REQUIRED` and cannot qualify it.
 
+Phase 12.8F.1 replaces the v1 opaque evaluator command with allowlisted structured argv and separately
+binds the upstream requirements-file identity, explicit empty-file state, declared constraint-set
+fingerprint/provenance, and acquired distribution hashes. Adapter registry v2 fingerprint is
+`5575f5a88934ad998bb6c0c6da415708690a783e1dc8b636db2804ed4eed3d5f`; task revisions, selectors,
+candidate membership and ordering did not change.
+
+GitHub run `37643825730` is preserved as an engineering-complete but scientifically unsuccessful run.
+It reached PySnooper-1 and PySnooper-3, both before evaluator execution, and recorded two infrastructure
+failures, no passing fixed control and no qualified task. It stopped under the documented rule after
+more than one infrastructure failure. Its Artifact remains historical and is not imported. Review found
+an unavailable preloaded-base assumption, opaque argv construction, a missing `rg` dependency that did
+not fail closed, and insufficient stage diagnostics.
+
 Local metadata inspection accessed only the four declared GitHub repositories, used no credentials,
 and executed no acquired code. Git did not report wire bytes; the measured Git-object footprint was
 7,385,088 bytes and maximum metadata-root disk was 18,374,656 bytes. The temporary checkouts were
@@ -31,13 +44,17 @@ requires `confirm_all_adapters_preflighted=true`. Batch A is PySnooper-1 consist
 black-1 and cookiecutter-4. Batch B is black-2, black-3 and black-4. Execution is serial. PySnooper-2
 appears through prior evidence and is not rerun.
 
-The workflow uses only GitHub and PyPI hosts declared in its log, permits network only for Git and
-container dependency preparation, and runs evaluator attempts with network none. It enforces 2 GiB
+The workflow explicitly pulls `python:<exact-version>` for `linux/amd64`, verifies its requested tag,
+ID/digests, OS and architecture, records that identity, and builds with `--pull=false`. It uses only
+GitHub, Docker Hub for the declared Python base image, and PyPI hosts declared in its log, permits
+network only for Git, base acquisition and container dependency preparation, and runs evaluator
+attempts with network none. It enforces 2 GiB
 aggregate transfer, 8 GiB temporary disk, and 10 MiB retained Artifact ceilings. Prospective Batch A
 planning is under 700 MiB transfer, 5 GiB disk, and the 350-minute job timeout; Batch B is under
 900 MiB transfer, 6 GiB disk, and the same timeout. These are conservative pre-run bounds, not measured
-results. A required Python base image must already exist on the GitHub runner; the workflow does not
-access an unapproved container registry. Absence is recorded as infrastructure failure.
+results. A standard-library scanner must complete successfully before security status can be PASSED or
+an Artifact published; missing inputs, non-UTF-8 content, secrets, diff markers, forbidden fields and
+absolute runner paths fail closed.
 
 Each run uploads exactly one flat, source-free, 14-day Artifact named
 `archguard-phase-12-8f-qualification-<selection>-<run-id>`. Download it outside the repository and run:

@@ -34,3 +34,8 @@ have no network, credentials, Docker socket, writable root, capabilities, or hos
 Output is bounded before hashing and raw logs are discarded. Exact allowlists, hostile-ZIP checks,
 append-only prior evidence, conflict review, serial batching, transfer/disk ceilings, and label-scoped
 cleanup limit leakage, resource exhaustion, result substitution, and unrelated Docker deletion.
+Phase 12.8F.1 removes reliance on runner-installed `rg`: a repository-controlled standard-library
+scanner fails on absence, decoding errors, secrets, diff/source/gold/raw-log markers and runner paths.
+Exact base images are explicitly pulled for linux/amd64, identity-recorded and acquired-image cleanup is
+ownership-aware. Structured allowlisted argv prevents shell-command ambiguity; diagnostics retain only
+bounded normalized hashes and categorical stages/codes.

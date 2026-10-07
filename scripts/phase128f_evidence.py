@@ -30,10 +30,14 @@ def assemble(
     adapters_path: Path,
     output: Path,
     run_id: str,
+    security_scan_path: Path,
     transfer_bytes: int = 0,
 ) -> None:
     results = json.loads(results_path.read_text(encoding="utf-8"))
     adapters = json.loads(adapters_path.read_text(encoding="utf-8"))
+    security_scan = json.loads(security_scan_path.read_text(encoding="utf-8"))
+    if security_scan.get("status") != "PASSED":
+        raise ValueError("successful security scan required")
     selected = {result["task_id"] for result in results}
     adapter_values = [item for item in adapters["adapters"] if item["task_id"] in selected]
     output.mkdir(parents=True, exist_ok=False)
@@ -86,10 +90,7 @@ def assemble(
                 "transfer_ceiling_bytes": 2 * 1024**3,
             },
         ),
-        "security-scan-summary.json": _record(
-            "archguard.phase-12.8f-security/v1",
-            {"forbidden_findings": 0, "raw_logs_retained": False, "status": "PASSED"},
-        ),
+        "security-scan-summary.json": security_scan,
         "cleanup-summary.json": _record(
             "archguard.phase-12.8f-cleanup/v1",
             {"containers_remaining": 0, "external_root_removed": True, "status": "COMPLETE"},
@@ -121,6 +122,7 @@ def main() -> None:
     assemble_parser.add_argument("--adapters", type=Path, required=True)
     assemble_parser.add_argument("--output", type=Path, required=True)
     assemble_parser.add_argument("--run-id", required=True)
+    assemble_parser.add_argument("--security-scan", type=Path, required=True)
     assemble_parser.add_argument("--transfer-bytes", type=int, default=0)
     package_parser = commands.add_parser("package")
     package_parser.add_argument("--source", type=Path, required=True)
@@ -132,7 +134,14 @@ def main() -> None:
     import_parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "assemble":
-        assemble(args.results, args.adapters, args.output, args.run_id, args.transfer_bytes)
+        assemble(
+            args.results,
+            args.adapters,
+            args.output,
+            args.run_id,
+            args.security_scan,
+            args.transfer_bytes,
+        )
     elif args.command == "package":
         package(args.source, args.archive)
     elif args.command == "validate":

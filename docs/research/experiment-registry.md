@@ -53,3 +53,7 @@ Phase 12.8F implements reviewed adapters and Linux x86 qualification infrastruct
 project was executed locally, no GitHub qualification result is imported yet, and qualification counts
 remain unchanged. PySnooper-1 `NOT_REPRODUCIBLE` and PySnooper-2 `STABLE` evidence are preserved.
 Future non-STABLE classifications are scientific results, not workflow failures or replacement cues.
+Run 37643825730 is retained as non-imported historical engineering evidence: Batch A stopped after
+PySnooper-1 and PySnooper-3 both failed before evaluator execution, so no scientific classification or
+qualification resulted. Phase 12.8F.1 repairs base acquisition, argv, scanning and source-free staged
+diagnostics without changing candidates, prior evidence or readiness.
