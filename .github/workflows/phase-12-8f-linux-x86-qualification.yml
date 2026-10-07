@@ -1,0 +1,160 @@
+name: Phase 12.8F Linux x86 Evaluator Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: Selected task or bounded batch
+        required: true
+        default: batch-a
+        type: choice
+        options:
+          - batch-a
+          - batch-b
+          - PySnooper-1
+          - PySnooper-3
+          - black-1
+          - cookiecutter-4
+          - black-2
+          - black-3
+          - black-4
+          - all
+      confirm_all_adapters_preflighted:
+        description: Required only for all after individual adapter preflights pass
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-12-8f-linux-x86-qualification-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v6
+      - name: Initialize isolated runtime paths and ceilings
+        shell: bash
+        run: |
+          set -euo pipefail
+          external_root="${RUNNER_TEMP}/archguard-phase-12-8f-external"
+          evidence_root="${RUNNER_TEMP}/archguard-phase-12-8f-evidence"
+          results_path="${RUNNER_TEMP}/archguard-phase-12-8f-results.json"
+          validation_zip="${RUNNER_TEMP}/archguard-phase-12-8f-validation.zip"
+          mkdir -p "${evidence_root}"
+          echo "EXTERNAL_ROOT=${external_root}" >> "${GITHUB_ENV}"
+          echo "EVIDENCE_ROOT=${evidence_root}" >> "${GITHUB_ENV}"
+          echo "RESULTS_PATH=${results_path}" >> "${GITHUB_ENV}"
+          echo "VALIDATION_ZIP=${validation_zip}" >> "${GITHUB_ENV}"
+          echo "TRANSFER_START=$(cat /sys/class/net/eth0/statistics/rx_bytes)" >> "${GITHUB_ENV}"
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test "$(df --output=avail -B1 "${RUNNER_TEMP}" | tail -1)" -ge 8589934592
+          if [ "${{ inputs.task_id }}" = all ]; then
+            test "${{ inputs.confirm_all_adapters_preflighted }}" = true
+          fi
+      - name: Declare controlled network and resource policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat <<'EOF'
+          Allowed hosts: github.com, api.github.com, pypi.org, files.pythonhosted.org
+          Repositories: soarsmu/BugsInPy, cool-RR/PySnooper, psf/black, cookiecutter/cookiecutter
+          Package indexes: https://pypi.org/simple/ and distribution files under https://files.pythonhosted.org/
+          Credentials: none
+          Aggregate transfer ceiling: 2147483648 bytes
+          Temporary disk ceiling: 8589934592 bytes
+          Retained Artifact ceiling: 10485760 bytes
+          EOF
+      - name: Validate adapter registry and frozen candidate binding
+        shell: bash
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          python3 scripts/phase128f_registry.py --output "${RUNNER_TEMP}/adapters-regenerated.json"
+          cmp "${RUNNER_TEMP}/adapters-regenerated.json" research/evaluators/adapter-registry-v1.json
+          test "$(jq -r .candidate_registry_fingerprint research/evaluators/adapter-registry-v1.json)" = d1068112a12c63e24ee780ad9b31b05c04f9b1417efa50ffa04a1b8b4aac1903
+          test "$(jq -r .selection_policy_fingerprint research/evaluators/adapter-registry-v1.json)" = 0987d60ff9b5c2071f0c1dd82a91c680a6aafa885a37b12003bc34dc4add7e01
+          test "$(jq -c .selected_identifiers research/candidates/candidate-pool-v1.json)" = '["PySnooper-1","black-1","cookiecutter-4","PySnooper-2","black-2","PySnooper-3","black-3","black-4"]'
+      - name: Execute selected adapters serially in hardened containers
+        shell: bash
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          timeout 350m python3 scripts/phase128f_runner.py \
+            --adapters research/evaluators/adapter-registry-v1.json \
+            --selection "${{ inputs.task_id }}" \
+            --external-root "${EXTERNAL_ROOT}" \
+            --output "${RESULTS_PATH}"
+      - name: Enforce transfer, disk, leakage, and cleanup gates
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          gate_failed=0
+          transfer_end="$(cat /sys/class/net/eth0/statistics/rx_bytes)"
+          transfer_start="${TRANSFER_START:-${transfer_end}}"
+          transfer_bytes="$((transfer_end - transfer_start))"
+          test "${transfer_bytes}" -le 2147483648 || gate_failed=1
+          test ! -e "${EXTERNAL_ROOT:-${RUNNER_TEMP}/archguard-phase-12-8f-external}" || gate_failed=1
+          test -z "$(docker ps -aq --filter label=archguard.phase=12.8f)" || gate_failed=1
+          test -z "$(docker images -q --filter label=archguard.phase=12.8f)" || gate_failed=1
+          if [ -f "${RESULTS_PATH:-}" ]; then
+            test "$(wc -c < "${RESULTS_PATH}")" -le 1048576 || gate_failed=1
+            ! rg -n '(BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|sk-[A-Za-z0-9]{20,}|^diff --git|^@@ |"(patch|gold|reference_patch|raw_log|source|fixed_code)")' \
+              "${RESULTS_PATH}" research/evaluators/adapter-registry-v1.json || gate_failed=1
+          else
+            echo "Security scan could not validate missing results evidence" >&2
+            gate_failed=1
+          fi
+          echo "TRANSFER_BYTES=${transfer_bytes}" >> "${GITHUB_ENV}"
+          exit "${gate_failed}"
+      - name: Assemble and validate strict source-free Artifact
+        shell: bash
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          python3 scripts/phase128f_evidence.py assemble \
+            --results "${RESULTS_PATH}" \
+            --adapters research/evaluators/adapter-registry-v1.json \
+            --output "${EVIDENCE_ROOT}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --transfer-bytes "${TRANSFER_BYTES}"
+          python3 scripts/phase128f_evidence.py package \
+            --source "${EVIDENCE_ROOT}" --archive "${VALIDATION_ZIP}"
+          python3 scripts/phase128f_evidence.py validate --archive "${VALIDATION_ZIP}"
+          test "$(wc -c < "${VALIDATION_ZIP}")" -le 10485760
+          rm -f -- "${VALIDATION_ZIP}" "${RESULTS_PATH}"
+          selection="${{ inputs.task_id }}"
+          echo "ARTIFACT_NAME=archguard-phase-12-8f-qualification-${selection}-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
+      - name: Upload one source-free qualification Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.EVIDENCE_ROOT }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Always clean Phase 12.8F resources
+        if: always()
+        shell: bash
+        run: |
+          ids="$(docker ps -aq --filter label=archguard.phase=12.8f 2>/dev/null)"
+          if [ -n "${ids}" ]; then docker rm -f ${ids}; fi
+          images="$(docker images -q --filter label=archguard.phase=12.8f 2>/dev/null)"
+          if [ -n "${images}" ]; then docker image rm -f ${images}; fi
+          rm -rf -- "${EXTERNAL_ROOT:-${RUNNER_TEMP}/archguard-phase-12-8f-external}"
+          rm -rf -- "${EVIDENCE_ROOT:-${RUNNER_TEMP}/archguard-phase-12-8f-evidence}"
+          rm -f -- "${RESULTS_PATH:-${RUNNER_TEMP}/archguard-phase-12-8f-results.json}"
+          rm -f -- "${VALIDATION_ZIP:-${RUNNER_TEMP}/archguard-phase-12-8f-validation.zip}"

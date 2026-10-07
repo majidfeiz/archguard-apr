@@ -26,3 +26,11 @@ source-free and outcome-blind; hidden-answer and repair-result fields fail close
 bounded archive sizes, platform metadata, gitlinks and LFS are checked before deterministic
 project-stratified selection. The manual workflow executes no acquired project or evaluator, compares
 two regenerations byte-for-byte, uses a strict flat evidence allowlist, and cleans on every exit path.
+
+Phase 12.8F separates metadata, buggy source, fixed controls, build context, transient logs, and
+source-free evidence. Hooks, submodules and LFS smudging are disabled; gitlinks, escaping symlinks and
+LFS pointers fail closed. Dependency networking is confined to container builds; evaluator containers
+have no network, credentials, Docker socket, writable root, capabilities, or host worktree mount.
+Output is bounded before hashing and raw logs are discarded. Exact allowlists, hostile-ZIP checks,
+append-only prior evidence, conflict review, serial batching, transfer/disk ceilings, and label-scoped
+cleanup limit leakage, resource exhaustion, result substitution, and unrelated Docker deletion.
