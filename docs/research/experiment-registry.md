@@ -49,3 +49,7 @@ Phase 12.8E records factual license evidence and an eight-task, three-project ou
 pool. No evaluator, target code, repair, provider, or Phase 13 execution occurred. The pool is not a
 frozen pilot list and registers no effectiveness result. BugsInPy and SWE-bench Verified licensing
 remain unresolved.
+Phase 12.8F implements reviewed adapters and Linux x86 qualification infrastructure only. No acquired
+project was executed locally, no GitHub qualification result is imported yet, and qualification counts
+remain unchanged. PySnooper-1 `NOT_REPRODUCIBLE` and PySnooper-2 `STABLE` evidence are preserved.
+Future non-STABLE classifications are scientific results, not workflow failures or replacement cues.
