@@ -8,6 +8,11 @@ category/signature hash, bounded duration, and truncation status. Infrastructure
 record a stage/code, return code, normalized error class and stderr hash, command category and
 retryability without raw logs. Their scientific classification remains unresolved.
 
+Phase 12.8F.2 requires the full structured fixed-control record documented in
+`fixed-control-evidence-v1.md`. Fixed and buggy dependency-environment fingerprints must match. A failed
+fixed test is `FIXED_CONTROL_FAILED`; fixed infrastructure failure is
+`FIXED_CONTROL_INFRASTRUCTURE_FAILURE`. Neither is automatically `ENVIRONMENT_SENSITIVE`.
+
 The flat Artifact contains exactly ten allowlisted files documented in the Phase 12.8F verification
 guide. Validation rejects replacement tasks, registry/policy mismatch, abbreviated revisions,
 duplicates, classification contradictions, STABLE without a passing fixed control, prior conflicts

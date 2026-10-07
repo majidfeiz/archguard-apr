@@ -171,7 +171,7 @@ def test_unavailable_unsupported_and_failed_fixed_control() -> None:
         is Classification.UNSUPPORTED_ENVIRONMENT
     )
     stable = (attempt(Outcome.EXPECTED_FAILURE),) * 3
-    assert classify(stable, fixed_control_passed=False) is Classification.ENVIRONMENT_SENSITIVE
+    assert classify(stable, fixed_control_passed=False) is Classification.FIXED_CONTROL_FAILED
 
 
 def test_prior_evidence_is_preserved_and_conflicts_require_review(repository_root: Path) -> None:
@@ -214,12 +214,30 @@ def result(task_id: str = "black-1") -> dict[str, Any]:
             "repository_tags": [f"python:{adapter.python_version}"],
         },
         "buggy_attempts": attempts,
+        "buggy_environment_fingerprint": SHA,
         "buggy_revision": adapter.buggy_revision,
         "classification": "STABLE",
         "dependency_artifacts": [{"filename": "dependency.whl", "sha256": SHA}],
         "dependency_build_status": "COMPLETE",
         "execution_status": "SCIENTIFIC_RESULT",
         "fixed_control_passed": True,
+        "fixed_control": {
+            "attempted": True,
+            "dependency_environment_fingerprint": SHA,
+            "duration_milliseconds": 100,
+            "evaluator_selector_fingerprint": SHA,
+            "exit_code": 0,
+            "failure_signature_sha256": None,
+            "image_identity": {"image_id": "sha256:" + SHA, "tag": "evaluator"},
+            "infrastructure_diagnostic": None,
+            "normalized_failure_class": None,
+            "outcome": "PASS",
+            "output_truncated": False,
+            "revision": adapter.fixed_revision,
+            "stage": "TEST_EXECUTION",
+            "tests_failed": 0,
+            "tests_passed": 1,
+        },
         "fixed_revision": adapter.fixed_revision,
         "infrastructure_diagnostic": None,
         "prior_evidence_status": "NO_PRIOR_EVIDENCE",
@@ -300,6 +318,24 @@ def test_successful_scanner_receipt_is_required_before_assembly(
         )
 
 
+def test_fixed_and_buggy_environment_mismatch_is_rejected() -> None:
+    contradictory = result()
+    contradictory["fixed_control"]["dependency_environment_fingerprint"] = "b" * 64
+    with pytest.raises(ValueError, match="environment"):
+        _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [contradictory]})
+
+
+def test_fixed_control_record_is_mandatory_and_exact() -> None:
+    missing = result()
+    missing.pop("fixed_control")
+    with pytest.raises(ValueError, match="missing structured"):
+        _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [missing]})
+    incomplete = result()
+    incomplete["fixed_control"].pop("stage")
+    with pytest.raises(ValueError, match="incomplete structured"):
+        _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [incomplete]})
+
+
 @pytest.mark.parametrize("name", ["../escape", "/absolute", "unexpected.json"])
 def test_archive_rejects_traversal_and_unexpected_members(
     evidence: tuple[Path, Path], tmp_path: Path, name: str
@@ -344,7 +380,7 @@ def test_stable_without_fixed_control_and_leakage_are_rejected(
 
     value["fingerprint"] = fingerprint(body)
     (root / "task-qualification.json").write_bytes(canonical_json(value))
-    with pytest.raises(ValueError, match="fixed control"):
+    with pytest.raises(ValueError, match="fixed.control"):
         validate_directory(root)
     value["results"][0]["raw_log"] = "forbidden"
     with pytest.raises(ValueError, match="prohibited"):
@@ -370,6 +406,7 @@ def test_source_free_infrastructure_diagnostic_is_validated() -> None:
     failed.update(
         {
             "base_image_identity": None,
+            "buggy_environment_fingerprint": None,
             "buggy_attempts": [
                 {
                     "duration_milliseconds": 0,
@@ -387,6 +424,23 @@ def test_source_free_infrastructure_diagnostic_is_validated() -> None:
             "dependency_build_status": "NOT_STARTED",
             "execution_status": "INFRASTRUCTURE_FAILURE",
             "fixed_control_passed": False,
+            "fixed_control": {
+                "attempted": False,
+                "dependency_environment_fingerprint": None,
+                "duration_milliseconds": 0,
+                "evaluator_selector_fingerprint": SHA,
+                "exit_code": None,
+                "failure_signature_sha256": SHA,
+                "image_identity": None,
+                "infrastructure_diagnostic": {"failure_stage": "BASE_IMAGE_ACQUISITION"},
+                "normalized_failure_class": "BASE_IMAGE_ACQUISITION_FAILED",
+                "outcome": "INFRASTRUCTURE_FAILURE",
+                "output_truncated": False,
+                "revision": failed["fixed_revision"],
+                "stage": "IMAGE_BUILD",
+                "tests_failed": 0,
+                "tests_passed": 0,
+            },
             "infrastructure_diagnostic": {
                 "command_category": "BASE_IMAGE_ACQUISITION",
                 "failure_code": "BASE_IMAGE_ACQUISITION_FAILED",
@@ -429,3 +483,9 @@ def test_frozen_state_and_phase13_remain_unchanged(repository_root: Path) -> Non
 
     assert supplied == fingerprint(failed)
     assert failed["qualified_tasks"] == 0 and failed["imported"] is False
+    diagnostic = json.loads(
+        (repository_root / "research/evidence/phase-12.8f-run-37672954475.json").read_text()
+    )
+    supplied = diagnostic.pop("fingerprint")
+    assert supplied == fingerprint(diagnostic)
+    assert diagnostic["qualified_tasks"] == 0 and diagnostic["imported"] is False

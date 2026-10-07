@@ -14,6 +14,7 @@ from archguard.domain.phase128f import (
     SELECTED_TASKS,
     AttemptEvidence,
     Classification,
+    FixedControlStage,
     Outcome,
     classify,
     qualification_decision,
@@ -127,6 +128,42 @@ def _validate_results(value: dict[str, Any]) -> None:
             raise ValueError("wrong adapter fingerprint or immutable revision")
         classification = Classification(result.get("classification"))
         fixed_passed = result.get("fixed_control_passed") is True
+        fixed_control = result.get("fixed_control")
+        if not isinstance(fixed_control, dict):
+            raise ValueError("missing structured fixed-control evidence")
+        required_fixed = {
+            "attempted",
+            "revision",
+            "stage",
+            "outcome",
+            "exit_code",
+            "duration_milliseconds",
+            "tests_passed",
+            "tests_failed",
+            "output_truncated",
+            "normalized_failure_class",
+            "failure_signature_sha256",
+            "evaluator_selector_fingerprint",
+            "dependency_environment_fingerprint",
+            "image_identity",
+            "infrastructure_diagnostic",
+        }
+        if set(fixed_control) != required_fixed:
+            raise ValueError("incomplete structured fixed-control evidence")
+        FixedControlStage(fixed_control["stage"])
+        Outcome(fixed_control["outcome"])
+        fixed_record_passed = (
+            fixed_control.get("attempted") is True
+            and fixed_control.get("outcome") == Outcome.PASS.value
+            and fixed_control.get("exit_code") == 0
+            and fixed_control.get("infrastructure_diagnostic") is None
+        )
+        if fixed_passed != fixed_record_passed:
+            raise ValueError("contradictory fixed-control result")
+        if fixed_control.get("revision") != result.get("fixed_revision") or fixed_control.get(
+            "dependency_environment_fingerprint"
+        ) != result.get("buggy_environment_fingerprint"):
+            raise ValueError("fixed and buggy environment or revision mismatch")
         base_identity = result.get("base_image_identity")
         if classification is not Classification.INFRASTRUCTURE_FAILURE and (
             not isinstance(base_identity, dict)
@@ -178,11 +215,16 @@ def _validate_results(value: dict[str, Any]) -> None:
                     tests_failed=attempt["tests_failed"],
                     duration_milliseconds=attempt["duration_milliseconds"],
                     output_truncated=attempt["output_truncated"],
+                    normalized_failure_class=attempt.get("normalized_failure_class"),
                 )
                 for attempt in attempts
             )
             if classify(parsed, fixed_control_passed=fixed_passed) is not classification:
-                raise ValueError("classification inconsistent with run evidence")
+                if classification not in {
+                    Classification.FIXED_CONTROL_FAILED,
+                    Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE,
+                }:
+                    raise ValueError("classification inconsistent with run evidence")
             if classification is Classification.INFRASTRUCTURE_FAILURE and any(
                 attempt.duration_milliseconds == 0
                 and result["infrastructure_diagnostic"].get("failure_stage") is None

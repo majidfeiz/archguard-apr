@@ -39,3 +39,6 @@ scanner fails on absence, decoding errors, secrets, diff/source/gold/raw-log mar
 Exact base images are explicitly pulled for linux/amd64, identity-recorded and acquired-image cleanup is
 ownership-aware. Structured allowlisted argv prevents shell-command ambiguity; diagnostics retain only
 bounded normalized hashes and categorical stages/codes.
+Phase 12.8F.2 separately binds fixed-control revision, stage, selector, dependency environment and image
+identity. Collection, execution and infrastructure failures cannot masquerade as defect outcomes;
+fixed failures remain review-required and raw diagnostic output remains temporary and unpublishable.

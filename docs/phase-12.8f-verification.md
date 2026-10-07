@@ -39,10 +39,10 @@ Run Batch A after merge:
 gh workflow run phase-12-8f-linux-x86-qualification.yml --ref main -f task_id=batch-a
 ```
 
-Inputs are `batch-a` (default), `batch-b`, any of the seven adapter task IDs, or `all`. `all` also
-requires `confirm_all_adapters_preflighted=true`. Batch A is PySnooper-1 consistency, PySnooper-3,
-black-1 and cookiecutter-4. Batch B is black-2, black-3 and black-4. Execution is serial. PySnooper-2
-appears through prior evidence and is not rerun.
+Phase 12.8F.2 temporarily narrows the input to `batch-a` only while fixed-control failures are diagnosed.
+Batch A is PySnooper-1 consistency, PySnooper-3, black-1 and cookiecutter-4. Execution is serial.
+PySnooper-2 appears through prior evidence and is not rerun. Batch B remains defined historically but
+cannot be started from the diagnostic workflow.
 
 The workflow explicitly pulls `python:<exact-version>` for `linux/amd64`, verifies its requested tag,
 ID/digests, OS and architecture, records that identity, and builds with `--pull=false`. It uses only

@@ -57,3 +57,6 @@ Run 37643825730 is retained as non-imported historical engineering evidence: Bat
 PySnooper-1 and PySnooper-3 both failed before evaluator execution, so no scientific classification or
 qualification resulted. Phase 12.8F.1 repairs base acquisition, argv, scanning and source-free staged
 diagnostics without changing candidates, prior evidence or readiness.
+Run 37672954475 subsequently executed all Batch A buggy repetitions with stable signatures but all four
+fixed controls failed. Because its Artifact lacks fixed-stage diagnostics, causes and scientific
+classifications remain unresolved, zero tasks qualify, and the run is preserved without import.

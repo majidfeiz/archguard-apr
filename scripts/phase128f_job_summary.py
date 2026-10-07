@@ -24,8 +24,8 @@ def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
     lines = [
         "## Phase 12.8F qualification",
         "",
-        "| Task | Classification | Failure stage/code | Fixed control |",
-        "|---|---|---|---|",
+        "| Task | Buggy result | Classification | Failure stage/code | Fixed control |",
+        "|---|---|---|---|---|",
     ]
     for result in results:
         diagnostic = result.get("infrastructure_diagnostic") or {}
@@ -38,7 +38,8 @@ def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
             or "none"
         )
         lines.append(
-            f"| {result['task_id']} | {result['classification']} | {failure} | "
+            f"| {result['task_id']} | {result.get('buggy_result_status', 'NOT_REACHED')} | "
+            f"{result['classification']} | {failure} | "
             f"{str(result['fixed_control_passed']).lower()} |"
         )
     not_reached = [task for task in _selected(selection) if task not in reached]

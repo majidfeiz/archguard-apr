@@ -9,18 +9,7 @@ def test_workflow_inputs_batches_and_runner_temp(repository_root: Path) -> None:
     workflow = yaml.safe_load(raw)
     dispatch = workflow[True]["workflow_dispatch"]
     assert dispatch["inputs"]["task_id"]["default"] == "batch-a"
-    assert set(dispatch["inputs"]["task_id"]["options"]) == {
-        "batch-a",
-        "batch-b",
-        "PySnooper-1",
-        "PySnooper-3",
-        "black-1",
-        "cookiecutter-4",
-        "black-2",
-        "black-3",
-        "black-4",
-        "all",
-    }
+    assert dispatch["inputs"]["task_id"]["options"] == ["batch-a"]
     assert workflow["permissions"] == {"contents": "read"}
     assert "runs-on: ubuntu-24.04" in raw
     assert "max-parallel: 1" in raw and "fail-fast: false" in raw
@@ -56,3 +45,5 @@ def test_workflow_sandbox_cleanup_and_single_artifact(repository_root: Path) -> 
     assert '"pull", "--platform", "linux/amd64"' in runner
     assert "> 1" in runner
     assert "owned-base-reference.txt" in raw and "label=archguard.phase=12.8f" in raw
+    assert "--selection batch-a" in raw
+    assert "batch-b" not in raw
