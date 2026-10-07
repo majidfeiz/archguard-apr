@@ -19,3 +19,10 @@ It acquires only the immutable buggy revision, runs independent graph/evaluation
 byte identity. The flat source-free allowlist is revision/profile/graph/hash bound and rejects source,
 gold, logs, secrets, symlinks, traversal, and contradictory readiness. Local ARM evidence cannot
 qualify the profile; native Linux x86 evidence must be imported and reviewed before approval/freeze.
+
+Phase 12.8E adds independent framework/dataset/project license scopes, rejects SPDX inference without
+an official immutable license file, and preserves unresolved dependencies. Candidate input is
+source-free and outcome-blind; hidden-answer and repair-result fields fail closed. Exact revisions,
+bounded archive sizes, platform metadata, gitlinks and LFS are checked before deterministic
+project-stratified selection. The manual workflow executes no acquired project or evaluator, compares
+two regenerations byte-for-byte, uses a strict flat evidence allowlist, and cleans on every exit path.
