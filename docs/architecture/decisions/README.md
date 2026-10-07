@@ -17,3 +17,4 @@ ADR-0003 accepts canonical read-only repository analysis for Phase 2.
 - [ADR-0012](ADR-0012-docker-execution-feedback.md): Docker-only deterministic execution feedback
 - [ADR-0013](ADR-0013-provider-neutral-orchestration.md): provider-neutral event-sourced orchestration
 - [ADR-0022](ADR-0022-bounded-external-evidence.md): bounded immutable external evidence
+- [ADR-0023](ADR-0023-outcome-blind-candidate-pool.md): outcome-blind licensed candidate preparation

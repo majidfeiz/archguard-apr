@@ -1,0 +1,117 @@
+name: Phase 12.8E License Candidate Preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-12-8e-license-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      max-parallel: 1
+    steps:
+      - uses: actions/checkout@v6
+      - name: Initialize bounded runner temporary paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          external_root="${RUNNER_TEMP}/archguard-phase-12-8e-external"
+          generated_root="${RUNNER_TEMP}/archguard-phase-12-8e-generated"
+          evidence_root="${RUNNER_TEMP}/archguard-phase-12-8e-evidence"
+          mkdir -p "${external_root}" "${generated_root}" "${evidence_root}"
+          echo "EXTERNAL_ROOT=${external_root}" >> "${GITHUB_ENV}"
+          echo "GENERATED_ROOT=${generated_root}" >> "${GITHUB_ENV}"
+          echo "EVIDENCE_ROOT=${evidence_root}" >> "${GITHUB_ENV}"
+          test "$(uname -m)" = x86_64
+          test "$(df --output=avail -B1 "${RUNNER_TEMP}" | tail -1)" -ge 2147483648
+      - name: Declare acquisition policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'No external project or dataset acquisition is performed by this check-only workflow.'
+          echo 'Any future acquisition must use an immutable revision, no credentials, at most 536870912 transfer bytes, and at most 2147483648 temporary bytes.'
+          test "$(du -sb "${EXTERNAL_ROOT}" | cut -f1)" -le 2147483648
+      - name: Regenerate canonical registries twice
+        shell: bash
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          first="${GENERATED_ROOT}/first"
+          second="${GENERATED_ROOT}/second"
+          mkdir -p "${first}" "${second}"
+          python3 scripts/phase128e_preflight.py --repository-root "${first}"
+          python3 scripts/phase128e_preflight.py --repository-root "${second}"
+          diff -qr "${first}" "${second}"
+          cmp --silent "${first}/research/licenses/license-registry-v1.json" research/licenses/license-registry-v1.json
+          cmp --silent "${first}/research/candidates/candidate-pool-v1.json" research/candidates/candidate-pool-v1.json
+          cmp --silent "${first}/research/candidates/selection-policy-v1.json" research/candidates/selection-policy-v1.json
+      - name: Enforce license, gold, source, and secret policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(jq -r .required_dependency_status research/licenses/license-registry-v1.json)" = UNRESOLVED
+          test "$(jq -r .phase_13_ready research/candidates/candidate-pool-v1.json)" = false
+          test "$(jq -r .final_pilot_list_frozen research/candidates/candidate-pool-v1.json)" = false
+          ! rg -n '(BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|sk-[A-Za-z0-9]{20,}|(^|[^a-z])(gold_patch|reference_patch|repair_success|benchmark_score)([^a-z]|$)|^diff --git|^@@ )' research/licenses research/candidates "${EVIDENCE_ROOT}"
+          test -z "$(find "${EVIDENCE_ROOT}" -type f \( -name '*.py' -o -name '*.patch' -o -name '*.diff' -o -name '*.log' \) -print)"
+      - name: Validate exact flat evidence allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf -- "${EXTERNAL_ROOT}" "${GENERATED_ROOT}"
+          test ! -e "${EXTERNAL_ROOT}"
+          test ! -e "${GENERATED_ROOT}"
+          test -z "$(docker ps -aq --filter label=archguard.phase=12.8e 2>/dev/null)"
+          test -z "$(docker volume ls -q --filter label=archguard.phase=12.8e 2>/dev/null)"
+          test -z "$(docker buildx ls 2>/dev/null | awk '/archguard-phase-12-8e/{print $1}')"
+          PYTHONPATH=src python3 scripts/phase128e_preflight.py \
+            --cleanup-confirmed --evidence-output "${EVIDENCE_ROOT}"
+          expected=(
+            "SHA256SUMS"
+            "candidate-pool-summary.json"
+            "cleanup-summary.json"
+            "license-summary.json"
+            "manifest.json"
+            "readiness-summary.json"
+            "security-scan-summary.json"
+            "selection-determinism.json"
+          )
+          mapfile -t actual < <(find "${EVIDENCE_ROOT}" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort)
+          test "${actual[*]}" = "${expected[*]}"
+          test -z "$(find "${EVIDENCE_ROOT}" -mindepth 1 -maxdepth 1 ! -type f -print)"
+          (cd "${EVIDENCE_ROOT}" && sha256sum --check SHA256SUMS)
+      - name: Verify cleanup before upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf -- "${EXTERNAL_ROOT}" "${GENERATED_ROOT}"
+          test ! -e "${EXTERNAL_ROOT}"
+          test ! -e "${GENERATED_ROOT}"
+          test -z "$(docker ps -aq --filter label=archguard.phase=12.8e 2>/dev/null)"
+          test -z "$(docker volume ls -q --filter label=archguard.phase=12.8e 2>/dev/null)"
+          test -z "$(docker buildx ls 2>/dev/null | awk '/archguard-phase-12-8e/{print $1}')"
+      - name: Upload exactly one source-free evidence artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: archguard-phase-12-8e-license-candidate-${{ github.run_id }}
+          path: ${{ env.EVIDENCE_ROOT }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Cleanup on success or failure
+        if: always()
+        shell: bash
+        run: |
+          rm -rf -- "${EXTERNAL_ROOT:-${RUNNER_TEMP}/archguard-phase-12-8e-external}"
+          rm -rf -- "${GENERATED_ROOT:-${RUNNER_TEMP}/archguard-phase-12-8e-generated}"
+          rm -rf -- "${EVIDENCE_ROOT:-${RUNNER_TEMP}/archguard-phase-12-8e-evidence}"
+          ids="$(docker ps -aq --filter label=archguard.phase=12.8e 2>/dev/null)"
+          if [ -n "${ids}" ]; then docker rm -f ${ids}; fi

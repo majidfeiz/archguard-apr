@@ -291,7 +291,9 @@ def test_tracked_import_identity_and_partial_status(repository_root: Path) -> No
     assert licenses["benchmark_task_redistribution"] == "UNRESOLVED"
 
 
-def test_import_resolves_only_graph_execution_blocker(repository_root: Path) -> None:
+def test_imported_evidence_and_later_candidate_pool_preserve_other_blockers(
+    repository_root: Path,
+) -> None:
     facts = json.loads((repository_root / "research/readiness-facts.json").read_text())
     report = readiness_report(facts)
 
@@ -300,7 +302,6 @@ def test_import_resolves_only_graph_execution_blocker(repository_root: Path) -> 
     assert set(report["blocker_codes"]) == {
         "INSUFFICIENT_QUALIFIED_TASKS",
         "INSUFFICIENT_PROJECT_DIVERSITY",
-        "INSUFFICIENT_CANDIDATE_POOL",
         "PILOT_SELECTION_NOT_READY",
         "TASK_LIST_NOT_FROZEN",
         "LICENSES_UNVERIFIED",

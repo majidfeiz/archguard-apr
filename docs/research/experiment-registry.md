@@ -45,3 +45,7 @@ Phase 12.8D imports the independently generated Linux x86 profile re-evaluation 
 user-authorized approval/freeze. This resolves architecture-analysis and profile-review requirements
 for PySnooper only. It is an engineering readiness update, not an experiment; global population,
 licensing, protocol, task-freeze, and provider blockers remain.
+Phase 12.8E records factual license evidence and an eight-task, three-project outcome-blind preparation
+pool. No evaluator, target code, repair, provider, or Phase 13 execution occurred. The pool is not a
+frozen pilot list and registers no effectiveness result. BugsInPy and SWE-bench Verified licensing
+remain unresolved.

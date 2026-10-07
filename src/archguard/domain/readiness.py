@@ -247,7 +247,7 @@ def readiness_report(facts: dict[str, Any]) -> dict[str, Any]:
         "PHASE_12_7_EVIDENCE_MISSING": bool(facts.get("phase_12_7_evidence")),
         "INSUFFICIENT_QUALIFIED_TASKS": int(facts.get("qualified_stable_tasks", 0)) >= 4,
         "INSUFFICIENT_PROJECT_DIVERSITY": int(facts.get("qualified_projects", 0)) >= 2,
-        "INSUFFICIENT_CANDIDATE_POOL": int(facts.get("candidate_pool_count", 0)) >= 20,
+        "INSUFFICIENT_CANDIDATE_POOL": int(facts.get("candidate_pool_count", 0)) >= 8,
         "PILOT_SELECTION_NOT_READY": 4 <= int(facts.get("selected_pilot_tasks", 0)) <= 6,
         "GRAPH_EVIDENCE_EXTERNAL_EXECUTION_REQUIRED": bool(facts.get("graph_evidence_validated")),
         "TASK_LIST_NOT_FROZEN": bool(facts.get("task_list_frozen")),

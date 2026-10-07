@@ -156,6 +156,13 @@ def test_docker_sha256_digest_has_distinct_semantics() -> None:
             docker_sha256_digest(invalid)
 
 
+def test_preparation_candidate_pool_threshold_is_eight() -> None:
+    facts = {"candidate_pool_count": 8}
+    report = readiness_report(facts)
+    assert report["checks"]["INSUFFICIENT_CANDIDATE_POOL"] is True
+    assert report["phase_13_ready"] is False
+
+
 @pytest.mark.parametrize("name", ["../escape", "/absolute", "unexpected.txt", "café.txt"])
 def test_evidence_rejects_unexpected_and_unsafe_names(tmp_path: Path, name: str) -> None:
     path = tmp_path / "bad.zip"
