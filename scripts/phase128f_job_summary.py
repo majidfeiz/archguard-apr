@@ -22,23 +22,33 @@ def _selected(selection: str) -> tuple[str, ...]:
 def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
     reached = {item["task_id"] for item in results}
     lines = [
-        "## Phase 12.8F.4 Batch A reviewed evaluator qualification",
+        "## Phase 12.8F.4.1 Batch A reviewed evaluator qualification",
         "",
-        "| Task | Evaluator validation | Buggy collection | Buggy scientific result | "
-        "Fixed collection | Fixed result | Adapter fingerprint | Qualification decision |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Task | Schema | v3 plan | Fixture mounted | Fixture identity | Install preflight | "
+        "Collection | Buggy scientific attempts | Fixed result | Qualification |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for result in results:
         fixed = result.get("fixed_control") or {}
+        plan = result.get("execution_plan") or {}
+        preflight = result.get("buggy_preflight") or {}
         buggy_collection = sum(
             item.get("tests_passed", 0) + item.get("tests_failed", 0)
             for item in result.get("buggy_attempts", [])
         )
+        buggy_attempts = result.get("buggy_attempts", [])
+        scientific_attempts = sum(
+            item.get("outcome") == "EXPECTED_FAILURE" for item in buggy_attempts
+        )
         lines.append(
-            f"| {result['task_id']} | {result.get('evaluator_validation_status', 'NOT_REACHED')} | "
-            f"{buggy_collection} | {result.get('scientific_classification') or 'none'} | "
-            f"{fixed.get('collection_count', 0)} | {fixed.get('outcome', 'NOT_REACHED')} | "
-            f"{result.get('adapter_fingerprint', 'none')} | "
+            f"| {result['task_id']} | {plan.get('adapter_schema', 'none')} | "
+            f"{plan.get('v3_plan_validation', 'NOT_REACHED')} | "
+            f"{preflight.get('evaluator_fixture_mounted', False)} | "
+            f"{preflight.get('evaluator_fixture_identity_match', False)} | "
+            f"{preflight.get('project_installation_preflight', 'NOT_REACHED')} | "
+            f"{preflight.get('collection_count', buggy_collection)} | "
+            f"{scientific_attempts}/{len(buggy_attempts)} | "
+            f"{fixed.get('outcome', 'NOT_REACHED')} | "
             f"{result.get('qualification_decision', 'NOT_QUALIFIED')} |"
         )
     not_reached = [task for task in _selected(selection) if task not in reached]
