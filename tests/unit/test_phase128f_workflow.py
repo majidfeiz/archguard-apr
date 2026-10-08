@@ -3,6 +3,7 @@ from pathlib import Path
 import yaml
 
 from scripts.phase128f_job_summary import render
+from scripts.phase128f_registry import registry
 
 
 def test_workflow_inputs_batches_and_runner_temp(repository_root: Path) -> None:
@@ -17,6 +18,9 @@ def test_workflow_inputs_batches_and_runner_temp(repository_root: Path) -> None:
     assert "max-parallel: 1" in raw and "fail-fast: false" in raw
     assert "${{ runner.temp }}" not in raw and "${RUNNER_TEMP}" in raw
     assert 'mkdir -p "${evidence_root}"' not in raw
+    registry_fingerprint = registry()["fingerprint"]
+    assert isinstance(registry_fingerprint, str)
+    assert registry_fingerprint in raw
 
 
 def test_workflow_sandbox_cleanup_and_single_artifact(repository_root: Path) -> None:
