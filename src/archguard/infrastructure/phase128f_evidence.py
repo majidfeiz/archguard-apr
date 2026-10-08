@@ -14,6 +14,7 @@ from archguard.domain.phase128f import (
     SELECTED_TASKS,
     AttemptEvidence,
     Classification,
+    EvaluatorRuntimeState,
     FixedControlStage,
     Outcome,
     classify,
@@ -106,6 +107,43 @@ def _reject_sensitive(value: Any) -> None:
         raise ValueError("diff content prohibited")
 
 
+def _validate_runtime_state_machine(value: Any, *, qualified: bool) -> None:
+    if not isinstance(value, dict) or value.get("schema") != (
+        "archguard.evaluator-runtime-state-machine/v1"
+    ):
+        raise ValueError("invalid evaluator runtime state-machine schema")
+    transitions = value.get("transitions")
+    if not isinstance(transitions, list):
+        raise ValueError("missing evaluator runtime transitions")
+    states = [state.value for state in EvaluatorRuntimeState]
+    if len(transitions) > len(states):
+        raise ValueError("invalid evaluator runtime transition count")
+    reached: list[str] = []
+    for index, transition in enumerate(transitions):
+        if (
+            not isinstance(transition, dict)
+            or transition.get("index") != index
+            or transition.get("state") != states[index]
+            or not isinstance(transition.get("operation_fingerprint"), str)
+            or len(transition["operation_fingerprint"]) != 64
+        ):
+            raise ValueError("invalid evaluator runtime transition")
+        reached.append(transition["state"])
+    expected_next = states[len(reached)] if len(reached) < len(states) else None
+    if (
+        value.get("last_reached") != (reached[-1] if reached else None)
+        or value.get("next_required") != expected_next
+    ):
+        raise ValueError("contradictory evaluator runtime transition summary")
+    if (
+        value.get("transition_fingerprint")
+        != hashlib.sha256(canonical_json(transitions)).hexdigest()
+    ):
+        raise ValueError("evaluator runtime transition fingerprint mismatch")
+    if qualified and reached != states:
+        raise ValueError("qualified canary did not complete runtime state machine")
+
+
 def _validate_results(value: dict[str, Any]) -> None:
     if value.get("schema") != QUALIFICATION_SCHEMA:
         raise ValueError("unexpected qualification schema")
@@ -118,6 +156,11 @@ def _validate_results(value: dict[str, Any]) -> None:
     if any(task not in SELECTED_TASKS for task in task_ids):
         raise ValueError("unknown or replacement task")
     for result in results:
+        if "runtime_state_machine" in result:
+            _validate_runtime_state_machine(
+                result["runtime_state_machine"],
+                qualified=result.get("qualification_decision") == "QUALIFIED",
+            )
         expected_identity = ADAPTER_IDENTITIES.get(result["task_id"])
         supplied_identity = (
             result.get("adapter_fingerprint"),

@@ -22,15 +22,17 @@ def _selected(selection: str) -> tuple[str, ...]:
 def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
     reached = {item["task_id"] for item in results}
     lines = [
-        "## Phase 12.8F.4.1 Batch A reviewed evaluator qualification",
+        "## Phase 12.8F.4.2 PySnooper-1 runtime canary",
         "",
-        "| Task | Schema | v3 plan | Fixture mounted | Fixture identity | Install preflight | "
-        "Collection | Buggy scientific attempts | Fixed result | Qualification |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "| Task | Fixture acquired | Fixture verified | Source mounted | Evaluator mounted | "
+        "Project import | Evaluator import | Collection | Buggy valid attempts | Fixed result | "
+        "Qualification |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for result in results:
         fixed = result.get("fixed_control") or {}
-        plan = result.get("execution_plan") or {}
+        machine = result.get("runtime_state_machine") or {}
+        reached_states = {transition.get("state") for transition in machine.get("transitions", [])}
         preflight = result.get("buggy_preflight") or {}
         buggy_collection = sum(
             item.get("tests_passed", 0) + item.get("tests_failed", 0)
@@ -41,11 +43,12 @@ def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
             item.get("outcome") == "EXPECTED_FAILURE" for item in buggy_attempts
         )
         lines.append(
-            f"| {result['task_id']} | {plan.get('adapter_schema', 'none')} | "
-            f"{plan.get('v3_plan_validation', 'NOT_REACHED')} | "
-            f"{preflight.get('evaluator_fixture_mounted', False)} | "
-            f"{preflight.get('evaluator_fixture_identity_match', False)} | "
-            f"{preflight.get('project_installation_preflight', 'NOT_REACHED')} | "
+            f"| {result['task_id']} | {'EVALUATOR_ACQUIRED' in reached_states} | "
+            f"{'EVALUATOR_IDENTITY_VERIFIED' in reached_states} | "
+            f"{'SOURCE_MOUNTED' in reached_states} | "
+            f"{'EVALUATOR_MOUNTED' in reached_states} | "
+            f"{'PROJECT_IMPORT_VERIFIED' in reached_states} | "
+            f"{'EVALUATOR_IMPORT_VERIFIED' in reached_states} | "
             f"{preflight.get('collection_count', buggy_collection)} | "
             f"{scientific_attempts}/{len(buggy_attempts)} | "
             f"{fixed.get('outcome', 'NOT_REACHED')} | "

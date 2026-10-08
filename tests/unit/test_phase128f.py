@@ -16,6 +16,7 @@ from archguard.domain.phase128f import (
     SELECTED_TASKS,
     AttemptEvidence,
     Classification,
+    EvaluatorRuntimeState,
     Outcome,
     SandboxContract,
     classify,
@@ -334,6 +335,26 @@ def test_extended_source_identity_contract_and_canaries() -> None:
     stale_image["fixed_control"]["image_identity"]["build_context_fingerprint"] = "d" * 64
     with pytest.raises(ValueError, match="target source leaked"):
         _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [stale_image]})
+
+
+def test_qualified_runtime_canary_requires_every_ordered_transition() -> None:
+    valid = _with_source_identities(result())
+    states = [state.value for state in EvaluatorRuntimeState]
+    transitions = [
+        {"index": index, "operation_fingerprint": SHA, "state": state}
+        for index, state in enumerate(states)
+    ]
+    valid["runtime_state_machine"] = {
+        "schema": "archguard.evaluator-runtime-state-machine/v1",
+        "last_reached": states[-1],
+        "next_required": None,
+        "transition_fingerprint": hashlib.sha256(canonical_json(transitions)).hexdigest(),
+        "transitions": transitions,
+    }
+    _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [valid]})
+    valid["runtime_state_machine"]["transitions"][2]["state"] = states[3]
+    with pytest.raises(ValueError, match="invalid evaluator runtime transition"):
+        _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [valid]})
 
 
 def test_failed_fixed_selector_can_be_packaged_without_collection() -> None:

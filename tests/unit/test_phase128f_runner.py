@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from archguard.domain.phase128f import AttemptEvidence, Outcome
+from archguard.domain.phase128f import AttemptEvidence, EvaluatorRuntimeState, Outcome
 from scripts import phase128f_runner as runner
 from scripts.phase128f_registry import adapters
 from scripts.phase128f_security_scan import scan
@@ -15,6 +15,7 @@ from scripts.phase128f_security_scan import scan
 REAL_PREPARE_EVALUATOR_FIXTURE = runner._prepare_evaluator_fixture
 REAL_EXECUTION_PLAN = runner._execution_plan
 REAL_VERIFY_SOURCE_UNCHANGED = runner._verify_source_unchanged
+REAL_VERIFY_EVALUATOR_IDENTITY = runner._verify_evaluator_identity
 
 
 @pytest.fixture(autouse=True)
@@ -27,18 +28,29 @@ def reviewed_fixture(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         "_execution_plan",
         lambda *args: {"host_fixture_fingerprint": "a" * 64, "v3_plan_validation": "VALID"},
     )
-    monkeypatch.setattr(
-        runner,
-        "_preflight",
-        lambda *args: {
+
+    def preflight(*args: Any) -> dict[str, Any]:
+        transitions = args[-1] if isinstance(args[-1], runner.RuntimeTransitions) else None
+        if transitions is not None:
+            for state in (
+                EvaluatorRuntimeState.SOURCE_MOUNTED,
+                EvaluatorRuntimeState.EVALUATOR_MOUNTED,
+                EvaluatorRuntimeState.PROJECT_IMPORT_VERIFIED,
+                EvaluatorRuntimeState.EVALUATOR_IMPORT_VERIFIED,
+                EvaluatorRuntimeState.TEST_COLLECTED,
+            ):
+                transitions.reach(state, {"test": True})
+        return {
             "collection_count": 1,
             "container_visible_fixture_fingerprint": "a" * 64,
             "evaluator_fixture_mounted": True,
             "evaluator_fixture_identity_match": True,
             "project_installation_preflight": "PASSED",
-        },
-    )
+        }
+
+    monkeypatch.setattr(runner, "_preflight", preflight)
     monkeypatch.setattr(runner, "_verify_source_unchanged", lambda *args: None)
+    monkeypatch.setattr(runner, "_verify_evaluator_identity", lambda *args: "a" * 64)
 
 
 def _identity(revision: str, marker: str = "a") -> dict[str, Any]:
@@ -281,6 +293,8 @@ def test_fixed_control_passes_with_bound_environment(
         result["fixed_control"]["dependency_environment_fingerprint"]
         == (result["buggy_environment_fingerprint"])
     )
+    assert result["runtime_state_machine"]["last_reached"] == "CLEANED"
+    assert result["runtime_state_machine"]["next_required"] is None
 
 
 @pytest.mark.parametrize(
@@ -643,6 +657,12 @@ def test_batch_b_is_unavailable() -> None:
         runner._tasks("batch-b")
 
 
+@pytest.mark.parametrize("tasks", [("PySnooper-3",), ("black-1",), ("cookiecutter-4",)])
+def test_runtime_canary_rejects_every_other_task(tasks: tuple[str, ...]) -> None:
+    with pytest.raises(ValueError, match="only PySnooper-1"):
+        runner._validate_runtime_canary_selection(tasks)
+
+
 def test_docker_exit_125_is_infrastructure_failure(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -718,3 +738,70 @@ def test_offline_dependency_absence_is_non_scientific(
     assert result["classification"] == "EVALUATOR_ENVIRONMENT_INVALID"
     assert result["scientific_classification"] is None
     assert result["evaluator_validation_status"] == "OFFLINE_DEPENDENCY_MISSING"
+
+
+def test_configured_but_absent_runtime_fixture_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(runner, "_verify_evaluator_identity", REAL_VERIFY_EVALUATOR_IDENTITY)
+    with pytest.raises(runner.EvaluatorPreflightError, match="EVALUATOR_NOT_ACQUIRED"):
+        runner._verify_evaluator_identity(adapters()[0], tmp_path / "absent.py")
+
+
+def test_wrong_evaluator_hash_fails_closed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(runner, "_verify_evaluator_identity", REAL_VERIFY_EVALUATOR_IDENTITY)
+    fixture = tmp_path / "fixture.py"
+    fixture.write_bytes(b"wrong")
+    with pytest.raises(runner.EvaluatorPreflightError, match="EVALUATOR_IDENTITY_MISMATCH"):
+        runner._verify_evaluator_identity(adapters()[0], fixture)
+
+
+@pytest.mark.parametrize(
+    ("field", "code"),
+    [
+        ("source_exists", "MOUNT_PROBE_SOURCE_EXISTS"),
+        ("evaluator_exists", "MOUNT_PROBE_EVALUATOR_EXISTS"),
+        ("fixture_exists", "MOUNT_PROBE_FIXTURE_EXISTS"),
+        ("mounts_distinct", "MOUNT_PROBE_MOUNTS_DISTINCT"),
+    ],
+)
+def test_mount_probe_rejects_missing_or_wrong_topology(field: str, code: str) -> None:
+    probe = {
+        "source_exists": True,
+        "evaluator_exists": True,
+        "fixture_exists": True,
+        "fixture_sha256": "a" * 64,
+        "mounts_distinct": True,
+        "source_read_only": True,
+        "evaluator_read_only": True,
+        "temporary_writable": True,
+        "home_writable": True,
+        "docker_socket_absent": True,
+        "network_disabled": True,
+    }
+    probe[field] = False
+    with pytest.raises(runner.EvaluatorPreflightError, match=code):
+        runner._validate_mount_probe(probe, "a" * 64)
+
+
+def test_project_import_plan_is_explicit_and_source_backed() -> None:
+    prepared = runner._prepare_project(adapters()[0])
+    assert prepared["installation_mode"] == "PYTHONPATH_SOURCE"
+    assert prepared["module_name_fingerprint"] == runner._sha256_record("pysnooper")
+
+
+def test_generic_project_import_name_is_rejected() -> None:
+    adapter = replace(adapters()[0], project="project", fingerprint="")
+    with pytest.raises(runner.EvaluatorPreflightError, match="PROJECT_MODULE_NOT_ALLOWLISTED"):
+        runner._prepare_project(adapter)
+
+
+@pytest.mark.parametrize("output", ["no tests ran", "2 tests collected"])
+def test_collection_requires_exactly_one_selected_test(output: str) -> None:
+    assert runner._collection_count(output) != 1
+
+
+def test_runtime_state_machine_rejects_skipped_transition() -> None:
+    transitions = runner.RuntimeTransitions()
+    with pytest.raises(runner.EvaluatorPreflightError, match="MISSING_TRANSITION_PLAN_VALIDATED"):
+        transitions.reach(EvaluatorRuntimeState.SOURCE_ACQUIRED, {"operation": True})

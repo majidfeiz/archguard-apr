@@ -55,3 +55,8 @@ selectors resolve only to `/evaluator`; host and container fixture hashes must a
 Project imports, evaluator imports and tox bootstrap fail as non-scientific preflight categories.
 Temporary package markers and tox configuration remain outside target trees and are removed with all
 owned runtime resources.
+Phase 12.8F.4.2 requires operation-backed, ordered runtime transitions. Exact non-overlapping mount
+destinations, mount read-only state, writable isolated temporary paths, absent Docker socket, disabled
+execution network and container-visible fixture identity are checked before import or collection.
+Only fingerprints and allowlisted outcomes are retained; evaluator bytes and raw diagnostics remain
+excluded.
