@@ -1,5 +1,7 @@
+import hashlib
 import json
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +11,8 @@ from archguard.domain.phase128f import AttemptEvidence, Outcome
 from scripts import phase128f_runner as runner
 from scripts.phase128f_registry import adapters
 from scripts.phase128f_security_scan import scan
+
+REAL_PREPARE_EVALUATOR_FIXTURE = runner._prepare_evaluator_fixture
 
 
 @pytest.fixture(autouse=True)
@@ -487,3 +491,27 @@ def test_quarantined_evaluator_is_mounted_read_only_for_both_expectations(
         "--network" in call and call[call.index("--network") + 1] == "none"
         for call in execution_calls
     )
+
+
+def test_unittest_selector_uses_explicit_fixture_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(runner, "_prepare_evaluator_fixture", REAL_PREPARE_EVALUATOR_FIXTURE)
+    adapter = next(item for item in adapters() if item.task_id == "black-1")
+    assert adapter.test_selectors == (
+        "tests.test_black.BlackTestCase.test_works_in_mono_process_only_environment",
+    )
+    assert adapter.evaluator_fixture_path == "tests/test_black.py"
+
+    fixed = tmp_path / "fixed"
+    source = fixed / "tests/test_black.py"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"reviewed evaluator")
+    quarantine = tmp_path / "quarantine"
+
+    expected_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+    reviewed = replace(adapter, evaluator_fixture_sha256=expected_hash, fingerprint="")
+    fixture = runner._prepare_evaluator_fixture(reviewed, fixed, quarantine)
+
+    assert fixture == quarantine / "tests/test_black.py"
+    assert fixture.read_bytes() == source.read_bytes()

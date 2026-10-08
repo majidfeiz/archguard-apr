@@ -3,6 +3,7 @@
 import re
 from dataclasses import asdict, dataclass
 from enum import StrEnum
+from pathlib import PurePosixPath
 
 from archguard.domain.orchestration import fingerprint, valid_id
 from archguard.domain.readiness import git_sha1_commit, sha256_digest
@@ -197,6 +198,14 @@ class EvaluatorAdapter:
             check(bool(self.installation_plan), "installation plan required")
             if self.evaluator_source_type == "FIXED_REVISION_QUARANTINED_TEST":
                 check(self.evaluator_fixture_path is not None, "fixture path required")
+                assert self.evaluator_fixture_path is not None
+                fixture_path = PurePosixPath(self.evaluator_fixture_path)
+                check(
+                    not fixture_path.is_absolute()
+                    and ".." not in fixture_path.parts
+                    and fixture_path.suffix == ".py",
+                    "invalid fixture path",
+                )
                 sha256_digest(self.evaluator_fixture_sha256 or "")
         check(self.availability in {"AVAILABLE", "EVALUATOR_UNAVAILABLE"}, "invalid availability")
         check(
