@@ -996,8 +996,19 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
                 for _ in range(3)
             )
         fixed_passed = False
+        adapter_failure_codes = {
+            "EVALUATOR_PROVENANCE_INVALID",
+            "EVALUATOR_SOURCE_TYPE_UNSUPPORTED",
+            "FRAMEWORK_COMMAND_MISMATCH",
+            "INSTALLATION_PLAN_UNSUPPORTED",
+            "QUARANTINE_POLICY_INVALID",
+            "UNREVIEWED_ADAPTER",
+            "V3_FIELD_IGNORED",
+        }
         classification = (
-            Classification.EVALUATOR_ENVIRONMENT_INVALID
+            Classification.EVALUATOR_ADAPTER_INVALID
+            if isinstance(error, EvaluatorPreflightError) and error.code in adapter_failure_codes
+            else Classification.EVALUATOR_ENVIRONMENT_INVALID
             if isinstance(error, EvaluatorPreflightError)
             else Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE
             if failure_stage == "FIXED_CONTROL_EXECUTION"
@@ -1086,6 +1097,10 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
     }
     if diagnostic is not None and diagnostic["failure_code"] in preflight_statuses:
         evaluator_validation = preflight_statuses[diagnostic["failure_code"]]
+    elif classification is Classification.EVALUATOR_ADAPTER_INVALID:
+        evaluator_validation = EvaluatorValidationStatus.EVALUATOR_ADAPTER_INVALID
+    elif classification is Classification.EVALUATOR_ENVIRONMENT_INVALID:
+        evaluator_validation = EvaluatorValidationStatus.EVALUATOR_ENVIRONMENT_INVALID
     elif failure_classes == {"SELECTOR_NOT_FOUND"}:
         evaluator_validation = (
             EvaluatorValidationStatus.SELECTOR_INCOMPATIBLE_ACROSS_REVISIONS

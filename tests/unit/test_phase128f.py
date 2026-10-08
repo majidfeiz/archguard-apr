@@ -364,6 +364,61 @@ def test_failed_fixed_selector_can_be_packaged_without_collection() -> None:
     _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [failed]})
 
 
+def test_preflight_evaluator_failure_can_be_packaged_as_non_scientific() -> None:
+    failed = result()
+    attempts = failed["buggy_attempts"]
+    for attempt in attempts:
+        attempt.update(
+            {
+                "duration_milliseconds": 0,
+                "exit_code": None,
+                "failure_signature": None,
+                "normalized_failure_class": "PRE_EXECUTION_INFRASTRUCTURE_FAILURE",
+                "outcome": "INFRASTRUCTURE_FAILURE",
+                "tests_failed": 0,
+                "tests_passed": 0,
+            }
+        )
+    diagnostic = {
+        "command_category": "EVALUATOR_PREFLIGHT",
+        "failure_code": "PROJECT_IMPORT_FAILED",
+        "failure_stage": "EVALUATOR_PREFLIGHT",
+        "normalized_error_class": "EvaluatorPreflightError",
+        "normalized_stderr_sha256": SHA,
+        "process_return_code": None,
+        "retryable": False,
+    }
+    failed["fixed_control"].update(
+        {
+            "attempted": False,
+            "duration_milliseconds": 0,
+            "exit_code": None,
+            "failure_signature_sha256": SHA,
+            "infrastructure_diagnostic": diagnostic,
+            "normalized_failure_class": "PROJECT_IMPORT_FAILED",
+            "outcome": "INFRASTRUCTURE_FAILURE",
+            "stage": "TEST_COLLECTION",
+            "tests_failed": 0,
+            "tests_passed": 0,
+        }
+    )
+    failed.update(
+        {
+            "classification": "EVALUATOR_ENVIRONMENT_INVALID",
+            "execution_status": "INVALID_EVALUATOR_RESULT",
+            "fixed_control_passed": False,
+            "infrastructure_diagnostic": diagnostic,
+            "prior_evidence_status": "NOT_EVALUATED_INVALID_EVALUATOR",
+            "qualification_decision": "NOT_QUALIFIED",
+            "scientific_classification": None,
+        }
+    )
+    _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [failed]})
+    failed["infrastructure_diagnostic"]["failure_stage"] = "BUGGY_EXECUTION"
+    with pytest.raises(ValueError, match="classification inconsistent"):
+        _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [failed]})
+
+
 def test_passing_fixed_selector_requires_collection() -> None:
     invalid = _with_source_identities(result())
     invalid["fixed_control"]["collection_count"] = 0
