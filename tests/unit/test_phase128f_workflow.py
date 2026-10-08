@@ -11,8 +11,8 @@ def test_workflow_inputs_batches_and_runner_temp(repository_root: Path) -> None:
     raw = path.read_text()
     workflow = yaml.safe_load(raw)
     dispatch = workflow[True]["workflow_dispatch"]
-    assert dispatch["inputs"]["task_id"]["default"] == "batch-a"
-    assert dispatch["inputs"]["task_id"]["options"] == ["batch-a"]
+    assert dispatch["inputs"]["task_id"]["default"] == "PySnooper-1"
+    assert dispatch["inputs"]["task_id"]["options"] == ["PySnooper-1"]
     assert workflow["permissions"] == {"contents": "read"}
     assert "runs-on: ubuntu-24.04" in raw
     assert "max-parallel: 1" in raw and "fail-fast: false" in raw
@@ -51,7 +51,11 @@ def test_workflow_sandbox_cleanup_and_single_artifact(repository_root: Path) -> 
     assert '"pull", "--platform", "linux/amd64"' in runner
     assert "> 1" in runner
     assert "owned-base-reference.txt" in raw and "label=archguard.phase=12.8f" in raw
-    assert "--selection batch-a" in raw
+    assert "--selection PySnooper-1" in raw and "--runtime-canary" in raw
+    dispatch = yaml.safe_load(raw)[True]["workflow_dispatch"]
+    assert "PySnooper-3" not in dispatch["inputs"]["task_id"]["options"]
+    assert "black-1" not in dispatch["inputs"]["task_id"]["options"]
+    assert "cookiecutter-4" not in dispatch["inputs"]["task_id"]["options"]
     assert "batch-b" not in raw
 
 
@@ -77,5 +81,5 @@ def test_summary_uses_recorded_fixed_stage_and_category() -> None:
         ],
         "PASSED",
     )
-    assert "v3 plan" in summary and "Fixture mounted" in summary
-    assert "Install preflight" in summary and "NOT_QUALIFIED" in summary
+    assert "Fixture acquired" in summary and "Source mounted" in summary
+    assert "Project import" in summary and "NOT_QUALIFIED" in summary
