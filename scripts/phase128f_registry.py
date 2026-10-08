@@ -34,10 +34,11 @@ def _adapter(
     selector: str,
     license_id: str,
     license_sha256: str,
+    reviewed: bool = False,
 ) -> EvaluatorAdapter:
     number = task_id.rsplit("-", 1)[1]
     return EvaluatorAdapter(
-        schema=ADAPTER_SCHEMA,
+        schema=ADAPTER_SCHEMA if reviewed else "archguard.evaluator-adapter/v2",
         task_id=task_id,
         project=project,
         repository=repository,
@@ -60,6 +61,37 @@ def _adapter(
         source_license_id=license_id,
         source_license_sha256=license_sha256,
         sandbox=SANDBOX,
+        buggy_test_selectors=(selector,) if reviewed else (),
+        fixed_test_selectors=(selector,) if reviewed else (),
+        evaluator_source_type=(
+            "FIXED_REVISION_QUARANTINED_TEST" if reviewed else "PROJECT_REVISION"
+        ),
+        evaluator_provenance=(
+            f"BugsInPy@{BUGSINPY_REVISION}:projects/{project}/bugs/{number}/run_test.sh"
+            if reviewed
+            else ""
+        ),
+        installation_plan=(
+            ("OFFICIAL_SETUP", "OFFLINE_TOX")
+            if project == "cookiecutter"
+            else ("OFFICIAL_SETUP", "GENERATED_TEST_PACKAGE_MARKER")
+            if project == "black"
+            else ("OFFICIAL_SETUP", "PYTHONPATH_SOURCE")
+        )
+        if reviewed
+        else (),
+        expected_framework=evaluator_argv[2] if reviewed else "",
+        quarantine_policy="READ_ONLY_FIXED_TEST_NO_AGENT_ACCESS" if reviewed else "NONE",
+        review_status="REVIEWED" if reviewed else "LEGACY",
+        evaluator_fixture_path=selector.split("::", 1)[0] if reviewed else None,
+        evaluator_fixture_sha256={
+            "PySnooper-1": "7a3d64cd702fdfa1eba8c08ac3c8934948a3ef0178f141c1f5599307c1fe59f3",
+            "PySnooper-3": "852e76799d5a97d2e8e87d0db6b5e6fd7884fbff6fbe2049734c268bd8c7c753",
+            "black-1": "3a690fb9c66f3d85b89594f4577e3632ec069389e3af669becb3b899ded59373",
+            "cookiecutter-4": "c74875f38e1948d6b5bb1e8ea04d165df54d188d04be14e79439b907ca266d0f",
+        }.get(task_id)
+        if reviewed
+        else None,
     )
 
 
@@ -80,6 +112,7 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
             "tests/test_chinese.py::test_chinese",
             "MIT",
             pysnooper_license,
+            reviewed=True,
         ),
         _adapter(
             "PySnooper-3",
@@ -94,6 +127,7 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
             "tests/test_pysnooper.py::test_file_output",
             "MIT",
             "0c4250d2a9f0e39d024593ede44eb5044e5fbd1175a8962ec9659d8ace34de9e",
+            reviewed=True,
         ),
         _adapter(
             "black-1",
@@ -116,6 +150,7 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
             "tests.test_black.BlackTestCase.test_works_in_mono_process_only_environment",
             "MIT",
             black_license,
+            reviewed=True,
         ),
         _adapter(
             "cookiecutter-4",
@@ -142,6 +177,7 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
             "tests/test_hooks.py::TestExternalHooks::test_run_failing_hook",
             "BSD-3-Clause",
             "31f691f875aa4ccfbd491b1dc3bf0f2f44e48c53ec573c4eaae79a9afedae7cf",
+            reviewed=True,
         ),
         _adapter(
             "black-2",

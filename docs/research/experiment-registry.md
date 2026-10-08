@@ -63,3 +63,6 @@ classifications remain unresolved, zero tasks qualify, and the run is preserved 
 Run 37684840237 added fixed-stage diagnostics but also qualified zero tasks. It is retained without
 import. Its fixed `EXPECTED_FAILURE` anomaly led to the Phase 12.8F.3 engineering repair; no adapter,
 candidate, scientific result, Batch B run, repair experiment or Phase 13 execution is registered.
+Run 37748121571 proved exact source separation but exposed four invalid Batch A evaluator definitions;
+it remains non-imported and qualifies zero tasks. Phase 12.8F.4 reviews immutable metadata and adapter
+inputs only. It registers no scientific outcome, Batch B execution, repair experiment or Phase 13 run.

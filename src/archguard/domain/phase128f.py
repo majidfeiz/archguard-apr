@@ -8,7 +8,8 @@ from archguard.domain.orchestration import fingerprint, valid_id
 from archguard.domain.readiness import git_sha1_commit, sha256_digest
 from archguard.domain.repository import check
 
-ADAPTER_SCHEMA = "archguard.evaluator-adapter/v2"
+ADAPTER_SCHEMA = "archguard.evaluator-adapter/v3"
+LEGACY_ADAPTER_SCHEMA = "archguard.evaluator-adapter/v2"
 QUALIFICATION_SCHEMA = "archguard.qualification-evidence/v1"
 SELECTED_TASKS = (
     "PySnooper-1",
@@ -35,6 +36,8 @@ class Classification(StrEnum):
     SKIPPED_RESOURCE_LIMIT = "SKIPPED_RESOURCE_LIMIT"
     FIXED_CONTROL_FAILED = "FIXED_CONTROL_FAILED"
     FIXED_CONTROL_INFRASTRUCTURE_FAILURE = "FIXED_CONTROL_INFRASTRUCTURE_FAILURE"
+    EVALUATOR_ADAPTER_INVALID = "EVALUATOR_ADAPTER_INVALID"
+    EVALUATOR_ENVIRONMENT_INVALID = "EVALUATOR_ENVIRONMENT_INVALID"
 
 
 class FixedControlStage(StrEnum):
@@ -57,6 +60,17 @@ class Outcome(StrEnum):
     RESOURCE_LIMIT = "RESOURCE_LIMIT"
     ENVIRONMENT_FAILURE = "ENVIRONMENT_FAILURE"
     INFRASTRUCTURE_FAILURE = "INFRASTRUCTURE_FAILURE"
+
+
+class EvaluatorValidationStatus(StrEnum):
+    VALID = "VALID"
+    EVALUATOR_ADAPTER_INVALID = "EVALUATOR_ADAPTER_INVALID"
+    EVALUATOR_ENVIRONMENT_INVALID = "EVALUATOR_ENVIRONMENT_INVALID"
+    SELECTOR_INCOMPATIBLE_ACROSS_REVISIONS = "SELECTOR_INCOMPATIBLE_ACROSS_REVISIONS"
+    TEST_NOT_COLLECTED = "TEST_NOT_COLLECTED"
+    PROJECT_NOT_INSTALLED = "PROJECT_NOT_INSTALLED"
+    DEPENDENCY_MISSING = "DEPENDENCY_MISSING"
+    UNSUPPORTED_EVALUATOR_LAYOUT = "UNSUPPORTED_EVALUATOR_LAYOUT"
 
 
 @dataclass(frozen=True)
@@ -109,12 +123,23 @@ class EvaluatorAdapter:
     source_license_id: str
     source_license_sha256: str
     sandbox: SandboxContract
+    buggy_test_selectors: tuple[str, ...] = ()
+    fixed_test_selectors: tuple[str, ...] = ()
+    evaluator_source_type: str = "PROJECT_REVISION"
+    evaluator_provenance: str = ""
+    installation_plan: tuple[str, ...] = ()
+    working_directory: str = "/workspace"
+    expected_framework: str = ""
+    quarantine_policy: str = "NONE"
+    review_status: str = "LEGACY"
+    evaluator_fixture_path: str | None = None
+    evaluator_fixture_sha256: str | None = None
     availability: str = "AVAILABLE"
     unavailable_reason: str | None = None
     fingerprint: str = ""
 
     def __post_init__(self) -> None:
-        check(self.schema == ADAPTER_SCHEMA, "unsupported adapter schema")
+        check(self.schema in {ADAPTER_SCHEMA, LEGACY_ADAPTER_SCHEMA}, "unsupported adapter schema")
         check(
             self.task_id in SELECTED_TASKS and self.task_id != "PySnooper-2", "unknown adapter task"
         )
@@ -161,14 +186,40 @@ class EvaluatorAdapter:
         )
         check(self.expected_buggy_outcome == "TEST_FAILURE", "unsupported expected outcome")
         check(self.fixed_success == "EXIT_ZERO", "unsupported fixed-control condition")
+        if self.schema == ADAPTER_SCHEMA:
+            check(
+                bool(self.buggy_test_selectors and self.fixed_test_selectors),
+                "selector plans required",
+            )
+            check(self.expected_framework in {"pytest", "unittest", "tox"}, "invalid framework")
+            check(self.working_directory.startswith("/workspace"), "invalid working directory")
+            check(self.review_status == "REVIEWED", "adapter review required")
+            check(bool(self.installation_plan), "installation plan required")
+            if self.evaluator_source_type == "FIXED_REVISION_QUARANTINED_TEST":
+                check(self.evaluator_fixture_path is not None, "fixture path required")
+                sha256_digest(self.evaluator_fixture_sha256 or "")
         check(self.availability in {"AVAILABLE", "EVALUATOR_UNAVAILABLE"}, "invalid availability")
         check(
             (self.availability == "AVAILABLE") == (self.unavailable_reason is None),
             "availability contradiction",
         )
-        identity = fingerprint(
-            {key: value for key, value in asdict(self).items() if key != "fingerprint"}
-        )
+        identity_body = {key: value for key, value in asdict(self).items() if key != "fingerprint"}
+        if self.schema == LEGACY_ADAPTER_SCHEMA:
+            for key in (
+                "buggy_test_selectors",
+                "fixed_test_selectors",
+                "evaluator_source_type",
+                "evaluator_provenance",
+                "installation_plan",
+                "working_directory",
+                "expected_framework",
+                "quarantine_policy",
+                "review_status",
+                "evaluator_fixture_path",
+                "evaluator_fixture_sha256",
+            ):
+                identity_body.pop(key)
+        identity = fingerprint(identity_body)
         object.__setattr__(self, "fingerprint", self.fingerprint or identity)
         check(self.fingerprint == identity, "adapter fingerprint mismatch")
 
@@ -213,6 +264,18 @@ def classify(
         return Classification.SKIPPED_RESOURCE_LIMIT
     if Outcome.ENVIRONMENT_FAILURE in outcomes:
         return Classification.ENVIRONMENT_SENSITIVE
+    failure_classes = {attempt.normalized_failure_class for attempt in attempts}
+    if outcomes == {Outcome.OTHER_FAILURE} and len(failure_classes) == 1:
+        failure_class = next(iter(failure_classes))
+        if failure_class in {"SELECTOR_NOT_FOUND", "COLLECTION_ERROR"}:
+            return Classification.EVALUATOR_ADAPTER_INVALID
+        if failure_class in {
+            "IMPORT_ERROR",
+            "PROJECT_INSTALLATION_ERROR",
+            "PERMISSION_ERROR",
+            "TEST_PROCESS_ERROR",
+        }:
+            return Classification.EVALUATOR_ENVIRONMENT_INVALID
     if outcomes == {Outcome.PASS}:
         return Classification.NOT_REPRODUCIBLE
     signatures = {attempt.failure_signature for attempt in attempts}

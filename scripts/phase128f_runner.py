@@ -19,6 +19,7 @@ from archguard.domain.phase128f import (
     AttemptEvidence,
     Classification,
     EvaluatorAdapter,
+    EvaluatorValidationStatus,
     FixedControlStage,
     Outcome,
     SandboxContract,
@@ -53,6 +54,9 @@ def _adapter(value: dict[str, Any]) -> EvaluatorAdapter:
     value["test_selectors"] = tuple(value["test_selectors"])
     value["dependency_constraints"] = tuple(value["dependency_constraints"])
     value["evaluator_argv"] = tuple(value["evaluator_argv"])
+    value["buggy_test_selectors"] = tuple(value.get("buggy_test_selectors", ()))
+    value["fixed_test_selectors"] = tuple(value.get("fixed_test_selectors", ()))
+    value["installation_plan"] = tuple(value.get("installation_plan", ()))
     value["sandbox"] = SandboxContract(**value["sandbox"])
     return EvaluatorAdapter(**value)
 
@@ -354,6 +358,19 @@ def _prepare_project(adapter: EvaluatorAdapter) -> None:
         raise RuntimeError("adapter has no reviewed evaluator")
 
 
+def _prepare_evaluator_fixture(adapter: EvaluatorAdapter, fixed: Path, quarantine: Path) -> Path:
+    if adapter.evaluator_source_type != "FIXED_REVISION_QUARANTINED_TEST":
+        raise RuntimeError("reviewed external evaluator required")
+    assert adapter.evaluator_fixture_path is not None
+    source = fixed / adapter.evaluator_fixture_path
+    destination = quarantine / adapter.evaluator_fixture_path
+    destination.parent.mkdir(parents=True)
+    shutil.copyfile(source, destination)
+    if hashlib.sha256(destination.read_bytes()).hexdigest() != adapter.evaluator_fixture_sha256:
+        raise RuntimeError("external evaluator identity mismatch")
+    return destination
+
+
 def _fixed_control_not_executed(
     adapter: EvaluatorAdapter,
     failure_stage: str,
@@ -472,6 +489,7 @@ def _execute(
     *,
     expected_outcome: str,
     source_identity: dict[str, Any],
+    evaluator_fixture: Path | None = None,
 ) -> AttemptEvidence:
     started = time.monotonic()
     if expected_outcome not in {"TEST_FAILURE", "EXIT_ZERO"}:
@@ -482,7 +500,21 @@ def _execute(
     if container_fingerprint != source_identity["working_directory_fingerprint"]:
         raise RuntimeError("container-visible source identity mismatch")
     source_identity["container_visible_source_fingerprint"] = container_fingerprint
-    command = [*adapter.evaluator_argv, *adapter.test_selectors]
+    selectors = (
+        adapter.buggy_test_selectors
+        if expected_outcome == "TEST_FAILURE"
+        else adapter.fixed_test_selectors
+    )
+    command = [*adapter.evaluator_argv, *selectors]
+    evaluator_fixture = evaluator_fixture or source / str(adapter.evaluator_fixture_path)
+    fixture_mounts = [
+        "--volume",
+        f"{evaluator_fixture}:/workspace/{adapter.evaluator_fixture_path}:ro",
+    ]
+    marker = evaluator_fixture.parents[1] / "tests-init.py"
+    if "GENERATED_TEST_PACKAGE_MARKER" in adapter.installation_plan:
+        marker.write_bytes(b"")
+        fixture_mounts.extend(["--volume", f"{marker}:/workspace/tests/__init__.py:ro"])
     docker = [
         "docker",
         "run",
@@ -497,6 +529,8 @@ def _execute(
         "--read-only",
         "--tmpfs",
         f"/tmp:rw,noexec,nosuid,size={adapter.sandbox.tmpfs_bytes}",
+        "--tmpfs",
+        f"/tox:rw,nosuid,size={adapter.sandbox.tmpfs_bytes}",
         "--cap-drop",
         "ALL",
         "--security-opt",
@@ -511,8 +545,15 @@ def _execute(
         "65532:65532",
         "--volume",
         f"{source}:/workspace:ro",
+        *fixture_mounts,
         "--workdir",
-        "/workspace",
+        adapter.working_directory,
+        "--env",
+        "PIP_NO_INDEX=1",
+        "--env",
+        "PIP_FIND_LINKS=/wheelhouse",
+        "--env",
+        "TOX_WORK_DIR=/tox",
         image,
         *command,
     ]
@@ -577,6 +618,7 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
     task_root = root / adapter.task_id
     buggy = task_root / "buggy"
     fixed = task_root / "fixed"
+    quarantine = task_root / "evaluator-quarantine"
     build = task_root / "build"
     build.mkdir(parents=True)
     failure_stage = "SOURCE_ACQUISITION"
@@ -599,6 +641,7 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
         if buggy_identity["git_tree_identity"] == fixed_identity["git_tree_identity"]:
             raise RuntimeError("buggy and fixed source trees unexpectedly identical")
         _verify_identities(adapter, buggy, framework)
+        evaluator_fixture = _prepare_evaluator_fixture(adapter, fixed, quarantine)
         failure_stage = "BASE_IMAGE_ACQUISITION"
         base, base_identity, base_size = _acquire_base_image(adapter, build)
         failure_stage = "DEPENDENCY_BUILD"
@@ -627,6 +670,7 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
                 f"phase128f-{adapter.task_id.lower()}-buggy-{index}",
                 expected_outcome="TEST_FAILURE",
                 source_identity=buggy_identity,
+                evaluator_fixture=evaluator_fixture,
             )
             for index in range(1, 4)
         )
@@ -638,6 +682,7 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             f"phase128f-{adapter.task_id.lower()}-fixed",
             expected_outcome="EXIT_ZERO",
             source_identity=fixed_identity,
+            evaluator_fixture=evaluator_fixture,
         )
         fixed_passed = fixed_attempt.outcome is Outcome.PASS
         classification = (
@@ -694,6 +739,8 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
         Classification.INFRASTRUCTURE_FAILURE,
         Classification.FIXED_CONTROL_FAILED,
         Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE,
+        Classification.EVALUATOR_ADAPTER_INVALID,
+        Classification.EVALUATOR_ENVIRONMENT_INVALID,
     }
     prior = (
         "NOT_EVALUATED_FIXED_CONTROL_REVIEW_REQUIRED"
@@ -704,6 +751,9 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
         }
         else "NOT_EVALUATED_INFRASTRUCTURE_FAILURE"
         if classification is Classification.INFRASTRUCTURE_FAILURE
+        else "NOT_EVALUATED_INVALID_EVALUATOR"
+        if classification
+        in {Classification.EVALUATOR_ADAPTER_INVALID, Classification.EVALUATOR_ENVIRONMENT_INVALID}
         else prior_evidence_status(adapter.task_id, classification)
     )
     decision = qualification_decision(classification, fixed_passed)
@@ -731,6 +781,18 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             fixed_identity,
         )
     buggy_signatures = {attempt.failure_signature for attempt in attempts}
+    failure_classes = {attempt.normalized_failure_class for attempt in attempts}
+    evaluator_validation = EvaluatorValidationStatus.VALID
+    if failure_classes == {"SELECTOR_NOT_FOUND"}:
+        evaluator_validation = (
+            EvaluatorValidationStatus.SELECTOR_INCOMPATIBLE_ACROSS_REVISIONS
+            if fixed_passed
+            else EvaluatorValidationStatus.TEST_NOT_COLLECTED
+        )
+    elif failure_classes == {"IMPORT_ERROR"}:
+        evaluator_validation = EvaluatorValidationStatus.PROJECT_NOT_INSTALLED
+    elif failure_classes == {"TEST_PROCESS_ERROR"}:
+        evaluator_validation = EvaluatorValidationStatus.UNSUPPORTED_EVALUATOR_LAYOUT
     buggy_result_status = (
         "BUGGY_RESULT"
         if len(attempts) == 3
@@ -767,8 +829,15 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
                 Classification.FIXED_CONTROL_FAILED,
                 Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE,
             }
+            else "INVALID_EVALUATOR_RESULT"
+            if classification
+            in {
+                Classification.EVALUATOR_ADAPTER_INVALID,
+                Classification.EVALUATOR_ENVIRONMENT_INVALID,
+            }
             else "SCIENTIFIC_RESULT"
         ),
+        "evaluator_validation_status": evaluator_validation.value,
         "infrastructure_diagnostic": diagnostic,
         "base_image_identity": base_identity,
         "dependency_build_status": dependency_build_status,
