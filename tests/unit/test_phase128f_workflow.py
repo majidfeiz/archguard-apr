@@ -77,5 +77,5 @@ def test_summary_uses_recorded_fixed_stage_and_category() -> None:
         ],
         "PASSED",
     )
-    assert "Evaluator validation" in summary and "Buggy collection" in summary
-    assert "Adapter fingerprint" in summary and "NOT_QUALIFIED" in summary
+    assert "v3 plan" in summary and "Fixture mounted" in summary
+    assert "Install preflight" in summary and "NOT_QUALIFIED" in summary

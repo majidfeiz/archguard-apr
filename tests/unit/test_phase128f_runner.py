@@ -13,6 +13,8 @@ from scripts.phase128f_registry import adapters
 from scripts.phase128f_security_scan import scan
 
 REAL_PREPARE_EVALUATOR_FIXTURE = runner._prepare_evaluator_fixture
+REAL_EXECUTION_PLAN = runner._execution_plan
+REAL_VERIFY_SOURCE_UNCHANGED = runner._verify_source_unchanged
 
 
 @pytest.fixture(autouse=True)
@@ -20,6 +22,23 @@ def reviewed_fixture(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     fixture = tmp_path / "reviewed-evaluator.py"
     fixture.write_bytes(b"")
     monkeypatch.setattr(runner, "_prepare_evaluator_fixture", lambda *args: fixture)
+    monkeypatch.setattr(
+        runner,
+        "_execution_plan",
+        lambda *args: {"host_fixture_fingerprint": "a" * 64, "v3_plan_validation": "VALID"},
+    )
+    monkeypatch.setattr(
+        runner,
+        "_preflight",
+        lambda *args: {
+            "collection_count": 1,
+            "container_visible_fixture_fingerprint": "a" * 64,
+            "evaluator_fixture_mounted": True,
+            "evaluator_fixture_identity_match": True,
+            "project_installation_preflight": "PASSED",
+        },
+    )
+    monkeypatch.setattr(runner, "_verify_source_unchanged", lambda *args: None)
 
 
 def _identity(revision: str, marker: str = "a") -> dict[str, Any]:
@@ -39,6 +58,19 @@ def _checkout_identity(repository: str, revision: str, destination: Path) -> dic
     return _identity(revision, marker)
 
 
+def test_source_immutability_check_rejects_changed_tree(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(runner, "_verify_source_unchanged", REAL_VERIFY_SOURCE_UNCHANGED)
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "tracked.py").write_text("before\n")
+    identity = {"working_directory_fingerprint": runner._working_tree_fingerprint(source)}
+    (source / "tracked.py").write_text("after\n")
+    with pytest.raises(RuntimeError, match="source tree changed"):
+        runner._verify_source_unchanged(source, identity)
+
+
 def test_structured_evaluator_argv_and_selector_are_separate(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -51,13 +83,19 @@ def test_structured_evaluator_argv_and_selector_are_separate(
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setattr(runner, "_container_source_fingerprint", lambda *args: "a" * 64)
     adapter = adapters()[0]
+    source = tmp_path / "source"
+    source.mkdir()
+    fixture = tmp_path / "evaluator/tests/test_chinese.py"
+    fixture.parent.mkdir(parents=True)
+    fixture.write_bytes(b"")
     runner._execute(
         adapter,
         "image",
-        tmp_path,
+        source,
         "attempt",
         expected_outcome="TEST_FAILURE",
         source_identity=_identity(adapter.buggy_revision),
+        evaluator_fixture=fixture,
     )
     command = calls[0]
     marker = command.index("image")
@@ -67,7 +105,7 @@ def test_structured_evaluator_argv_and_selector_are_separate(
         "pytest",
         "-q",
         "-s",
-        "tests/test_chinese.py::test_chinese",
+        "/evaluator/tests/test_chinese.py::test_chinese",
     ]
     assert "python -m pytest -q -s" not in command
 
@@ -399,11 +437,28 @@ def test_normalized_signature_is_deterministic_and_output_is_bounded(
     monkeypatch.setattr(runner, "_container_source_fingerprint", lambda *args: "a" * 64)
     adapter = adapters()[0]
     identity = _identity(adapter.buggy_revision)
+    source = tmp_path / "source"
+    source.mkdir()
+    fixture = tmp_path / "evaluator/tests/test_chinese.py"
+    fixture.parent.mkdir(parents=True)
+    fixture.write_bytes(b"")
     first = runner._execute(
-        adapter, "image", tmp_path, "one", expected_outcome="TEST_FAILURE", source_identity=identity
+        adapter,
+        "image",
+        source,
+        "one",
+        expected_outcome="TEST_FAILURE",
+        source_identity=identity,
+        evaluator_fixture=fixture,
     )
     second = runner._execute(
-        adapter, "image", tmp_path, "two", expected_outcome="TEST_FAILURE", source_identity=identity
+        adapter,
+        "image",
+        source,
+        "two",
+        expected_outcome="TEST_FAILURE",
+        source_identity=identity,
+        evaluator_fixture=fixture,
     )
     assert first.failure_signature == second.failure_signature
 
@@ -416,10 +471,11 @@ def test_normalized_signature_is_deterministic_and_output_is_bounded(
     bounded = runner._execute(
         adapter,
         "image",
-        tmp_path,
+        source,
         "bounded",
         expected_outcome="TEST_FAILURE",
         source_identity=identity,
+        evaluator_fixture=fixture,
     )
     assert bounded.output_truncated is True
 
@@ -471,20 +527,22 @@ def test_quarantined_evaluator_is_mounted_read_only_for_both_expectations(
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     adapter = adapters()[0]
-    fixture = tmp_path / "quarantine" / "test.py"
-    fixture.parent.mkdir()
+    source = tmp_path / "source"
+    source.mkdir()
+    fixture = tmp_path / "quarantine/tests/test_chinese.py"
+    fixture.parent.mkdir(parents=True)
     fixture.write_bytes(b"")
     for expectation in ("TEST_FAILURE", "EXIT_ZERO"):
         runner._execute(
             adapter,
             "image",
-            tmp_path,
+            source,
             expectation.lower(),
             expected_outcome=expectation,
             source_identity=_identity(adapter.buggy_revision),
             evaluator_fixture=fixture,
         )
-    evaluator_mount = f"{fixture}:/workspace/{adapter.evaluator_fixture_path}:ro"
+    evaluator_mount = f"{tmp_path / 'quarantine'}:/evaluator:ro"
     execution_calls = [call for call in calls if evaluator_mount in call]
     assert len(execution_calls) == 2
     assert all(
@@ -515,3 +573,148 @@ def test_unittest_selector_uses_explicit_fixture_path(
 
     assert fixture == quarantine / "tests/test_black.py"
     assert fixture.read_bytes() == source.read_bytes()
+    assert (quarantine / "tests/__init__.py").is_file()
+    assert not (fixed / "tests/__init__.py").exists()
+
+
+def test_every_v3_field_has_runtime_consumer(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(runner, "_execution_plan", REAL_EXECUTION_PLAN)
+    adapter = adapters()[0]
+    fixture = tmp_path / "quarantine/tests/test_chinese.py"
+    fixture.parent.mkdir(parents=True)
+    fixture.write_bytes(b"fixture")
+    reviewed = replace(
+        adapter,
+        evaluator_fixture_sha256=hashlib.sha256(fixture.read_bytes()).hexdigest(),
+        fingerprint="",
+    )
+    plan = runner._execution_plan(reviewed, fixture)
+    assert set(plan["runtime_consumers"]) == set(runner.V3_RUNTIME_FIELDS)
+    assert plan["v3_plan_validation"] == "VALID"
+
+
+def test_invalid_quarantine_policy_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(runner, "_execution_plan", REAL_EXECUTION_PLAN)
+    fixture = tmp_path / "quarantine/tests/test_chinese.py"
+    fixture.parent.mkdir(parents=True)
+    fixture.write_bytes(b"fixture")
+    adapter = replace(
+        adapters()[0],
+        quarantine_policy="NONE",
+        evaluator_fixture_sha256=hashlib.sha256(fixture.read_bytes()).hexdigest(),
+        fingerprint="",
+    )
+    with pytest.raises(runner.EvaluatorPreflightError, match="QUARANTINE_POLICY_INVALID"):
+        runner._execution_plan(adapter, fixture)
+
+
+def test_nested_evaluator_mount_is_rejected(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    evaluator = source / "evaluator"
+    evaluator.mkdir(parents=True)
+    with pytest.raises(runner.EvaluatorPreflightError, match="INVALID_NESTED_EVALUATOR_MOUNT"):
+        runner._sandbox_prefix(adapters()[0], "image", source, evaluator, "nested")
+
+
+def test_tox_runtime_is_offline_and_uses_reviewed_environment(tmp_path: Path) -> None:
+    adapter = next(item for item in adapters() if item.task_id == "cookiecutter-4")
+    source = tmp_path / "source"
+    evaluator = tmp_path / "evaluator"
+    source.mkdir()
+    evaluator.mkdir()
+    command = runner._sandbox_prefix(adapter, "image", source, evaluator, "tox")
+    command += list(runner._runtime_argv(adapter, "TEST_FAILURE"))
+    assert command[command.index("--network") + 1] == "none"
+    assert "PIP_NO_INDEX=1" in command and "PIP_FIND_LINKS=/wheelhouse" in command
+    assert command[-4:] == [
+        "-e",
+        "py36",
+        "--",
+        "/evaluator/tests/test_hooks.py::TestExternalHooks::test_run_failing_hook",
+    ]
+
+
+def test_batch_b_is_unavailable() -> None:
+    with pytest.raises(ValueError, match="Batch B"):
+        runner._tasks("batch-b")
+
+
+def test_docker_exit_125_is_infrastructure_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(runner, "_safe_checkout", _checkout_identity)
+    monkeypatch.setattr(runner, "_verify_identities", lambda *args: None)
+    monkeypatch.setattr(
+        runner,
+        "_acquire_base_image",
+        lambda *args: ("base", {"architecture": "amd64", "image_id": "id"}, 1),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_build_image",
+        lambda *args: (
+            "image",
+            [],
+            1,
+            {
+                "build_context_fingerprint": "c" * 64,
+                "image_id": "id",
+                "source_in_image": "ABSENT_DEPENDENCY_ONLY",
+                "tag": "image",
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_execute",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            subprocess.CalledProcessError(125, ["docker", "run"], stderr=b"mount rejected")
+        ),
+    )
+    result = runner.qualify(adapters()[0], tmp_path, tmp_path)
+    assert result["classification"] == "INFRASTRUCTURE_FAILURE"
+    assert result["scientific_classification"] is None
+    assert result["infrastructure_diagnostic"]["process_return_code"] == 125
+
+
+def test_offline_dependency_absence_is_non_scientific(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(runner, "_safe_checkout", _checkout_identity)
+    monkeypatch.setattr(runner, "_verify_identities", lambda *args: None)
+    monkeypatch.setattr(
+        runner,
+        "_acquire_base_image",
+        lambda *args: ("base", {"architecture": "amd64", "image_id": "id"}, 1),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_build_image",
+        lambda *args: (
+            "image",
+            [],
+            1,
+            {
+                "build_context_fingerprint": "c" * 64,
+                "image_id": "id",
+                "source_in_image": "ABSENT_DEPENDENCY_ONLY",
+                "tag": "image",
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_preflight",
+        lambda *args: (_ for _ in ()).throw(
+            runner.EvaluatorPreflightError("OFFLINE_DEPENDENCY_MISSING")
+        ),
+    )
+    cookiecutter = next(item for item in adapters() if item.task_id == "cookiecutter-4")
+    result = runner.qualify(cookiecutter, tmp_path, tmp_path)
+    assert result["classification"] == "EVALUATOR_ENVIRONMENT_INVALID"
+    assert result["scientific_classification"] is None
+    assert result["evaluator_validation_status"] == "OFFLINE_DEPENDENCY_MISSING"

@@ -66,3 +66,7 @@ candidate, scientific result, Batch B run, repair experiment or Phase 13 executi
 Run 37748121571 proved exact source separation but exposed four invalid Batch A evaluator definitions;
 it remains non-imported and qualifies zero tasks. Phase 12.8F.4 reviews immutable metadata and adapter
 inputs only. It registers no scientific outcome, Batch B execution, repair experiment or Phase 13 run.
+Run 37843274763 completed source-free artifact production but its reviewed v3 plans were not connected
+to runtime behavior. It qualified zero tasks and remains historical and non-imported. Phase 12.8F.4.1
+repairs mount, selector, import-preflight and offline-tox integration only; it registers no scientific
+outcome, Batch B execution, repair experiment or Phase 13 run.

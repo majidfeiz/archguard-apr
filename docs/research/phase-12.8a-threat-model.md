@@ -50,3 +50,8 @@ Phase 12.8F.4 quarantines fixed-revision evaluator tests outside target trees an
 hash-bound file read-only for both revisions. Agents, prompts and retained artifacts cannot access test
 contents. Offline tox policy rejects dependency download attempts; only reviewed generated empty setup
 markers may shadow target paths.
+Phase 12.8F.4.1 prevents nested evaluator mounts below the read-only source mount. Framework-specific
+selectors resolve only to `/evaluator`; host and container fixture hashes must agree before collection.
+Project imports, evaluator imports and tox bootstrap fail as non-scientific preflight categories.
+Temporary package markers and tox configuration remain outside target trees and are removed with all
+owned runtime resources.

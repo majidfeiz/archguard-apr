@@ -9,7 +9,7 @@ import re
 import shutil
 import subprocess
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from archguard.domain.canonical import canonical_json
@@ -41,6 +41,25 @@ ALLOWED_HOSTS = (
 )
 BUGSINPY_REVISION = "11c5f1eea954a42132cfd06bf257766a7963e0fd"
 OWNED_BASE_REFERENCES: set[str] = set()
+EVALUATOR_ROOT = "/evaluator"
+V3_RUNTIME_FIELDS = (
+    "buggy_test_selectors",
+    "fixed_test_selectors",
+    "evaluator_fixture_path",
+    "evaluator_fixture_sha256",
+    "evaluator_provenance",
+    "evaluator_source_type",
+    "installation_plan",
+    "quarantine_policy",
+    "working_directory",
+    "expected_framework",
+)
+
+
+class EvaluatorPreflightError(RuntimeError):
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
 
 
 def _run(
@@ -65,9 +84,11 @@ def _tasks(selection: str) -> tuple[str, ...]:
     if selection == "batch-a":
         return BATCH_A
     if selection == "batch-b":
-        return BATCH_B
+        raise ValueError("Batch B is unavailable in Phase 12.8F.4.1")
     if selection == "all":
-        return BATCH_A + BATCH_B
+        raise ValueError("Batch B is unavailable in Phase 12.8F.4.1")
+    if selection in BATCH_B:
+        raise ValueError("Batch B is unavailable in Phase 12.8F.4.1")
     return (selection,)
 
 
@@ -142,6 +163,11 @@ def _working_tree_fingerprint(root: Path) -> str:
         digest.update(b"\0" + kind + f"{mode:o}".encode() + b"\0")
         digest.update(hashlib.sha256(content).digest())
     return digest.hexdigest()
+
+
+def _verify_source_unchanged(source: Path, identity: dict[str, Any]) -> None:
+    if _working_tree_fingerprint(source) != identity["working_directory_fingerprint"]:
+        raise RuntimeError("source tree changed during evaluator execution")
 
 
 def _acquire_framework(destination: Path) -> None:
@@ -277,6 +303,109 @@ def _sha256_record(value: Any) -> str:
     return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
+def _quarantine_root(adapter: EvaluatorAdapter, fixture: Path) -> Path:
+    assert adapter.evaluator_fixture_path is not None
+    root = fixture
+    for _ in PurePosixPath(adapter.evaluator_fixture_path).parts:
+        root = root.parent
+    return root
+
+
+def _runtime_selectors(adapter: EvaluatorAdapter, expected_outcome: str) -> tuple[str, ...]:
+    declared = (
+        adapter.buggy_test_selectors
+        if expected_outcome == "TEST_FAILURE"
+        else adapter.fixed_test_selectors
+    )
+    assert adapter.evaluator_fixture_path is not None
+    mounted_fixture = f"{EVALUATOR_ROOT}/{adapter.evaluator_fixture_path}"
+    if adapter.expected_framework in {"pytest", "tox"}:
+        return tuple(
+            selector.replace(adapter.evaluator_fixture_path, mounted_fixture, 1)
+            for selector in declared
+        )
+    return declared
+
+
+def _runtime_argv(adapter: EvaluatorAdapter, expected_outcome: str) -> tuple[str, ...]:
+    selectors = _runtime_selectors(adapter, expected_outcome)
+    if adapter.expected_framework == "tox":
+        return (
+            *adapter.evaluator_argv,
+            "-c",
+            f"{EVALUATOR_ROOT}/tox-runtime.ini",
+            "-e",
+            "py36",
+            "--",
+            *selectors,
+        )
+    return (*adapter.evaluator_argv, *selectors)
+
+
+def _execution_plan(adapter: EvaluatorAdapter, fixture: Path) -> dict[str, Any]:
+    if adapter.schema != "archguard.evaluator-adapter/v3" or adapter.review_status != "REVIEWED":
+        raise EvaluatorPreflightError("UNREVIEWED_ADAPTER")
+    if adapter.quarantine_policy != "READ_ONLY_FIXED_TEST_NO_AGENT_ACCESS":
+        raise EvaluatorPreflightError("QUARANTINE_POLICY_INVALID")
+    if adapter.evaluator_source_type != "FIXED_REVISION_QUARANTINED_TEST":
+        raise EvaluatorPreflightError("EVALUATOR_SOURCE_TYPE_UNSUPPORTED")
+    if not adapter.evaluator_provenance.startswith(f"BugsInPy@{BUGSINPY_REVISION}:"):
+        raise EvaluatorPreflightError("EVALUATOR_PROVENANCE_INVALID")
+    if adapter.expected_framework != adapter.evaluator_argv[2]:
+        raise EvaluatorPreflightError("FRAMEWORK_COMMAND_MISMATCH")
+    supported_plans = {
+        "OFFICIAL_SETUP",
+        "PYTHONPATH_SOURCE",
+        "GENERATED_TEST_PACKAGE_MARKER",
+        "OFFLINE_TOX",
+    }
+    if (
+        not set(adapter.installation_plan) <= supported_plans
+        or "OFFICIAL_SETUP" not in adapter.installation_plan
+    ):
+        raise EvaluatorPreflightError("INSTALLATION_PLAN_UNSUPPORTED")
+    consumers = {
+        "buggy_test_selectors": "runtime-selector:buggy",
+        "fixed_test_selectors": "runtime-selector:fixed",
+        "evaluator_fixture_path": "dedicated-read-only-mount",
+        "evaluator_fixture_sha256": "host-and-container-identity-check",
+        "evaluator_provenance": "reviewed-plan-binding",
+        "evaluator_source_type": "quarantine-acquisition",
+        "installation_plan": "project-and-framework-preflight",
+        "quarantine_policy": "mount-policy-validation",
+        "working_directory": "container-workdir",
+        "expected_framework": "framework-command-validation",
+    }
+    if set(consumers) != set(V3_RUNTIME_FIELDS):
+        raise EvaluatorPreflightError("V3_FIELD_IGNORED")
+    host_hash = hashlib.sha256(fixture.read_bytes()).hexdigest()
+    if host_hash != adapter.evaluator_fixture_sha256:
+        raise EvaluatorPreflightError("EVALUATOR_IDENTITY_MISMATCH")
+    return {
+        "schema": "archguard.phase-12.8f4-1-execution-plan/v1",
+        "adapter_fingerprint": adapter.fingerprint,
+        "adapter_schema": adapter.schema,
+        "applied_buggy_selector_fingerprint": _sha256_record(
+            list(_runtime_selectors(adapter, "TEST_FAILURE"))
+        ),
+        "applied_fixed_selector_fingerprint": _sha256_record(
+            list(_runtime_selectors(adapter, "EXIT_ZERO"))
+        ),
+        "applied_fixture_fingerprint": host_hash,
+        "applied_installation_plan_fingerprint": _sha256_record(list(adapter.installation_plan)),
+        "applied_working_directory_fingerprint": _sha256_record(adapter.working_directory),
+        "applied_framework": adapter.expected_framework,
+        "expected_buggy_outcome": adapter.expected_buggy_outcome,
+        "expected_fixed_outcome": adapter.fixed_success,
+        "fixture_mount_destination_fingerprint": _sha256_record(
+            f"{EVALUATOR_ROOT}/{adapter.evaluator_fixture_path}"
+        ),
+        "host_fixture_fingerprint": host_hash,
+        "runtime_consumers": consumers,
+        "v3_plan_validation": "VALID",
+    }
+
+
 def _fixed_control_record(
     adapter: EvaluatorAdapter,
     attempt: AttemptEvidence,
@@ -368,7 +497,186 @@ def _prepare_evaluator_fixture(adapter: EvaluatorAdapter, fixed: Path, quarantin
     shutil.copyfile(source, destination)
     if hashlib.sha256(destination.read_bytes()).hexdigest() != adapter.evaluator_fixture_sha256:
         raise RuntimeError("external evaluator identity mismatch")
+    if "GENERATED_TEST_PACKAGE_MARKER" in adapter.installation_plan:
+        marker = quarantine / "tests/__init__.py"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_bytes(b"")
+    if "OFFLINE_TOX" in adapter.installation_plan:
+        (quarantine / "tox-runtime.ini").write_text(
+            "[tox]\nenvlist = py36\nskipsdist = true\n"
+            "[testenv]\nsitepackages = true\nskip_install = true\n"
+            "passenv = PYTHONPATH PIP_NO_INDEX PIP_FIND_LINKS\n"
+            "commands = python -m pytest {posargs}\n",
+            encoding="utf-8",
+        )
     return destination
+
+
+def _sandbox_prefix(
+    adapter: EvaluatorAdapter,
+    image: str,
+    source: Path,
+    evaluator_root: Path,
+    name: str,
+) -> list[str]:
+    if evaluator_root.resolve().is_relative_to(source.resolve()):
+        raise EvaluatorPreflightError("INVALID_NESTED_EVALUATOR_MOUNT")
+    return [
+        "docker",
+        "run",
+        "--rm",
+        "--name",
+        name,
+        "--label",
+        "archguard.phase=12.8f",
+        "--platform",
+        "linux/amd64",
+        "--network",
+        "none",
+        "--read-only",
+        "--tmpfs",
+        f"/tmp:rw,noexec,nosuid,size={adapter.sandbox.tmpfs_bytes}",
+        "--tmpfs",
+        f"/tox:rw,nosuid,size={adapter.sandbox.tmpfs_bytes}",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges:true",
+        "--pids-limit",
+        str(adapter.sandbox.pids),
+        "--memory",
+        str(adapter.sandbox.memory_bytes),
+        "--cpus",
+        str(adapter.sandbox.cpus),
+        "--user",
+        "65532:65532",
+        "--volume",
+        f"{source}:/workspace:ro",
+        "--volume",
+        f"{evaluator_root}:{EVALUATOR_ROOT}:ro",
+        "--workdir",
+        adapter.working_directory,
+        "--env",
+        f"PYTHONPATH={EVALUATOR_ROOT}:/workspace",
+        "--env",
+        "PIP_NO_INDEX=1",
+        "--env",
+        "PIP_FIND_LINKS=/wheelhouse",
+        "--env",
+        "TOX_WORK_DIR=/tox",
+        "--env",
+        "TOXENV=py36",
+        image,
+    ]
+
+
+def _preflight(
+    adapter: EvaluatorAdapter,
+    image: str,
+    source: Path,
+    name: str,
+    evaluator_fixture: Path,
+) -> dict[str, Any]:
+    evaluator_root = _quarantine_root(adapter, evaluator_fixture)
+    assert adapter.evaluator_fixture_path is not None
+    mounted_fixture = f"{EVALUATOR_ROOT}/{adapter.evaluator_fixture_path}"
+    project_module = {"PySnooper": "pysnooper", "black": "black", "cookiecutter": "cookiecutter"}[
+        adapter.project
+    ]
+    import_name = f"{name}-project-import"
+    import_command = _sandbox_prefix(adapter, image, source, evaluator_root, import_name) + [
+        "python",
+        "-c",
+        f"import {project_module}",
+    ]
+    try:
+        import_result = subprocess.run(
+            import_command, capture_output=True, timeout=adapter.sandbox.timeout_seconds
+        )
+        if import_result.returncode != 0:
+            raise EvaluatorPreflightError("PROJECT_IMPORT_FAILED")
+    finally:
+        subprocess.run(["docker", "rm", "-f", import_name], capture_output=True)
+    if adapter.expected_framework == "pytest":
+        preflight_argv = [
+            "python",
+            "-m",
+            "pytest",
+            "--collect-only",
+            "-q",
+            *_runtime_selectors(adapter, "TEST_FAILURE"),
+        ]
+    elif adapter.expected_framework == "unittest":
+        selector = _runtime_selectors(adapter, "TEST_FAILURE")[0]
+        preflight_argv = [
+            "python",
+            "-c",
+            "import importlib,unittest,sys; "
+            f"importlib.import_module('{project_module}'); "
+            f"suite=unittest.defaultTestLoader.loadTestsFromName('{selector}'); "
+            "count=suite.countTestCases(); "
+            "print('COLLECTION_COUNT='+str(count)); sys.exit(count != 1)",
+        ]
+    else:
+        preflight_argv = [*_runtime_argv(adapter, "TEST_FAILURE"), "--collect-only"]
+    command = _sandbox_prefix(adapter, image, source, evaluator_root, name) + preflight_argv
+    result = subprocess.run(command, capture_output=True, timeout=adapter.sandbox.timeout_seconds)
+    try:
+        if result.returncode != 0:
+            text = (result.stdout + result.stderr).decode("utf-8", "replace")
+            if adapter.expected_framework == "tox":
+                code = (
+                    "OFFLINE_DEPENDENCY_MISSING"
+                    if "No matching distribution" in text or "Could not find" in text
+                    else "TOX_ENVIRONMENT_MISSING"
+                    if "InterpreterNotFound" in text
+                    else "TOX_CONFIGURATION_INVALID"
+                )
+            else:
+                code = (
+                    "PROJECT_IMPORT_FAILED" if "ImportError" in text else "EVALUATOR_NOT_COLLECTED"
+                )
+            raise EvaluatorPreflightError(code)
+        output = result.stdout.decode("utf-8", "replace")
+        if "COLLECTION_COUNT=" in output:
+            collection_count = int(output.rsplit("COLLECTION_COUNT=", 1)[1].split()[0])
+        else:
+            matches = re.findall(r"(\d+) (?:test|item)s? collected", output)
+            collection_count = int(matches[-1]) if matches else 0
+        if collection_count != 1:
+            raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED")
+        container_hash_command = _sandbox_prefix(
+            adapter, image, source, evaluator_root, f"{name}-identity"
+        ) + [
+            "python",
+            "-c",
+            "import hashlib,pathlib,sys; "
+            "print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())",
+            mounted_fixture,
+        ]
+        identity = subprocess.run(container_hash_command, capture_output=True, timeout=120)
+        if identity.returncode != 0:
+            raise EvaluatorPreflightError("EVALUATOR_IDENTITY_UNREADABLE")
+        container_hash = identity.stdout.decode("ascii").strip()
+        if container_hash != adapter.evaluator_fixture_sha256:
+            raise EvaluatorPreflightError("EVALUATOR_IDENTITY_MISMATCH")
+        return {
+            "collection_count": collection_count,
+            "container_visible_fixture_fingerprint": container_hash,
+            "evaluator_fixture_mounted": True,
+            "evaluator_fixture_identity_match": True,
+            "project_installation_preflight": "PASSED",
+            "selector_fingerprint": _sha256_record(
+                list(_runtime_selectors(adapter, "TEST_FAILURE"))
+            ),
+            "tox_environment_fingerprint": (
+                _sha256_record({"environment": "py36", "wheelhouse": "/wheelhouse"})
+                if adapter.expected_framework == "tox"
+                else None
+            ),
+        }
+    finally:
+        subprocess.run(["docker", "rm", "-f", name], capture_output=True)
 
 
 def _fixed_control_not_executed(
@@ -385,6 +693,7 @@ def _fixed_control_not_executed(
         "BASE_IMAGE_ACQUISITION": FixedControlStage.IMAGE_BUILD,
         "DEPENDENCY_BUILD": FixedControlStage.DEPENDENCY_RESOLUTION,
         "PROJECT_INSTALL": FixedControlStage.PROJECT_INSTALL,
+        "EVALUATOR_PREFLIGHT": FixedControlStage.TEST_COLLECTION,
         "BUGGY_EXECUTION": FixedControlStage.TEST_EXECUTION,
         "FIXED_CONTROL_EXECUTION": FixedControlStage.TEST_EXECUTION,
     }
@@ -500,63 +809,10 @@ def _execute(
     if container_fingerprint != source_identity["working_directory_fingerprint"]:
         raise RuntimeError("container-visible source identity mismatch")
     source_identity["container_visible_source_fingerprint"] = container_fingerprint
-    selectors = (
-        adapter.buggy_test_selectors
-        if expected_outcome == "TEST_FAILURE"
-        else adapter.fixed_test_selectors
-    )
-    command = [*adapter.evaluator_argv, *selectors]
+    command = list(_runtime_argv(adapter, expected_outcome))
     evaluator_fixture = evaluator_fixture or source / str(adapter.evaluator_fixture_path)
-    fixture_mounts = [
-        "--volume",
-        f"{evaluator_fixture}:/workspace/{adapter.evaluator_fixture_path}:ro",
-    ]
-    marker = evaluator_fixture.parents[1] / "tests-init.py"
-    if "GENERATED_TEST_PACKAGE_MARKER" in adapter.installation_plan:
-        marker.write_bytes(b"")
-        fixture_mounts.extend(["--volume", f"{marker}:/workspace/tests/__init__.py:ro"])
-    docker = [
-        "docker",
-        "run",
-        "--name",
-        name,
-        "--label",
-        "archguard.phase=12.8f",
-        "--platform",
-        "linux/amd64",
-        "--network",
-        "none",
-        "--read-only",
-        "--tmpfs",
-        f"/tmp:rw,noexec,nosuid,size={adapter.sandbox.tmpfs_bytes}",
-        "--tmpfs",
-        f"/tox:rw,nosuid,size={adapter.sandbox.tmpfs_bytes}",
-        "--cap-drop",
-        "ALL",
-        "--security-opt",
-        "no-new-privileges:true",
-        "--pids-limit",
-        str(adapter.sandbox.pids),
-        "--memory",
-        str(adapter.sandbox.memory_bytes),
-        "--cpus",
-        str(adapter.sandbox.cpus),
-        "--user",
-        "65532:65532",
-        "--volume",
-        f"{source}:/workspace:ro",
-        *fixture_mounts,
-        "--workdir",
-        adapter.working_directory,
-        "--env",
-        "PIP_NO_INDEX=1",
-        "--env",
-        "PIP_FIND_LINKS=/wheelhouse",
-        "--env",
-        "TOX_WORK_DIR=/tox",
-        image,
-        *command,
-    ]
+    evaluator_root = _quarantine_root(adapter, evaluator_fixture)
+    docker = _sandbox_prefix(adapter, image, source, evaluator_root, name) + command
     try:
         result = subprocess.run(
             docker, capture_output=True, timeout=adapter.sandbox.timeout_seconds
@@ -634,6 +890,9 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
     dependency_environment_fingerprint: str | None = None
     packages: list[dict[str, str]] = []
     image_size = 0
+    execution_plan: dict[str, Any] | None = None
+    buggy_preflight: dict[str, Any] | None = None
+    fixed_preflight: dict[str, Any] | None = None
     try:
         buggy_identity = _safe_checkout(adapter.repository, adapter.buggy_revision, buggy)
         fixed_identity = _safe_checkout(adapter.repository, adapter.fixed_revision, fixed)
@@ -642,6 +901,7 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             raise RuntimeError("buggy and fixed source trees unexpectedly identical")
         _verify_identities(adapter, buggy, framework)
         evaluator_fixture = _prepare_evaluator_fixture(adapter, fixed, quarantine)
+        execution_plan = _execution_plan(adapter, evaluator_fixture)
         failure_stage = "BASE_IMAGE_ACQUISITION"
         base, base_identity, base_size = _acquire_base_image(adapter, build)
         failure_stage = "DEPENDENCY_BUILD"
@@ -661,6 +921,34 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
         )
         failure_stage = "PROJECT_INSTALL"
         _prepare_project(adapter)
+        failure_stage = "EVALUATOR_PREFLIGHT"
+        buggy_preflight = _preflight(
+            adapter,
+            image,
+            buggy,
+            f"phase128f-{adapter.task_id.lower()}-buggy-preflight",
+            evaluator_fixture,
+        )
+        fixed_preflight = _preflight(
+            adapter,
+            image,
+            fixed,
+            f"phase128f-{adapter.task_id.lower()}-fixed-preflight",
+            evaluator_fixture,
+        )
+        execution_plan.update(
+            {
+                "buggy_preflight": buggy_preflight,
+                "fixed_preflight": fixed_preflight,
+                "fixture_bytes_identical": (
+                    buggy_preflight["container_visible_fixture_fingerprint"]
+                    == fixed_preflight["container_visible_fixture_fingerprint"]
+                    == execution_plan["host_fixture_fingerprint"]
+                ),
+            }
+        )
+        if not execution_plan["fixture_bytes_identical"]:
+            raise EvaluatorPreflightError("EVALUATOR_IDENTITY_MISMATCH")
         failure_stage = "BUGGY_EXECUTION"
         attempts = tuple(
             _execute(
@@ -684,6 +972,8 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             source_identity=fixed_identity,
             evaluator_fixture=evaluator_fixture,
         )
+        _verify_source_unchanged(buggy, buggy_identity)
+        _verify_source_unchanged(fixed, fixed_identity)
         fixed_passed = fixed_attempt.outcome is Outcome.PASS
         classification = (
             Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE
@@ -707,7 +997,9 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             )
         fixed_passed = False
         classification = (
-            Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE
+            Classification.EVALUATOR_ENVIRONMENT_INVALID
+            if isinstance(error, EvaluatorPreflightError)
+            else Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE
             if failure_stage == "FIXED_CONTROL_EXECUTION"
             else Classification.INFRASTRUCTURE_FAILURE
         )
@@ -720,7 +1012,9 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             rb"/(?:home|Users|private|tmp)/[^\s:]+", b"<path>", diagnostic_bytes[:65536]
         )
         code = (
-            "BASE_IMAGE_ACQUISITION_FAILED"
+            error.code
+            if isinstance(error, EvaluatorPreflightError)
+            else "BASE_IMAGE_ACQUISITION_FAILED"
             if failure_stage == "BASE_IMAGE_ACQUISITION"
             else f"{failure_stage}_FAILED"
         )
@@ -783,7 +1077,16 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
     buggy_signatures = {attempt.failure_signature for attempt in attempts}
     failure_classes = {attempt.normalized_failure_class for attempt in attempts}
     evaluator_validation = EvaluatorValidationStatus.VALID
-    if failure_classes == {"SELECTOR_NOT_FOUND"}:
+    preflight_statuses = {
+        "TOX_ENVIRONMENT_MISSING": EvaluatorValidationStatus.TOX_ENVIRONMENT_MISSING,
+        "TOX_CONFIGURATION_INVALID": EvaluatorValidationStatus.TOX_CONFIGURATION_INVALID,
+        "OFFLINE_DEPENDENCY_MISSING": EvaluatorValidationStatus.OFFLINE_DEPENDENCY_MISSING,
+        "EVALUATOR_NOT_COLLECTED": EvaluatorValidationStatus.EVALUATOR_NOT_COLLECTED,
+        "PROJECT_IMPORT_FAILED": EvaluatorValidationStatus.PROJECT_NOT_INSTALLED,
+    }
+    if diagnostic is not None and diagnostic["failure_code"] in preflight_statuses:
+        evaluator_validation = preflight_statuses[diagnostic["failure_code"]]
+    elif failure_classes == {"SELECTOR_NOT_FOUND"}:
         evaluator_validation = (
             EvaluatorValidationStatus.SELECTOR_INCOMPATIBLE_ACROSS_REVISIONS
             if fixed_passed
@@ -838,6 +1141,9 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             else "SCIENTIFIC_RESULT"
         ),
         "evaluator_validation_status": evaluator_validation.value,
+        "execution_plan": execution_plan,
+        "buggy_preflight": buggy_preflight,
+        "fixed_preflight": fixed_preflight,
         "infrastructure_diagnostic": diagnostic,
         "base_image_identity": base_identity,
         "dependency_build_status": dependency_build_status,

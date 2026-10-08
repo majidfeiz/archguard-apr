@@ -1,4 +1,4 @@
-name: Phase 12.8F.4 Batch A Reviewed Evaluator Qualification
+name: Phase 12.8F.4.1 Batch A Reviewed Evaluator Qualification
 
 on:
   workflow_dispatch:
