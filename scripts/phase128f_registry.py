@@ -35,6 +35,7 @@ def _adapter(
     license_id: str,
     license_sha256: str,
     reviewed: bool = False,
+    evaluator_fixture_path: str | None = None,
 ) -> EvaluatorAdapter:
     number = task_id.rsplit("-", 1)[1]
     return EvaluatorAdapter(
@@ -83,7 +84,7 @@ def _adapter(
         expected_framework=evaluator_argv[2] if reviewed else "",
         quarantine_policy="READ_ONLY_FIXED_TEST_NO_AGENT_ACCESS" if reviewed else "NONE",
         review_status="REVIEWED" if reviewed else "LEGACY",
-        evaluator_fixture_path=selector.split("::", 1)[0] if reviewed else None,
+        evaluator_fixture_path=evaluator_fixture_path if reviewed else None,
         evaluator_fixture_sha256={
             "PySnooper-1": "7a3d64cd702fdfa1eba8c08ac3c8934948a3ef0178f141c1f5599307c1fe59f3",
             "PySnooper-3": "852e76799d5a97d2e8e87d0db6b5e6fd7884fbff6fbe2049734c268bd8c7c753",
@@ -113,6 +114,7 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
             "MIT",
             pysnooper_license,
             reviewed=True,
+            evaluator_fixture_path="tests/test_chinese.py",
         ),
         _adapter(
             "PySnooper-3",
@@ -128,6 +130,7 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
             "MIT",
             "0c4250d2a9f0e39d024593ede44eb5044e5fbd1175a8962ec9659d8ace34de9e",
             reviewed=True,
+            evaluator_fixture_path="tests/test_pysnooper.py",
         ),
         _adapter(
             "black-1",
@@ -151,6 +154,7 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
             "MIT",
             black_license,
             reviewed=True,
+            evaluator_fixture_path="tests/test_black.py",
         ),
         _adapter(
             "cookiecutter-4",
@@ -178,6 +182,7 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
             "BSD-3-Clause",
             "31f691f875aa4ccfbd491b1dc3bf0f2f44e48c53ec573c4eaae79a9afedae7cf",
             reviewed=True,
+            evaluator_fixture_path="tests/test_hooks.py",
         ),
         _adapter(
             "black-2",
