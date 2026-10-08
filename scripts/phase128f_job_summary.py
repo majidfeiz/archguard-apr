@@ -22,23 +22,23 @@ def _selected(selection: str) -> tuple[str, ...]:
 def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
     reached = {item["task_id"] for item in results}
     lines = [
-        "## Phase 12.8F.3 Batch A execution-path verification",
+        "## Phase 12.8F.4 Batch A reviewed evaluator qualification",
         "",
-        "| Task | Buggy status | Fixed status | Fixed stage | Fixed failure category | "
-        "Source identity match | Qualification decision |",
-        "|---|---|---|---|---|---|---|",
+        "| Task | Evaluator validation | Buggy collection | Buggy scientific result | "
+        "Fixed collection | Fixed result | Adapter fingerprint | Qualification decision |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for result in results:
         fixed = result.get("fixed_control") or {}
-        source_identity = fixed.get("source_identity") or {}
-        source_match = bool(source_identity) and (
-            source_identity.get("working_directory_fingerprint")
-            == source_identity.get("container_visible_source_fingerprint")
+        buggy_collection = sum(
+            item.get("tests_passed", 0) + item.get("tests_failed", 0)
+            for item in result.get("buggy_attempts", [])
         )
         lines.append(
-            f"| {result['task_id']} | {result.get('buggy_result_status', 'NOT_REACHED')} | "
-            f"{fixed.get('outcome', 'NOT_REACHED')} | {fixed.get('stage', 'none')} | "
-            f"{fixed.get('normalized_failure_class') or 'none'} | {str(source_match).lower()} | "
+            f"| {result['task_id']} | {result.get('evaluator_validation_status', 'NOT_REACHED')} | "
+            f"{buggy_collection} | {result.get('scientific_classification') or 'none'} | "
+            f"{fixed.get('collection_count', 0)} | {fixed.get('outcome', 'NOT_REACHED')} | "
+            f"{result.get('adapter_fingerprint', 'none')} | "
             f"{result.get('qualification_decision', 'NOT_QUALIFIED')} |"
         )
     not_reached = [task for task in _selected(selection) if task not in reached]

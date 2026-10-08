@@ -46,3 +46,7 @@ Phase 12.8F.3 makes target-source absence from the dependency image explicit and
 tree inside the network-disabled container. Independent revision, Git-tree, working-tree, build-context
 and container-visible fingerprints fail closed on stale cache, wrong checkout, wrong mount or working
 directory. Fixed `EXIT_ZERO` semantics are separate from buggy `TEST_FAILURE` semantics.
+Phase 12.8F.4 quarantines fixed-revision evaluator tests outside target trees and mounts the same
+hash-bound file read-only for both revisions. Agents, prompts and retained artifacts cannot access test
+contents. Offline tox policy rejects dependency download attempts; only reviewed generated empty setup
+markers may shadow target paths.

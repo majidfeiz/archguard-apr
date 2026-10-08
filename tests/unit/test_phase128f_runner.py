@@ -11,6 +11,13 @@ from scripts.phase128f_registry import adapters
 from scripts.phase128f_security_scan import scan
 
 
+@pytest.fixture(autouse=True)
+def reviewed_fixture(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    fixture = tmp_path / "reviewed-evaluator.py"
+    fixture.write_bytes(b"")
+    monkeypatch.setattr(runner, "_prepare_evaluator_fixture", lambda *args: fixture)
+
+
 def _identity(revision: str, marker: str = "a") -> dict[str, Any]:
     return {
         "requested_revision": revision,
@@ -446,3 +453,37 @@ def test_container_source_identity_mismatch_fails_closed(
             expected_outcome="EXIT_ZERO",
             source_identity=_identity(adapter.fixed_revision),
         )
+
+
+def test_quarantined_evaluator_is_mounted_read_only_for_both_expectations(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(runner, "_container_source_fingerprint", lambda *args: "a" * 64)
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, b"1 passed", b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    adapter = adapters()[0]
+    fixture = tmp_path / "quarantine" / "test.py"
+    fixture.parent.mkdir()
+    fixture.write_bytes(b"")
+    for expectation in ("TEST_FAILURE", "EXIT_ZERO"):
+        runner._execute(
+            adapter,
+            "image",
+            tmp_path,
+            expectation.lower(),
+            expected_outcome=expectation,
+            source_identity=_identity(adapter.buggy_revision),
+            evaluator_fixture=fixture,
+        )
+    evaluator_mount = f"{fixture}:/workspace/{adapter.evaluator_fixture_path}:ro"
+    execution_calls = [call for call in calls if evaluator_mount in call]
+    assert len(execution_calls) == 2
+    assert all(
+        "--network" in call and call[call.index("--network") + 1] == "none"
+        for call in execution_calls
+    )

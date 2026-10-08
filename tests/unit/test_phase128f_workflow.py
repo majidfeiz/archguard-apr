@@ -73,5 +73,5 @@ def test_summary_uses_recorded_fixed_stage_and_category() -> None:
         ],
         "PASSED",
     )
-    assert "TEST_COLLECTION" in summary and "COLLECTION_ERROR" in summary
-    assert "Source identity match" in summary and "true" in summary
+    assert "Evaluator validation" in summary and "Buggy collection" in summary
+    assert "Adapter fingerprint" in summary and "NOT_QUALIFIED" in summary

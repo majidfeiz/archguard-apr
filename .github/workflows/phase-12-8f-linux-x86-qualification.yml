@@ -1,4 +1,4 @@
-name: Phase 12.8F.3 Batch A Execution-Path Verification
+name: Phase 12.8F.4 Batch A Reviewed Evaluator Qualification
 
 on:
   workflow_dispatch:
@@ -70,6 +70,7 @@ jobs:
           python3 scripts/phase128f_registry.py --output "${RUNNER_TEMP}/adapters-regenerated.json"
           cmp "${RUNNER_TEMP}/adapters-regenerated.json" research/evaluators/adapter-registry-v2.json
           test "$(jq -r .candidate_registry_fingerprint research/evaluators/adapter-registry-v2.json)" = d1068112a12c63e24ee780ad9b31b05c04f9b1417efa50ffa04a1b8b4aac1903
+          test "$(jq -r .fingerprint research/evaluators/adapter-registry-v2.json)" = 77e862dd9a43eca3f68db6ed1e5645ef31ed97caf68f4938aa2f595cc276178a
           test "$(jq -r .selection_policy_fingerprint research/evaluators/adapter-registry-v2.json)" = 0987d60ff9b5c2071f0c1dd82a91c680a6aafa885a37b12003bc34dc4add7e01
           test "$(jq -c .selected_identifiers research/candidates/candidate-pool-v1.json)" = '["PySnooper-1","black-1","cookiecutter-4","PySnooper-2","black-2","PySnooper-3","black-3","black-4"]'
       - name: Execute selected adapters serially in hardened containers

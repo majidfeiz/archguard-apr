@@ -1,0 +1,11 @@
+{
+  "metadata_revision": "11c5f1eea954a42132cfd06bf257766a7963e0fd",
+  "phase_13_ready": false,
+  "schema": "archguard.evaluator-adapter-review/v1",
+  "tasks": [
+    {"environment_provenance":"bug.info","installation_plan_fingerprint":"945cfdede0b4ad46e336d670aec0368f84c82d3e0d915b976637d690f978a8a8","metadata_path_fingerprint":"199b770bd6551117a00f9c7ce2c674d7ddb818e3bb5dc344371340e75e52296e","official_command_fingerprint":"6d24d2d88478e17cefec81f33a1ef5c44cea64321ff46762384c68e219064d0b","reviewed_conclusion":"FIXED_REVISION_TEST_REQUIRED_AS_QUARANTINED_EVALUATOR","selector_provenance":"run_test.sh","task_id":"PySnooper-1"},
+    {"environment_provenance":"bug.info","installation_plan_fingerprint":"945cfdede0b4ad46e336d670aec0368f84c82d3e0d915b976637d690f978a8a8","metadata_path_fingerprint":"f4edd7b703911670e11dbe11477c42bd0ce8739c3999b220af8e38219c90f062","official_command_fingerprint":"1ae367298efe7af9c8225d1cd43a628471e2edb41f70bff4a71f7e36fb384ed8","reviewed_conclusion":"FIXED_REVISION_TEST_REQUIRED_AS_QUARANTINED_EVALUATOR","selector_provenance":"run_test.sh","task_id":"PySnooper-3"},
+    {"environment_provenance":"bug.info","installation_plan_fingerprint":"b5e70eaed2227a8b03cefa157bf11a564773556db76ba611a057bda0aed5bbc2","metadata_path_fingerprint":"f25c9512a79be435f9340ab09b1a365c172a18ee44841f529a2c68b6ac9c55f3","official_command_fingerprint":"4cc4dcdb0380e6752e5115f068ba37550faf5071b888c90e32bcab0a40a7d5e1","reviewed_conclusion":"QUARANTINED_FIXED_TEST_AND_GENERATED_PACKAGE_MARKER_REQUIRED","selector_provenance":"run_test.sh","task_id":"black-1"},
+    {"environment_provenance":"bug.info:pythonpath","installation_plan_fingerprint":"8d858ce78a9a18cb4943d4e3497c6e7444c7548ff0084559d09670bb07b688c3","metadata_path_fingerprint":"52236af17ff214fcc07f9c9b924cd25f0ff31774f52c126be82b6a0fed601301","official_command_fingerprint":"b9237865af67323bdf738c16108241b4f88e448db1fab9dddb057ac78630c6b2","reviewed_conclusion":"QUARANTINED_FIXED_TEST_AND_OFFLINE_TOX_REQUIRED","selector_provenance":"run_test.sh","task_id":"cookiecutter-4"}
+  ]
+}

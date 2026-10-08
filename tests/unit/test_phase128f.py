@@ -62,7 +62,7 @@ def test_adapter_registry_is_deterministic_complete_and_immutable(repository_roo
     values = adapters()
     assert len(values) == 7
     assert registry()["fingerprint"] == (
-        "5575f5a88934ad998bb6c0c6da415708690a783e1dc8b636db2804ed4eed3d5f"
+        "77e862dd9a43eca3f68db6ed1e5645ef31ed97caf68f4938aa2f595cc276178a"
     )
     assert len({item.fingerprint for item in values}) == 7
     assert all(len(item.buggy_revision) == len(item.fixed_revision) == 40 for item in values)
@@ -172,6 +172,23 @@ def test_unavailable_unsupported_and_failed_fixed_control() -> None:
     )
     stable = (attempt(Outcome.EXPECTED_FAILURE),) * 3
     assert classify(stable, fixed_control_passed=False) is Classification.FIXED_CONTROL_FAILED
+
+
+@pytest.mark.parametrize(
+    ("failure_class", "expected"),
+    [
+        ("SELECTOR_NOT_FOUND", Classification.EVALUATOR_ADAPTER_INVALID),
+        ("IMPORT_ERROR", Classification.EVALUATOR_ENVIRONMENT_INVALID),
+        ("TEST_PROCESS_ERROR", Classification.EVALUATOR_ENVIRONMENT_INVALID),
+    ],
+)
+def test_identical_adapter_failures_are_not_flaky(
+    failure_class: str, expected: Classification
+) -> None:
+    attempt = AttemptEvidence(
+        Outcome.OTHER_FAILURE, 1, "a" * 64, 0, 1, 1, normalized_failure_class=failure_class
+    )
+    assert classify((attempt, attempt, attempt), fixed_control_passed=False) is expected
 
 
 def test_prior_evidence_is_preserved_and_conflicts_require_review(repository_root: Path) -> None:
