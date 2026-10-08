@@ -181,10 +181,25 @@ def _validate_results(value: dict[str, Any]) -> None:
         fixed_source = fixed_control.get("source_identity")
         buggy_source = result.get("buggy_source_identity")
         if fixed_control.get("attempted") is True and "source_identity" in fixed_control:
-            if fixed_control.get("collection_count", 0) < 1 or not fixed_control.get(
-                "selected_test_fingerprint"
+            collection_count = fixed_control.get("collection_count")
+            if (
+                not isinstance(collection_count, int)
+                or collection_count < 0
+                or not fixed_control.get("selected_test_fingerprint")
             ):
-                raise ValueError("fixed selector was not collected")
+                raise ValueError("invalid fixed selector evidence")
+            if fixed_record_passed and collection_count < 1:
+                raise ValueError("passing fixed selector was not collected")
+            if (
+                fixed_control.get("normalized_failure_class")
+                in {
+                    "IMPORT_ERROR",
+                    "COLLECTION_ERROR",
+                    "SELECTOR_NOT_FOUND",
+                }
+                and collection_count != 0
+            ):
+                raise ValueError("collection failure cannot report collected tests")
             if not isinstance(fixed_source, dict) or not isinstance(buggy_source, dict):
                 raise ValueError("missing independent source identity")
             for source, revision in (

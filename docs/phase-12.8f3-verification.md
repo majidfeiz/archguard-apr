@@ -20,3 +20,8 @@ The workflow is `Phase 12.8F.3 Batch A Execution-Path Verification`. It accepts 
 produces one source-free artifact named
 `archguard-phase-12-8f-qualification-batch-a-<run-id>`. It does not import that artifact. Batch B and
 Phase 13 remain prohibited; `phase_13_ready=false`.
+
+Run `37746821705` exposed a packaging-only invariant error: failed fixed selectors correctly recorded
+zero collected tests, but validation required every attempted control to collect at least one. The
+validator now requires positive collection only for passing controls and accepts truthful zero-count
+selector/import/collection failures without weakening qualification.

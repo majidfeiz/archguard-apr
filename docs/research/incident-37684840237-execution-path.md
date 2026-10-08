@@ -10,3 +10,9 @@ checkout. F.3 therefore repairs the proven semantic defect and adds source-free 
 will make any future checkout, image-cache, mount or working-directory substitution fail closed.
 
 No revision or adapter fingerprint changed. No Batch B or Phase 13 execution occurred.
+
+Follow-up run `37746821705` verified source identity and executed all four Batch A controls, but artifact
+assembly rejected the truthful zero collection count of a failed fixed selector. The validator had
+applied the passing-control collection invariant to every attempted control. The follow-up repair
+requires collection only for `PASS`; selector/import/collection failures remain valid source-free
+evidence with a zero collection count. The run remains non-imported and qualified no task.

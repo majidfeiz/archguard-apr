@@ -319,6 +319,41 @@ def test_extended_source_identity_contract_and_canaries() -> None:
         _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [stale_image]})
 
 
+def test_failed_fixed_selector_can_be_packaged_without_collection() -> None:
+    failed = _with_source_identities(result())
+    fixed = failed["fixed_control"]
+    fixed.update(
+        {
+            "collection_count": 0,
+            "exit_code": 4,
+            "failure_signature_sha256": SHA,
+            "normalized_failure_class": "SELECTOR_NOT_FOUND",
+            "outcome": "OTHER_FAILURE",
+            "stage": "TEST_COLLECTION",
+            "tests_failed": 1,
+            "tests_passed": 0,
+        }
+    )
+    failed.update(
+        {
+            "classification": "FIXED_CONTROL_FAILED",
+            "execution_status": "FIXED_CONTROL_FAILED",
+            "fixed_control_passed": False,
+            "prior_evidence_status": "NOT_EVALUATED_FIXED_CONTROL_REVIEW_REQUIRED",
+            "qualification_decision": "NOT_QUALIFIED",
+            "scientific_classification": None,
+        }
+    )
+    _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [failed]})
+
+
+def test_passing_fixed_selector_requires_collection() -> None:
+    invalid = _with_source_identities(result())
+    invalid["fixed_control"]["collection_count"] = 0
+    with pytest.raises(ValueError, match="passing fixed selector was not collected"):
+        _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [invalid]})
+
+
 @pytest.fixture
 def evidence(repository_root: Path, tmp_path: Path) -> tuple[Path, Path]:
     results = tmp_path / "results.json"
