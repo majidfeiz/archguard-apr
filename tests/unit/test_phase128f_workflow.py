@@ -2,6 +2,8 @@ from pathlib import Path
 
 import yaml
 
+from scripts.phase128f_job_summary import render
+
 
 def test_workflow_inputs_batches_and_runner_temp(repository_root: Path) -> None:
     path = repository_root / ".github/workflows/phase-12-8f-linux-x86-qualification.yml"
@@ -47,3 +49,29 @@ def test_workflow_sandbox_cleanup_and_single_artifact(repository_root: Path) -> 
     assert "owned-base-reference.txt" in raw and "label=archguard.phase=12.8f" in raw
     assert "--selection batch-a" in raw
     assert "batch-b" not in raw
+
+
+def test_summary_uses_recorded_fixed_stage_and_category() -> None:
+    summary = render(
+        "batch-a",
+        [
+            {
+                "task_id": "PySnooper-1",
+                "buggy_result_status": "BUGGY_RESULT",
+                "fixed_control_passed": False,
+                "fixed_control": {
+                    "outcome": "OTHER_FAILURE",
+                    "stage": "TEST_COLLECTION",
+                    "normalized_failure_class": "COLLECTION_ERROR",
+                    "source_identity": {
+                        "working_directory_fingerprint": "a",
+                        "container_visible_source_fingerprint": "a",
+                    },
+                },
+                "qualification_decision": "NOT_QUALIFIED",
+            }
+        ],
+        "PASSED",
+    )
+    assert "TEST_COLLECTION" in summary and "COLLECTION_ERROR" in summary
+    assert "Source identity match" in summary and "true" in summary

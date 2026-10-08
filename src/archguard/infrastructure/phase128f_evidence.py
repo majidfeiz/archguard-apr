@@ -148,10 +148,24 @@ def _validate_results(value: dict[str, Any]) -> None:
             "image_identity",
             "infrastructure_diagnostic",
         }
-        if set(fixed_control) != required_fixed:
+        extended_fixed = {
+            "collection_count",
+            "expected_outcome",
+            "expected_test_framework",
+            "project_installation_mode",
+            "selected_test_fingerprint",
+            "source_identity",
+        }
+        if not required_fixed <= set(fixed_control) or not set(fixed_control) <= (
+            required_fixed | extended_fixed
+        ):
             raise ValueError("incomplete structured fixed-control evidence")
         FixedControlStage(fixed_control["stage"])
         Outcome(fixed_control["outcome"])
+        if fixed_control["outcome"] == Outcome.EXPECTED_FAILURE.value:
+            raise ValueError("fixed control cannot use buggy expected-failure semantics")
+        if fixed_control.get("expected_outcome", "EXIT_ZERO") != "EXIT_ZERO":
+            raise ValueError("invalid fixed-control expectation")
         fixed_record_passed = (
             fixed_control.get("attempted") is True
             and fixed_control.get("outcome") == Outcome.PASS.value
@@ -164,6 +178,41 @@ def _validate_results(value: dict[str, Any]) -> None:
             "dependency_environment_fingerprint"
         ) != result.get("buggy_environment_fingerprint"):
             raise ValueError("fixed and buggy environment or revision mismatch")
+        fixed_source = fixed_control.get("source_identity")
+        buggy_source = result.get("buggy_source_identity")
+        if fixed_control.get("attempted") is True and "source_identity" in fixed_control:
+            if fixed_control.get("collection_count", 0) < 1 or not fixed_control.get(
+                "selected_test_fingerprint"
+            ):
+                raise ValueError("fixed selector was not collected")
+            if not isinstance(fixed_source, dict) or not isinstance(buggy_source, dict):
+                raise ValueError("missing independent source identity")
+            for source, revision in (
+                (buggy_source, result["buggy_revision"]),
+                (fixed_source, result["fixed_revision"]),
+            ):
+                if any(
+                    source.get(key) != revision
+                    for key in (
+                        "requested_revision",
+                        "acquired_repository_revision",
+                        "checked_out_head",
+                    )
+                ):
+                    raise ValueError("source revision identity mismatch")
+                if source.get("container_visible_source_fingerprint") != source.get(
+                    "working_directory_fingerprint"
+                ):
+                    raise ValueError("container-visible source mismatch")
+            if fixed_source.get("git_tree_identity") == buggy_source.get("git_tree_identity"):
+                raise ValueError("buggy and fixed source trees must be independent")
+            image_identity = fixed_control.get("image_identity") or {}
+            if image_identity.get(
+                "source_in_image"
+            ) != "ABSENT_DEPENDENCY_ONLY" or fixed_source.get(
+                "build_context_fingerprint"
+            ) != image_identity.get("build_context_fingerprint"):
+                raise ValueError("target source leaked into evaluator image")
         base_identity = result.get("base_image_identity")
         if classification is not Classification.INFRASTRUCTURE_FAILURE and (
             not isinstance(base_identity, dict)

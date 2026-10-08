@@ -1,4 +1,4 @@
-name: Phase 12.8F.2 Batch A Fixed-Control Diagnostics
+name: Phase 12.8F.3 Batch A Execution-Path Verification
 
 on:
   workflow_dispatch:

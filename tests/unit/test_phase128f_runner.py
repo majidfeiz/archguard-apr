@@ -11,6 +11,23 @@ from scripts.phase128f_registry import adapters
 from scripts.phase128f_security_scan import scan
 
 
+def _identity(revision: str, marker: str = "a") -> dict[str, Any]:
+    return {
+        "requested_revision": revision,
+        "acquired_repository_revision": revision,
+        "checked_out_head": revision,
+        "git_tree_identity": marker * 40,
+        "working_directory_fingerprint": marker * 64,
+        "container_visible_source_fingerprint": marker * 64,
+        "build_context_fingerprint": "c" * 64,
+    }
+
+
+def _checkout_identity(repository: str, revision: str, destination: Path) -> dict[str, Any]:
+    marker = "a" if destination.name == "buggy" else "b"
+    return _identity(revision, marker)
+
+
 def test_structured_evaluator_argv_and_selector_are_separate(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -21,10 +38,18 @@ def test_structured_evaluator_argv_and_selector_are_separate(
         return subprocess.CompletedProcess(command, 1, b"1 failed", b"")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "_container_source_fingerprint", lambda *args: "a" * 64)
     adapter = adapters()[0]
-    runner._execute(adapter, "image", tmp_path, "attempt")
+    runner._execute(
+        adapter,
+        "image",
+        tmp_path,
+        "attempt",
+        expected_outcome="TEST_FAILURE",
+        source_identity=_identity(adapter.buggy_revision),
+    )
     command = calls[0]
-    marker = command.index("evaluator")
+    marker = command.index("image")
     assert command[marker + 1 :] == [
         "python",
         "-m",
@@ -94,7 +119,7 @@ def test_base_image_wrong_architecture_fails(
 def test_base_acquisition_failure_has_stage_and_does_not_conflict_prior(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(runner, "_safe_checkout", lambda *args: None)
+    monkeypatch.setattr(runner, "_safe_checkout", _checkout_identity)
     monkeypatch.setattr(runner, "_verify_identities", lambda *args: None)
     monkeypatch.setattr(
         runner,
@@ -161,7 +186,7 @@ def _run_with_fixed_attempt(
         normalized_failure_class="TEST_FAILURE",
     )
     attempts = iter((buggy, buggy, buggy, fixed))
-    monkeypatch.setattr(runner, "_safe_checkout", lambda *args: None)
+    monkeypatch.setattr(runner, "_safe_checkout", _checkout_identity)
     monkeypatch.setattr(runner, "_verify_identities", lambda *args: None)
     monkeypatch.setattr(
         runner,
@@ -183,10 +208,15 @@ def _run_with_fixed_attempt(
             "image",
             [{"filename": "dependency.whl", "sha256": "c" * 64}],
             20,
-            {"image_id": "sha256:" + "d" * 64, "tag": "image"},
+            {
+                "build_context_fingerprint": "c" * 64,
+                "image_id": "sha256:" + "d" * 64,
+                "source_in_image": "ABSENT_DEPENDENCY_ONLY",
+                "tag": "image",
+            },
         ),
     )
-    monkeypatch.setattr(runner, "_execute", lambda *args: next(attempts))
+    monkeypatch.setattr(runner, "_execute", lambda *args, **kwargs: next(attempts))
     return runner.qualify(adapters()[1], tmp_path, tmp_path)
 
 
@@ -209,13 +239,13 @@ def test_fixed_control_passes_with_bound_environment(
     [
         (
             AttemptEvidence(
-                Outcome.EXPECTED_FAILURE,
+                Outcome.OTHER_FAILURE,
                 1,
                 "e" * 64,
                 0,
                 1,
                 100,
-                normalized_failure_class="TEST_FAILURE",
+                normalized_failure_class="ASSERTION_FAILURE",
             ),
             "FIXED_CONTROL_FAILED",
             "TEST_EXECUTION",
@@ -228,7 +258,7 @@ def test_fixed_control_passes_with_bound_environment(
                 0,
                 0,
                 100,
-                normalized_failure_class="TEST_COLLECTION_FAILED",
+                normalized_failure_class="COLLECTION_ERROR",
             ),
             "FIXED_CONTROL_FAILED",
             "TEST_COLLECTION",
@@ -273,7 +303,7 @@ def test_pre_fixed_failure_stage_is_preserved(
     failure_stage: str,
     expected_stage: str,
 ) -> None:
-    monkeypatch.setattr(runner, "_safe_checkout", lambda *args: None)
+    monkeypatch.setattr(runner, "_safe_checkout", _checkout_identity)
     monkeypatch.setattr(runner, "_verify_identities", lambda *args: None)
     monkeypatch.setattr(
         runner,
@@ -298,7 +328,17 @@ def test_pre_fixed_failure_stage_is_preserved(
         monkeypatch.setattr(
             runner,
             "_build_image",
-            lambda *args: ("image", [], 20, {"image_id": "id", "tag": "image"}),
+            lambda *args: (
+                "image",
+                [],
+                20,
+                {
+                    "build_context_fingerprint": "c" * 64,
+                    "image_id": "id",
+                    "source_in_image": "ABSENT_DEPENDENCY_ONLY",
+                    "tag": "image",
+                },
+            ),
         )
         monkeypatch.setattr(
             runner,
@@ -345,9 +385,15 @@ def test_normalized_signature_is_deterministic_and_output_is_bounded(
         return subprocess.CompletedProcess(command, 1, next(outputs), b"")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "_container_source_fingerprint", lambda *args: "a" * 64)
     adapter = adapters()[0]
-    first = runner._execute(adapter, "image", tmp_path, "one")
-    second = runner._execute(adapter, "image", tmp_path, "two")
+    identity = _identity(adapter.buggy_revision)
+    first = runner._execute(
+        adapter, "image", tmp_path, "one", expected_outcome="TEST_FAILURE", source_identity=identity
+    )
+    second = runner._execute(
+        adapter, "image", tmp_path, "two", expected_outcome="TEST_FAILURE", source_identity=identity
+    )
     assert first.failure_signature == second.failure_signature
 
     oversized = b"x" * (adapter.sandbox.output_bytes + 1)
@@ -356,5 +402,47 @@ def test_normalized_signature_is_deterministic_and_output_is_bounded(
         "run",
         lambda command, **kwargs: subprocess.CompletedProcess(command, 1, oversized, b""),
     )
-    bounded = runner._execute(adapter, "image", tmp_path, "bounded")
+    bounded = runner._execute(
+        adapter,
+        "image",
+        tmp_path,
+        "bounded",
+        expected_outcome="TEST_FAILURE",
+        source_identity=identity,
+    )
     assert bounded.output_truncated is True
+
+
+def test_failure_categories_distinguish_selector_collection_and_assertion() -> None:
+    assert runner._failure_category("collected 0 items", 4) == "SELECTOR_NOT_FOUND"
+    assert runner._failure_category("ERROR collecting test_module.py", 2) == "COLLECTION_ERROR"
+    assert (
+        runner._failure_category("FAILED test_module.py AssertionError", 1) == "ASSERTION_FAILURE"
+    )
+
+
+def test_fixed_expected_failure_is_rejected() -> None:
+    adapter = adapters()[0]
+    attempt = AttemptEvidence(
+        Outcome.EXPECTED_FAILURE, 1, "a" * 64, 0, 1, 1, normalized_failure_class="ASSERTION_FAILURE"
+    )
+    with pytest.raises(RuntimeError, match="cannot have EXPECTED_FAILURE"):
+        runner._fixed_control_record(
+            adapter, attempt, "c" * 64, {}, _identity(adapter.fixed_revision)
+        )
+
+
+def test_container_source_identity_mismatch_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    adapter = adapters()[0]
+    monkeypatch.setattr(runner, "_container_source_fingerprint", lambda *args: "b" * 64)
+    with pytest.raises(RuntimeError, match="container-visible source identity mismatch"):
+        runner._execute(
+            adapter,
+            "image",
+            tmp_path,
+            "mismatch",
+            expected_outcome="EXIT_ZERO",
+            source_identity=_identity(adapter.fixed_revision),
+        )

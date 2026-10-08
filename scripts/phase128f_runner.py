@@ -67,7 +67,7 @@ def _tasks(selection: str) -> tuple[str, ...]:
     return (selection,)
 
 
-def _safe_checkout(repository: str, revision: str, destination: Path) -> None:
+def _safe_checkout(repository: str, revision: str, destination: Path) -> dict[str, Any]:
     _run(
         [
             "git",
@@ -89,6 +89,9 @@ def _safe_checkout(repository: str, revision: str, destination: Path) -> None:
         timeout=600,
     )
     _run(["git", "-C", str(destination), "checkout", "--quiet", "--detach", revision], timeout=600)
+    acquired_revision = (
+        _run(["git", "-C", str(destination), "rev-parse", revision]).stdout.decode().strip()
+    )
     head = _run(["git", "-C", str(destination), "rev-parse", "HEAD"]).stdout.decode().strip()
     if head != revision:
         raise RuntimeError("immutable revision mismatch")
@@ -102,6 +105,39 @@ def _safe_checkout(repository: str, revision: str, destination: Path) -> None:
             with path.open("rb") as source:
                 if source.read(80).startswith(b"version https://git-lfs.github.com/spec/v1"):
                     raise RuntimeError("LFS pointer")
+    tree_identity = (
+        _run(["git", "-C", str(destination), "rev-parse", "HEAD^{tree}"]).stdout.decode().strip()
+    )
+    return {
+        "acquired_repository_revision": acquired_revision,
+        "build_context_fingerprint": None,
+        "checked_out_head": head,
+        "container_visible_source_fingerprint": None,
+        "git_tree_identity": tree_identity,
+        "requested_revision": revision,
+        "working_directory_fingerprint": _working_tree_fingerprint(destination),
+    }
+
+
+def _working_tree_fingerprint(root: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root)
+        if not relative.parts or relative.parts[0] == ".git":
+            continue
+        mode = path.lstat().st_mode & 0o777
+        if path.is_symlink():
+            kind = b"L"
+            content = os.readlink(path).encode("utf-8", "surrogateescape")
+        elif path.is_file():
+            kind = b"F"
+            content = path.read_bytes()
+        else:
+            continue
+        digest.update(relative.as_posix().encode("utf-8", "surrogateescape"))
+        digest.update(b"\0" + kind + f"{mode:o}".encode() + b"\0")
+        digest.update(hashlib.sha256(content).digest())
+    return digest.hexdigest()
 
 
 def _acquire_framework(destination: Path) -> None:
@@ -188,8 +224,8 @@ def _build_image(
                 "RUN groupadd --gid 65532 evaluator && "
                 "useradd --uid 65532 --gid 65532 --no-create-home evaluator",
                 "USER 65532:65532",
-                "WORKDIR /source",
-                "ENV HOME=/tmp PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/source",
+                "WORKDIR /workspace",
+                "ENV HOME=/tmp PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/workspace",
                 "",
             ]
         ),
@@ -220,7 +256,17 @@ def _build_image(
     image_id = (
         _run(["docker", "image", "inspect", tag, "--format", "{{.Id}}"]).stdout.decode().strip()
     )
-    return tag, packages, image_size, {"image_id": image_id, "tag": tag}
+    return (
+        tag,
+        packages,
+        image_size,
+        {
+            "build_context_fingerprint": hashlib.sha256(dockerfile.read_bytes()).hexdigest(),
+            "image_id": image_id,
+            "source_in_image": "ABSENT_DEPENDENCY_ONLY",
+            "tag": tag,
+        },
+    )
 
 
 def _sha256_record(value: Any) -> str:
@@ -232,10 +278,14 @@ def _fixed_control_record(
     attempt: AttemptEvidence,
     dependency_environment_fingerprint: str,
     image_identity: dict[str, str],
+    source_identity: dict[str, Any],
 ) -> dict[str, Any]:
+    if attempt.outcome is Outcome.EXPECTED_FAILURE:
+        raise RuntimeError("fixed control cannot have EXPECTED_FAILURE outcome")
     stage = (
         FixedControlStage.TEST_COLLECTION
-        if attempt.normalized_failure_class == "TEST_COLLECTION_FAILED"
+        if attempt.normalized_failure_class
+        in {"IMPORT_ERROR", "COLLECTION_ERROR", "SELECTOR_NOT_FOUND"}
         else FixedControlStage.TEST_EXECUTION
     )
     infrastructure = attempt.outcome in {
@@ -263,11 +313,19 @@ def _fixed_control_record(
     )
     return {
         "attempted": True,
+        "collection_count": (
+            0
+            if attempt.normalized_failure_class
+            in {"IMPORT_ERROR", "COLLECTION_ERROR", "SELECTOR_NOT_FOUND"}
+            else attempt.tests_passed + attempt.tests_failed
+        ),
         "dependency_environment_fingerprint": dependency_environment_fingerprint,
         "duration_milliseconds": attempt.duration_milliseconds,
         "evaluator_selector_fingerprint": _sha256_record(
             {"argv": list(adapter.evaluator_argv), "selectors": list(adapter.test_selectors)}
         ),
+        "expected_outcome": "EXIT_ZERO",
+        "expected_test_framework": adapter.evaluator_argv[2],
         "exit_code": attempt.exit_code,
         "failure_signature_sha256": failure_signature,
         "image_identity": image_identity,
@@ -276,6 +334,14 @@ def _fixed_control_record(
         "outcome": attempt.outcome.value,
         "output_truncated": attempt.output_truncated,
         "revision": adapter.fixed_revision,
+        "project_installation_mode": "DEPENDENCIES_ONLY_NO_TARGET_INSTALL",
+        "selected_test_fingerprint": _sha256_record(
+            {
+                "selectors": list(adapter.test_selectors),
+                "tree": source_identity["git_tree_identity"],
+            }
+        ),
+        "source_identity": source_identity,
         "stage": stage.value,
         "tests_failed": attempt.tests_failed,
         "tests_passed": attempt.tests_passed,
@@ -294,6 +360,7 @@ def _fixed_control_not_executed(
     diagnostic: dict[str, Any],
     dependency_environment_fingerprint: str | None,
     image_identity: dict[str, str] | None,
+    source_identity: dict[str, Any] | None,
 ) -> dict[str, Any]:
     stages = {
         "SOURCE_ACQUISITION": FixedControlStage.ACQUISITION,
@@ -307,11 +374,14 @@ def _fixed_control_not_executed(
     attempted = failure_stage == "FIXED_CONTROL_EXECUTION"
     return {
         "attempted": attempted,
+        "collection_count": 0,
         "dependency_environment_fingerprint": dependency_environment_fingerprint,
         "duration_milliseconds": 0,
         "evaluator_selector_fingerprint": _sha256_record(
             {"argv": list(adapter.evaluator_argv), "selectors": list(adapter.test_selectors)}
         ),
+        "expected_outcome": "EXIT_ZERO",
+        "expected_test_framework": adapter.evaluator_argv[2],
         "exit_code": diagnostic["process_return_code"] if attempted else None,
         "failure_signature_sha256": diagnostic["normalized_stderr_sha256"],
         "image_identity": image_identity,
@@ -320,16 +390,99 @@ def _fixed_control_not_executed(
         "outcome": Outcome.INFRASTRUCTURE_FAILURE.value,
         "output_truncated": False,
         "revision": adapter.fixed_revision,
+        "project_installation_mode": "DEPENDENCIES_ONLY_NO_TARGET_INSTALL",
+        "selected_test_fingerprint": None,
+        "source_identity": source_identity,
         "stage": stages[failure_stage].value,
         "tests_failed": 0,
         "tests_passed": 0,
     }
 
 
-def _execute(adapter: EvaluatorAdapter, image: str, source: Path, name: str) -> AttemptEvidence:
+def _container_source_fingerprint(
+    adapter: EvaluatorAdapter, image: str, source: Path, name: str
+) -> str:
+    script = """import hashlib,os,pathlib,stat,sys
+root=pathlib.Path(sys.argv[1]); digest=hashlib.sha256()
+for path in sorted(root.rglob('*')):
+ rel=path.relative_to(root)
+ if not rel.parts or rel.parts[0]=='.git': continue
+ mode=path.lstat().st_mode & 0o777
+ if path.is_symlink(): kind=b'L'; content=os.readlink(path).encode('utf-8','surrogateescape')
+ elif path.is_file(): kind=b'F'; content=path.read_bytes()
+ else: continue
+ digest.update(rel.as_posix().encode('utf-8','surrogateescape'))
+ digest.update(b'\\0'+kind+f'{mode:o}'.encode()+b'\\0')
+ digest.update(hashlib.sha256(content).digest())
+print(digest.hexdigest())
+"""
+    command = [
+        "docker",
+        "run",
+        "--rm",
+        "--name",
+        name,
+        "--label",
+        "archguard.phase=12.8f",
+        "--platform",
+        "linux/amd64",
+        "--network",
+        "none",
+        "--read-only",
+        "--tmpfs",
+        f"/tmp:rw,noexec,nosuid,size={adapter.sandbox.tmpfs_bytes}",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges:true",
+        "--pids-limit",
+        str(adapter.sandbox.pids),
+        "--memory",
+        str(adapter.sandbox.memory_bytes),
+        "--cpus",
+        str(adapter.sandbox.cpus),
+        "--user",
+        "65532:65532",
+        "--volume",
+        f"{source}:/workspace:ro",
+        "--workdir",
+        "/workspace",
+        image,
+        "python",
+        "-c",
+        script,
+        "/workspace",
+    ]
+    result = subprocess.run(command, capture_output=True, timeout=120)
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode, command, output=result.stdout, stderr=result.stderr
+        )
+    value = result.stdout.decode("ascii").strip()
+    if not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise RuntimeError("invalid container-visible source fingerprint")
+    return value
+
+
+def _execute(
+    adapter: EvaluatorAdapter,
+    image: str,
+    source: Path,
+    name: str,
+    *,
+    expected_outcome: str,
+    source_identity: dict[str, Any],
+) -> AttemptEvidence:
     started = time.monotonic()
+    if expected_outcome not in {"TEST_FAILURE", "EXIT_ZERO"}:
+        raise RuntimeError("unsupported execution expectation")
+    container_fingerprint = _container_source_fingerprint(
+        adapter, image, source, f"{name}-identity"
+    )
+    if container_fingerprint != source_identity["working_directory_fingerprint"]:
+        raise RuntimeError("container-visible source identity mismatch")
+    source_identity["container_visible_source_fingerprint"] = container_fingerprint
     command = [*adapter.evaluator_argv, *adapter.test_selectors]
-    preparation = "touch tests/__init__.py && " if adapter.project == "black" else ""
     docker = [
         "docker",
         "run",
@@ -344,8 +497,6 @@ def _execute(adapter: EvaluatorAdapter, image: str, source: Path, name: str) -> 
         "--read-only",
         "--tmpfs",
         f"/tmp:rw,noexec,nosuid,size={adapter.sandbox.tmpfs_bytes}",
-        "--tmpfs",
-        f"/source:rw,nosuid,size={adapter.sandbox.tmpfs_bytes}",
         "--cap-drop",
         "ALL",
         "--security-opt",
@@ -359,12 +510,10 @@ def _execute(adapter: EvaluatorAdapter, image: str, source: Path, name: str) -> 
         "--user",
         "65532:65532",
         "--volume",
-        f"{source}:/input:ro",
+        f"{source}:/workspace:ro",
+        "--workdir",
+        "/workspace",
         image,
-        "sh",
-        "-c",
-        "cp -a /input/. /source && " + preparation + 'exec "$@"',
-        "evaluator",
         *command,
     ]
     try:
@@ -379,25 +528,16 @@ def _execute(adapter: EvaluatorAdapter, image: str, source: Path, name: str) -> 
         normalized = re.sub(rb"\d+(?:\.\d+)?s", b"<duration>", raw)
         normalized = re.sub(rb"/[^\s:]+", b"<path>", normalized)
         signature = hashlib.sha256(normalized).hexdigest() if result.returncode else None
-        outcome = Outcome.PASS if result.returncode == 0 else Outcome.EXPECTED_FAILURE
         text = raw.decode("utf-8", "replace")
-        collection_failed = any(
-            marker in text
-            for marker in (
-                "ERROR collecting",
-                "ImportError while importing test module",
-                "collected 0 items",
-            )
-        )
-        if collection_failed:
-            outcome = Outcome.OTHER_FAILURE
-            failure_class = "TEST_COLLECTION_FAILED"
-        elif result.returncode:
-            failure_class = "TEST_FAILURE"
-        else:
-            failure_class = None
+        failure_class = _failure_category(text, result.returncode)
+        outcome = Outcome.PASS if result.returncode == 0 else Outcome.OTHER_FAILURE
+        if expected_outcome == "TEST_FAILURE" and failure_class == "ASSERTION_FAILURE":
+            outcome = Outcome.EXPECTED_FAILURE
         passed = sum(int(value) for value in re.findall(r"(\d+) passed", text))
         failed = sum(int(value) for value in re.findall(r"(\d+) failed", text))
+        ran = sum(int(value) for value in re.findall(r"Ran (\d+) tests?", text))
+        if ran and passed == 0 and failed == 0:
+            passed, failed = (ran, 0) if result.returncode == 0 else (0, ran)
         return AttemptEvidence(
             outcome,
             result.returncode,
@@ -409,9 +549,28 @@ def _execute(adapter: EvaluatorAdapter, image: str, source: Path, name: str) -> 
             failure_class,
         )
     except subprocess.TimeoutExpired:
-        return AttemptEvidence(Outcome.TIMEOUT, None, None, 0, 0, 1_200_000, True, "TIMEOUT")
+        return AttemptEvidence(Outcome.TIMEOUT, None, None, 0, 0, 1_200_000, True, "TEST_TIMEOUT")
     finally:
         subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+
+
+def _failure_category(text: str, returncode: int) -> str | None:
+    """Return only a source-free allowlisted evaluator failure category."""
+    if returncode == 0:
+        return None
+    if any(marker in text for marker in ("collected 0 items", "no tests ran", "not found:")):
+        return "SELECTOR_NOT_FOUND"
+    if "ImportError" in text or "ModuleNotFoundError" in text:
+        return "IMPORT_ERROR"
+    if "ERROR collecting" in text:
+        return "COLLECTION_ERROR"
+    if "PermissionError" in text or "Permission denied" in text:
+        return "PERMISSION_ERROR"
+    if "installation failed" in text:
+        return "PROJECT_INSTALLATION_ERROR"
+    if "AssertionError" in text or re.search(r"\bFAILED\b|\d+ failed", text):
+        return "ASSERTION_FAILURE"
+    return "TEST_PROCESS_ERROR"
 
 
 def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str, Any]:
@@ -428,18 +587,26 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
     attempts: tuple[AttemptEvidence, ...] = ()
     fixed_attempt: AttemptEvidence | None = None
     evaluator_image_identity: dict[str, str] | None = None
+    buggy_identity: dict[str, Any] | None = None
+    fixed_identity: dict[str, Any] | None = None
     dependency_environment_fingerprint: str | None = None
     packages: list[dict[str, str]] = []
     image_size = 0
     try:
-        _safe_checkout(adapter.repository, adapter.buggy_revision, buggy)
-        _safe_checkout(adapter.repository, adapter.fixed_revision, fixed)
+        buggy_identity = _safe_checkout(adapter.repository, adapter.buggy_revision, buggy)
+        fixed_identity = _safe_checkout(adapter.repository, adapter.fixed_revision, fixed)
         failure_stage = "IDENTITY_VERIFICATION"
+        if buggy_identity["git_tree_identity"] == fixed_identity["git_tree_identity"]:
+            raise RuntimeError("buggy and fixed source trees unexpectedly identical")
         _verify_identities(adapter, buggy, framework)
         failure_stage = "BASE_IMAGE_ACQUISITION"
         base, base_identity, base_size = _acquire_base_image(adapter, build)
         failure_stage = "DEPENDENCY_BUILD"
         image, packages, image_size, evaluator_image_identity = _build_image(adapter, build, base)
+        for identity in (buggy_identity, fixed_identity):
+            identity["build_context_fingerprint"] = evaluator_image_identity[
+                "build_context_fingerprint"
+            ]
         dependency_build_status = "COMPLETE"
         dependency_environment_fingerprint = _sha256_record(
             {
@@ -453,12 +620,24 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
         _prepare_project(adapter)
         failure_stage = "BUGGY_EXECUTION"
         attempts = tuple(
-            _execute(adapter, image, buggy, f"phase128f-{adapter.task_id.lower()}-buggy-{index}")
+            _execute(
+                adapter,
+                image,
+                buggy,
+                f"phase128f-{adapter.task_id.lower()}-buggy-{index}",
+                expected_outcome="TEST_FAILURE",
+                source_identity=buggy_identity,
+            )
             for index in range(1, 4)
         )
         failure_stage = "FIXED_CONTROL_EXECUTION"
         fixed_attempt = _execute(
-            adapter, image, fixed, f"phase128f-{adapter.task_id.lower()}-fixed"
+            adapter,
+            image,
+            fixed,
+            f"phase128f-{adapter.task_id.lower()}-fixed",
+            expected_outcome="EXIT_ZERO",
+            source_identity=fixed_identity,
         )
         fixed_passed = fixed_attempt.outcome is Outcome.PASS
         classification = (
@@ -533,11 +712,13 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
     if fixed_attempt is not None:
         assert dependency_environment_fingerprint is not None
         assert evaluator_image_identity is not None
+        assert fixed_identity is not None
         fixed_control = _fixed_control_record(
             adapter,
             fixed_attempt,
             dependency_environment_fingerprint,
             evaluator_image_identity,
+            fixed_identity,
         )
     else:
         assert diagnostic is not None
@@ -547,6 +728,7 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             diagnostic,
             dependency_environment_fingerprint,
             evaluator_image_identity,
+            fixed_identity,
         )
     buggy_signatures = {attempt.failure_signature for attempt in attempts}
     buggy_result_status = (
@@ -569,6 +751,7 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             for attempt in attempts
         ],
         "buggy_revision": adapter.buggy_revision,
+        "buggy_source_identity": buggy_identity,
         "buggy_result_status": buggy_result_status,
         "buggy_environment_fingerprint": dependency_environment_fingerprint,
         "classification": classification.value,

@@ -13,3 +13,7 @@ preserved but not imported as qualification evidence.
 
 Phase 12.8F.2 adds the missing source-free diagnostic fields and prevents a failed control from becoming
 an inferred scientific classification. A new Batch A run and human review remain required.
+
+Follow-up run `37684840237` reached fixed execution for every task but exposed inherited buggy outcome
+semantics. Its separate incident record documents the Phase 12.8F.3 resolution. Both runs remain
+non-imported and qualify no task.
