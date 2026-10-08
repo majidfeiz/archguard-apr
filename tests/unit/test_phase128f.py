@@ -254,6 +254,71 @@ def result(task_id: str = "black-1") -> dict[str, Any]:
     }
 
 
+def _with_source_identities(value: dict[str, Any]) -> dict[str, Any]:
+    def identity(revision: str, marker: str) -> dict[str, Any]:
+        return {
+            "requested_revision": revision,
+            "acquired_repository_revision": revision,
+            "checked_out_head": revision,
+            "git_tree_identity": marker * 40,
+            "working_directory_fingerprint": marker * 64,
+            "container_visible_source_fingerprint": marker * 64,
+            "build_context_fingerprint": "c" * 64,
+        }
+
+    fixed = value["fixed_control"]
+    fixed.update(
+        {
+            "collection_count": 1,
+            "expected_outcome": "EXIT_ZERO",
+            "expected_test_framework": "pytest",
+            "project_installation_mode": "DEPENDENCIES_ONLY_NO_TARGET_INSTALL",
+            "selected_test_fingerprint": SHA,
+            "source_identity": identity(value["fixed_revision"], "b"),
+        }
+    )
+    fixed["image_identity"].update(
+        {
+            "build_context_fingerprint": "c" * 64,
+            "source_in_image": "ABSENT_DEPENDENCY_ONLY",
+        }
+    )
+    value["buggy_source_identity"] = identity(value["buggy_revision"], "a")
+    return value
+
+
+def test_extended_source_identity_contract_and_canaries() -> None:
+    valid = _with_source_identities(result())
+    _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [valid]})
+
+    fixed_expected = _with_source_identities(result())
+    fixed_expected["fixed_control"]["outcome"] = "EXPECTED_FAILURE"
+    with pytest.raises(ValueError, match="buggy expected-failure semantics"):
+        _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [fixed_expected]})
+
+    wrong_head = _with_source_identities(result())
+    wrong_head["fixed_control"]["source_identity"]["checked_out_head"] = "0" * 40
+    with pytest.raises(ValueError, match="source revision identity mismatch"):
+        _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [wrong_head]})
+
+    stale_mount = _with_source_identities(result())
+    stale_mount["fixed_control"]["source_identity"]["container_visible_source_fingerprint"] = (
+        "d" * 64
+    )
+    with pytest.raises(ValueError, match="container-visible source mismatch"):
+        _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [stale_mount]})
+
+    shared_tree = _with_source_identities(result())
+    shared_tree["fixed_control"]["source_identity"]["git_tree_identity"] = "a" * 40
+    with pytest.raises(ValueError, match="must be independent"):
+        _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [shared_tree]})
+
+    stale_image = _with_source_identities(result())
+    stale_image["fixed_control"]["image_identity"]["build_context_fingerprint"] = "d" * 64
+    with pytest.raises(ValueError, match="target source leaked"):
+        _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [stale_image]})
+
+
 @pytest.fixture
 def evidence(repository_root: Path, tmp_path: Path) -> tuple[Path, Path]:
     results = tmp_path / "results.json"

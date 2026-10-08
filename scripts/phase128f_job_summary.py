@@ -22,25 +22,24 @@ def _selected(selection: str) -> tuple[str, ...]:
 def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
     reached = {item["task_id"] for item in results}
     lines = [
-        "## Phase 12.8F qualification",
+        "## Phase 12.8F.3 Batch A execution-path verification",
         "",
-        "| Task | Buggy result | Classification | Failure stage/code | Fixed control |",
-        "|---|---|---|---|---|",
+        "| Task | Buggy status | Fixed status | Fixed stage | Fixed failure category | "
+        "Source identity match | Qualification decision |",
+        "|---|---|---|---|---|---|---|",
     ]
     for result in results:
-        diagnostic = result.get("infrastructure_diagnostic") or {}
-        failure = (
-            "/".join(
-                value
-                for value in (diagnostic.get("failure_stage"), diagnostic.get("failure_code"))
-                if value
-            )
-            or "none"
+        fixed = result.get("fixed_control") or {}
+        source_identity = fixed.get("source_identity") or {}
+        source_match = bool(source_identity) and (
+            source_identity.get("working_directory_fingerprint")
+            == source_identity.get("container_visible_source_fingerprint")
         )
         lines.append(
             f"| {result['task_id']} | {result.get('buggy_result_status', 'NOT_REACHED')} | "
-            f"{result['classification']} | {failure} | "
-            f"{str(result['fixed_control_passed']).lower()} |"
+            f"{fixed.get('outcome', 'NOT_REACHED')} | {fixed.get('stage', 'none')} | "
+            f"{fixed.get('normalized_failure_class') or 'none'} | {str(source_match).lower()} | "
+            f"{result.get('qualification_decision', 'NOT_QUALIFIED')} |"
         )
     not_reached = [task for task in _selected(selection) if task not in reached]
     qualified = sum(item.get("qualification_decision") == "QUALIFIED" for item in results)

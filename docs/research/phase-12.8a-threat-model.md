@@ -42,3 +42,7 @@ bounded normalized hashes and categorical stages/codes.
 Phase 12.8F.2 separately binds fixed-control revision, stage, selector, dependency environment and image
 identity. Collection, execution and infrastructure failures cannot masquerade as defect outcomes;
 fixed failures remain review-required and raw diagnostic output remains temporary and unpublishable.
+Phase 12.8F.3 makes target-source absence from the dependency image explicit and verifies each mounted
+tree inside the network-disabled container. Independent revision, Git-tree, working-tree, build-context
+and container-visible fingerprints fail closed on stale cache, wrong checkout, wrong mount or working
+directory. Fixed `EXIT_ZERO` semantics are separate from buggy `TEST_FAILURE` semantics.

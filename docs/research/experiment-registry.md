@@ -60,3 +60,6 @@ diagnostics without changing candidates, prior evidence or readiness.
 Run 37672954475 subsequently executed all Batch A buggy repetitions with stable signatures but all four
 fixed controls failed. Because its Artifact lacks fixed-stage diagnostics, causes and scientific
 classifications remain unresolved, zero tasks qualify, and the run is preserved without import.
+Run 37684840237 added fixed-stage diagnostics but also qualified zero tasks. It is retained without
+import. Its fixed `EXPECTED_FAILURE` anomaly led to the Phase 12.8F.3 engineering repair; no adapter,
+candidate, scientific result, Batch B run, repair experiment or Phase 13 execution is registered.
