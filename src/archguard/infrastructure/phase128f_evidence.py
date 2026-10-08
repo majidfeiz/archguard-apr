@@ -283,11 +283,36 @@ def _validate_results(value: dict[str, Any]) -> None:
                 )
                 for attempt in attempts
             )
-            if classify(parsed, fixed_control_passed=fixed_passed) is not classification:
-                if classification not in {
-                    Classification.FIXED_CONTROL_FAILED,
-                    Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE,
-                }:
+            reconstructed = classify(parsed, fixed_control_passed=fixed_passed)
+            if reconstructed is not classification:
+                diagnostic = result.get("infrastructure_diagnostic")
+                pre_execution_evaluator_failure = (
+                    classification
+                    in {
+                        Classification.EVALUATOR_ADAPTER_INVALID,
+                        Classification.EVALUATOR_ENVIRONMENT_INVALID,
+                    }
+                    and isinstance(diagnostic, dict)
+                    and diagnostic.get("failure_stage")
+                    in {"IDENTITY_VERIFICATION", "EVALUATOR_PREFLIGHT"}
+                    and result.get("scientific_classification") is None
+                    and result.get("execution_status") == "INVALID_EVALUATOR_RESULT"
+                    and result.get("prior_evidence_status") == "NOT_EVALUATED_INVALID_EVALUATOR"
+                    and fixed_control.get("attempted") is False
+                    and all(
+                        attempt.outcome is Outcome.INFRASTRUCTURE_FAILURE
+                        and attempt.duration_milliseconds == 0
+                        for attempt in parsed
+                    )
+                )
+                if (
+                    classification
+                    not in {
+                        Classification.FIXED_CONTROL_FAILED,
+                        Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE,
+                    }
+                    and not pre_execution_evaluator_failure
+                ):
                     raise ValueError("classification inconsistent with run evidence")
             if classification is Classification.INFRASTRUCTURE_FAILURE and any(
                 attempt.duration_milliseconds == 0
