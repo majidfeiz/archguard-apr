@@ -60,3 +60,7 @@ destinations, mount read-only state, writable isolated temporary paths, absent D
 execution network and container-visible fixture identity are checked before import or collection.
 Only fingerprints and allowlisted outcomes are retained; evaluator bytes and raw diagnostics remain
 excluded.
+Phase 12.8F.4.2.1 mounts `/tmp` as bounded `noexec,nosuid,nodev` tmpfs with explicit non-root-compatible
+ownership and mode. HOME, temporary data, bytecode, and pytest cache are isolated below that mount.
+Behavioral probes reject missing, symlinked, protected-overlapping, non-tmpfs, ownership-incompatible,
+uncleaned, or unwritable paths without retaining their container paths.

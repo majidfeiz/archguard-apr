@@ -108,14 +108,19 @@ def _reject_sensitive(value: Any) -> None:
 
 
 def _validate_runtime_state_machine(value: Any, *, qualified: bool) -> None:
-    if not isinstance(value, dict) or value.get("schema") != (
-        "archguard.evaluator-runtime-state-machine/v1"
-    ):
+    if not isinstance(value, dict) or value.get("schema") not in {
+        "archguard.evaluator-runtime-state-machine/v1",
+        "archguard.evaluator-runtime-state-machine/v2",
+    }:
         raise ValueError("invalid evaluator runtime state-machine schema")
     transitions = value.get("transitions")
     if not isinstance(transitions, list):
         raise ValueError("missing evaluator runtime transitions")
     states = [state.value for state in EvaluatorRuntimeState]
+    if value["schema"] == "archguard.evaluator-runtime-state-machine/v1":
+        states = [
+            state for state in states if state not in {"TMPFS_CREATED", "WRITABLE_PATHS_VERIFIED"}
+        ]
     if len(transitions) > len(states):
         raise ValueError("invalid evaluator runtime transition count")
     reached: list[str] = []

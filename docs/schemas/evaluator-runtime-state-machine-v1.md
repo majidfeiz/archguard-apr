@@ -13,4 +13,5 @@ out-of-order operation fails closed and `next_required` identifies the first unr
 Mount proof checks exact paths, independent mount identities, read-only source/evaluator mounts,
 writable temporary and home paths, fixture identity, absent Docker socket, and disabled execution
 network. Evidence never contains fixture bytes, directory listings, source, patches, gold data, or raw
-logs.
+logs. Phase 12.8F.4.2.1 preserves this historical ordering and introduces v2 for explicit writable
+filesystem transitions.

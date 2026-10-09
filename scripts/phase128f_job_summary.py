@@ -22,12 +22,12 @@ def _selected(selection: str) -> tuple[str, ...]:
 def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
     reached = {item["task_id"] for item in results}
     lines = [
-        "## Phase 12.8F.4.2 PySnooper-1 runtime canary",
+        "## Phase 12.8F.4.2.1 PySnooper-1 runtime canary",
         "",
-        "| Task | Fixture acquired | Fixture verified | Source mounted | Evaluator mounted | "
-        "Project import | Evaluator import | Collection | Buggy valid attempts | Fixed result | "
-        "Qualification |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
+        "| Task | tmpfs created | Writable probe | Fixture acquired | Fixture verified | "
+        "Source mounted | Evaluator mounted | Project import | Evaluator import | Collection | "
+        "Buggy valid attempts | Fixed result | Qualification |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for result in results:
         fixed = result.get("fixed_control") or {}
@@ -43,7 +43,9 @@ def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
             item.get("outcome") == "EXPECTED_FAILURE" for item in buggy_attempts
         )
         lines.append(
-            f"| {result['task_id']} | {'EVALUATOR_ACQUIRED' in reached_states} | "
+            f"| {result['task_id']} | {'TMPFS_CREATED' in reached_states} | "
+            f"{'WRITABLE_PATHS_VERIFIED' in reached_states} | "
+            f"{'EVALUATOR_ACQUIRED' in reached_states} | "
             f"{'EVALUATOR_IDENTITY_VERIFIED' in reached_states} | "
             f"{'SOURCE_MOUNTED' in reached_states} | "
             f"{'EVALUATOR_MOUNTED' in reached_states} | "

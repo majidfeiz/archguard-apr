@@ -345,7 +345,7 @@ def test_qualified_runtime_canary_requires_every_ordered_transition() -> None:
         for index, state in enumerate(states)
     ]
     valid["runtime_state_machine"] = {
-        "schema": "archguard.evaluator-runtime-state-machine/v1",
+        "schema": "archguard.evaluator-runtime-state-machine/v2",
         "last_reached": states[-1],
         "next_required": None,
         "transition_fingerprint": hashlib.sha256(canonical_json(transitions)).hexdigest(),

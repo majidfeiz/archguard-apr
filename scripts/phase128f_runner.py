@@ -43,6 +43,9 @@ ALLOWED_HOSTS = (
 BUGSINPY_REVISION = "11c5f1eea954a42132cfd06bf257766a7963e0fd"
 OWNED_BASE_REFERENCES: set[str] = set()
 EVALUATOR_ROOT = "/evaluator"
+RUNTIME_UID = 65532
+RUNTIME_GID = 65532
+PYTEST_CACHE = "/tmp/pytest-cache"
 V3_RUNTIME_FIELDS = (
     "buggy_test_selectors",
     "fixed_test_selectors",
@@ -84,7 +87,7 @@ class RuntimeTransitions:
     def evidence(self) -> dict[str, Any]:
         reached = [record["state"] for record in self._records]
         return {
-            "schema": "archguard.evaluator-runtime-state-machine/v1",
+            "schema": "archguard.evaluator-runtime-state-machine/v2",
             "last_reached": reached[-1] if reached else None,
             "next_required": (
                 RUNTIME_STATE_ORDER[len(reached)].value
@@ -404,6 +407,8 @@ def _runtime_selectors(adapter: EvaluatorAdapter, expected_outcome: str) -> tupl
 
 def _runtime_argv(adapter: EvaluatorAdapter, expected_outcome: str) -> tuple[str, ...]:
     selectors = _runtime_selectors(adapter, expected_outcome)
+    if adapter.expected_framework == "pytest":
+        return (*adapter.evaluator_argv, "-o", f"cache_dir={PYTEST_CACHE}", *selectors)
     if adapter.expected_framework == "tox":
         return (
             *adapter.evaluator_argv,
@@ -638,9 +643,8 @@ def _sandbox_prefix(
         "none",
         "--read-only",
         "--tmpfs",
-        f"/tmp/archguard:rw,noexec,nosuid,size={adapter.sandbox.tmpfs_bytes}",
-        "--tmpfs",
-        f"/tmp/home:rw,noexec,nosuid,size={adapter.sandbox.tmpfs_bytes}",
+        f"/tmp:rw,noexec,nosuid,nodev,size={adapter.sandbox.tmpfs_bytes},"
+        f"mode=1777,uid={RUNTIME_UID},gid={RUNTIME_GID}",
         "--tmpfs",
         f"/tox:rw,nosuid,size={adapter.sandbox.tmpfs_bytes}",
         "--cap-drop",
@@ -654,7 +658,7 @@ def _sandbox_prefix(
         "--cpus",
         str(adapter.sandbox.cpus),
         "--user",
-        "65532:65532",
+        f"{RUNTIME_UID}:{RUNTIME_GID}",
         "--volume",
         f"{source}:/workspace:ro",
         "--volume",
@@ -670,6 +674,10 @@ def _sandbox_prefix(
         "--env",
         "TMPDIR=/tmp/archguard",
         "--env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "--env",
+        "PYTHONPYCACHEPREFIX=/tmp/archguard/pycache",
+        "--env",
         "PIP_NO_INDEX=1",
         "--env",
         "PIP_FIND_LINKS=/wheelhouse",
@@ -678,6 +686,10 @@ def _sandbox_prefix(
         "--env",
         "TOXENV=py36",
         image,
+        "/bin/sh",
+        "-c",
+        'umask 077; mkdir -p /tmp/home /tmp/archguard /tmp/pytest-cache; exec "$@"',
+        "archguard-runtime-init",
     ]
 
 
@@ -689,8 +701,6 @@ def _validate_mount_probe(probe: dict[str, Any], expected_fixture_sha256: str) -
         "mounts_distinct": True,
         "source_read_only": True,
         "evaluator_read_only": True,
-        "temporary_writable": True,
-        "home_writable": True,
         "docker_socket_absent": True,
         "network_disabled": True,
     }
@@ -699,6 +709,35 @@ def _validate_mount_probe(probe: dict[str, Any], expected_fixture_sha256: str) -
             raise EvaluatorPreflightError(f"MOUNT_PROBE_{field.upper()}")
     if probe.get("fixture_sha256") != expected_fixture_sha256:
         raise EvaluatorPreflightError("EVALUATOR_IDENTITY_MISMATCH")
+
+
+def _validate_writable_probe(probe: dict[str, Any]) -> None:
+    paths = probe.get("writable_paths")
+    if not isinstance(paths, list) or len(paths) != 4:
+        raise EvaluatorPreflightError("WRITABLE_PROBE_INCOMPLETE")
+    required = {
+        "cleanup": True,
+        "exists": True,
+        "mount_type_category": "tmpfs",
+        "not_symlink": True,
+        "outside_protected_mounts": True,
+        "ownership_compatible": True,
+        "writable": True,
+    }
+    for path in paths:
+        if not isinstance(path, dict):
+            raise EvaluatorPreflightError("WRITABLE_PROBE_INVALID")
+        fingerprint = path.get("role_fingerprint")
+        if not isinstance(fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+            raise EvaluatorPreflightError("WRITABLE_PROBE_ROLE_FINGERPRINT")
+        for field, expected in required.items():
+            if path.get(field) != expected:
+                raise EvaluatorPreflightError(f"WRITABLE_PROBE_{field.upper()}")
+
+
+def _validate_tmpfs_created(probe: dict[str, Any]) -> None:
+    if probe.get("tmpfs_created") is not True:
+        raise EvaluatorPreflightError("TMPFS_NOT_CREATED")
 
 
 def _mount_probe(
@@ -711,24 +750,48 @@ def _mount_probe(
     assert adapter.evaluator_fixture_path is not None
     assert adapter.evaluator_fixture_sha256 is not None
     mounted_fixture = f"{EVALUATOR_ROOT}/{adapter.evaluator_fixture_path}"
-    script = """import hashlib,json,os,pathlib,sys
+    script = """import hashlib,json,os,pathlib,secrets,stat,sys
 fixture=pathlib.Path(sys.argv[1]); points={}
 for line in pathlib.Path('/proc/self/mountinfo').read_text().splitlines():
  parts=line.split(); points[parts[4]]=parts
 def readonly(point): return point in points and 'ro' in points[point][5].split(',')
-def writable(path):
+def mount_type(path):
+ matches=[point for point in points if path==point or path.startswith(point.rstrip('/')+'/')]
+ if not matches: return 'unknown'
+ parts=points[max(matches,key=len)]; separator=parts.index('-'); return parts[separator+1]
+def writable(role,path):
+ target=None; exists=path.is_dir(); linked=path.is_symlink(); compatible=False; worked=False
  try:
-  target=pathlib.Path(path)/'.archguard-write-probe'
-  target.write_bytes(b''); target.unlink(); return True
- except OSError: return False
+  metadata=path.stat(); mode=metadata.st_mode
+  compatible=((metadata.st_uid==os.geteuid() and bool(mode & stat.S_IWUSR)) or
+   (metadata.st_gid==os.getegid() and bool(mode & stat.S_IWGRP)) or bool(mode & stat.S_IWOTH))
+  target=path/('.archguard-'+secrets.token_hex(12))
+  descriptor=os.open(target,os.O_CREAT|os.O_EXCL|os.O_RDWR|os.O_NOFOLLOW,0o600)
+  try:
+   payload=b'archguard'; os.write(descriptor,payload); os.fsync(descriptor)
+   worked=os.fstat(descriptor).st_size==len(payload)
+  finally: os.close(descriptor)
+ except OSError: pass
+ finally:
+  if target is not None:
+   try: target.unlink()
+   except OSError: pass
+ return {'role_fingerprint':hashlib.sha256(role.encode()).hexdigest(),'exists':exists,
+ 'not_symlink':not linked,'writable':worked,'mount_type_category':mount_type(str(path)),
+ 'ownership_compatible':compatible,'cleanup':target is None or not target.exists(),
+ 'outside_protected_mounts':not any(str(path.resolve()).startswith(root+'/') or
+ str(path.resolve())==root for root in ('/workspace','/evaluator','/wheelhouse'))}
 source=pathlib.Path('/workspace'); evaluator=pathlib.Path('/evaluator')
+write_results=[writable(role,pathlib.Path(path)) for role,path in (
+('temporary-root','/tmp'),('home','/tmp/home'),('temporary-data','/tmp/archguard'),
+('pytest-cache','/tmp/pytest-cache'))]
 body={'source_exists':source.is_dir(),'evaluator_exists':evaluator.is_dir(),
 'fixture_exists':fixture.is_file(),
 'fixture_sha256':hashlib.sha256(fixture.read_bytes()).hexdigest() if fixture.is_file() else None,
 'mounts_distinct':('/workspace' in points and '/evaluator' in points and
 points['/workspace'][0]!=points['/evaluator'][0]),
 'source_read_only':readonly('/workspace'),'evaluator_read_only':readonly('/evaluator'),
-'temporary_writable':writable('/tmp/archguard'),'home_writable':writable('/tmp/home'),
+'tmpfs_created':mount_type('/tmp')=='tmpfs','writable_paths':write_results,
 'docker_socket_absent':not pathlib.Path('/var/run/docker.sock').exists(),
 'network_disabled':{path.name for path in pathlib.Path('/sys/class/net').iterdir()} <= {'lo'}}
 print(json.dumps(body,sort_keys=True,separators=(',',':')))"""
@@ -745,7 +808,6 @@ print(json.dumps(body,sort_keys=True,separators=(',',':')))"""
         probe = json.loads(result.stdout)
         if not isinstance(probe, dict):
             raise EvaluatorPreflightError("MOUNT_PROBE_INVALID")
-        _validate_mount_probe(probe, adapter.evaluator_fixture_sha256)
         container_source_fingerprint = _container_source_fingerprint(
             adapter, image, source, f"{name}-source-identity"
         )
@@ -767,11 +829,36 @@ def _preflight(
 ) -> dict[str, Any]:
     evaluator_root = _quarantine_root(adapter, evaluator_fixture)
     assert adapter.evaluator_fixture_path is not None
+    assert adapter.evaluator_fixture_sha256 is not None
     mounted_fixture = f"{EVALUATOR_ROOT}/{adapter.evaluator_fixture_path}"
     if adapter.project not in PROJECT_MODULES:
         raise EvaluatorPreflightError("PROJECT_MODULE_NOT_ALLOWLISTED")
     project_module = PROJECT_MODULES[adapter.project]
     topology = _mount_probe(adapter, image, source, evaluator_root, f"{name}-mount-probe")
+    _validate_tmpfs_created(topology)
+    if transitions is not None:
+        transitions.reach(
+            EvaluatorRuntimeState.TMPFS_CREATED,
+            {
+                "mount_type_category": "tmpfs",
+                "options_fingerprint": _sha256_record(
+                    {
+                        "gid": RUNTIME_GID,
+                        "mode": "1777",
+                        "noexec": True,
+                        "size": adapter.sandbox.tmpfs_bytes,
+                        "uid": RUNTIME_UID,
+                    }
+                ),
+            },
+        )
+    _validate_writable_probe(topology)
+    if transitions is not None:
+        transitions.reach(
+            EvaluatorRuntimeState.WRITABLE_PATHS_VERIFIED,
+            {"path_roles": topology["writable_paths"]},
+        )
+    _validate_mount_probe(topology, adapter.evaluator_fixture_sha256)
     if transitions is not None:
         transitions.reach(
             EvaluatorRuntimeState.SOURCE_MOUNTED,
@@ -839,6 +926,8 @@ def _preflight(
             "pytest",
             "--collect-only",
             "-q",
+            "-o",
+            f"cache_dir={PYTEST_CACHE}",
             *_runtime_selectors(adapter, "TEST_FAILURE"),
         ]
     elif adapter.expected_framework == "unittest":
@@ -1350,8 +1439,15 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
         Classification.EVALUATOR_ADAPTER_INVALID,
         Classification.EVALUATOR_ENVIRONMENT_INVALID,
     }
+    completed_runtime_canary = (
+        adapter.task_id == "PySnooper-1"
+        and classification is Classification.STABLE
+        and transitions.evidence()["last_reached"] == EvaluatorRuntimeState.CLEANED.value
+    )
     prior = (
-        "NOT_EVALUATED_FIXED_CONTROL_REVIEW_REQUIRED"
+        "PRIOR_EVALUATOR_NOT_COMPARABLE"
+        if completed_runtime_canary
+        else "NOT_EVALUATED_FIXED_CONTROL_REVIEW_REQUIRED"
         if classification
         in {
             Classification.FIXED_CONTROL_FAILED,

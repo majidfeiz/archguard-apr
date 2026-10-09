@@ -9,3 +9,11 @@
 - The common Python import cause is unresolved because the source-free artifact retained only the
   normalized runner category, not the underlying stderr, and local Docker was unavailable.
 - Phase 12.8F.4.2 narrows execution to PySnooper-1 and adds exact source-free transition diagnostics.
+
+## Follow-up run 37850406131
+
+The PySnooper-1 canary proved fixture acquisition, fixture identity, and installation preparation,
+then stopped at `MOUNT_PROBE_TEMPORARY_WRITABLE`. The dedicated `/tmp/archguard` tmpfs replaced the
+image-owned directory without explicit runtime UID/GID/mode and rejected the non-root write probe.
+No scientific attempt ran and the fixed control was not attempted. Phase 12.8F.4.2.1 uses one explicit
+`/tmp` tmpfs and creates its child directories as the mounted runtime user.
