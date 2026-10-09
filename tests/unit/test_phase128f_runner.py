@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from archguard.domain.phase128f import AttemptEvidence, EvaluatorRuntimeState, Outcome
+from archguard.domain.phase128f import BATCH_A, AttemptEvidence, EvaluatorRuntimeState, Outcome
 from scripts import phase128f_runner as runner
 from scripts.phase128f_registry import adapters
 from scripts.phase128f_security_scan import scan
@@ -33,6 +33,8 @@ def reviewed_fixture(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         transitions = args[-1] if isinstance(args[-1], runner.RuntimeTransitions) else None
         if transitions is not None:
             for state in (
+                EvaluatorRuntimeState.TMPFS_CREATED,
+                EvaluatorRuntimeState.WRITABLE_PATHS_VERIFIED,
                 EvaluatorRuntimeState.SOURCE_MOUNTED,
                 EvaluatorRuntimeState.EVALUATOR_MOUNTED,
                 EvaluatorRuntimeState.PROJECT_IMPORT_VERIFIED,
@@ -110,13 +112,15 @@ def test_structured_evaluator_argv_and_selector_are_separate(
         evaluator_fixture=fixture,
     )
     command = calls[0]
-    marker = command.index("image")
-    assert command[marker + 1 :] == [
+    marker = command.index("python")
+    assert command[marker:] == [
         "python",
         "-m",
         "pytest",
         "-q",
         "-s",
+        "-o",
+        "cache_dir=/tmp/pytest-cache",
         "/evaluator/tests/test_chinese.py::test_chinese",
     ]
     assert "python -m pytest -q -s" not in command
@@ -235,7 +239,10 @@ def test_cleanup_removes_only_labeled_and_newly_pulled_images(
 
 
 def _run_with_fixed_attempt(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fixed: AttemptEvidence
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    fixed: AttemptEvidence,
+    adapter_index: int = 1,
 ) -> dict[str, Any]:
     buggy = AttemptEvidence(
         Outcome.EXPECTED_FAILURE,
@@ -278,7 +285,7 @@ def _run_with_fixed_attempt(
         ),
     )
     monkeypatch.setattr(runner, "_execute", lambda *args, **kwargs: next(attempts))
-    return runner.qualify(adapters()[1], tmp_path, tmp_path)
+    return runner.qualify(adapters()[adapter_index], tmp_path, tmp_path)
 
 
 def test_fixed_control_passes_with_bound_environment(
@@ -294,6 +301,16 @@ def test_fixed_control_passes_with_bound_environment(
         == (result["buggy_environment_fingerprint"])
     )
     assert result["runtime_state_machine"]["last_reached"] == "CLEANED"
+    assert result["runtime_state_machine"]["next_required"] is None
+
+
+def test_pysnooper_one_canary_qualifies_only_after_complete_runtime(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fixed = AttemptEvidence(Outcome.PASS, 0, None, 1, 0, 100)
+    result = _run_with_fixed_attempt(monkeypatch, tmp_path, fixed, adapter_index=0)
+    assert result["qualification_decision"] == "QUALIFIED"
+    assert result["prior_evidence_status"] == "PRIOR_EVALUATOR_NOT_COMPARABLE"
     assert result["runtime_state_machine"]["next_required"] is None
 
 
@@ -805,3 +822,99 @@ def test_runtime_state_machine_rejects_skipped_transition() -> None:
     transitions = runner.RuntimeTransitions()
     with pytest.raises(runner.EvaluatorPreflightError, match="MISSING_TRANSITION_PLAN_VALIDATED"):
         transitions.reach(EvaluatorRuntimeState.SOURCE_ACQUIRED, {"operation": True})
+
+
+def _writable_probe() -> dict[str, Any]:
+    return {
+        "tmpfs_created": True,
+        "writable_paths": [
+            {
+                "cleanup": True,
+                "exists": True,
+                "mount_type_category": "tmpfs",
+                "not_symlink": True,
+                "outside_protected_mounts": True,
+                "ownership_compatible": True,
+                "role_fingerprint": hashlib.sha256(role.encode()).hexdigest(),
+                "writable": True,
+            }
+            for role in ("temporary-root", "home", "temporary-data", "pytest-cache")
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    ("index", "field", "code"),
+    [
+        (1, "exists", "WRITABLE_PROBE_EXISTS"),
+        (2, "exists", "WRITABLE_PROBE_EXISTS"),
+        (0, "ownership_compatible", "WRITABLE_PROBE_OWNERSHIP_COMPATIBLE"),
+        (1, "ownership_compatible", "WRITABLE_PROBE_OWNERSHIP_COMPATIBLE"),
+        (2, "not_symlink", "WRITABLE_PROBE_NOT_SYMLINK"),
+        (3, "cleanup", "WRITABLE_PROBE_CLEANUP"),
+        (0, "outside_protected_mounts", "WRITABLE_PROBE_OUTSIDE_PROTECTED_MOUNTS"),
+        (1, "outside_protected_mounts", "WRITABLE_PROBE_OUTSIDE_PROTECTED_MOUNTS"),
+    ],
+)
+def test_writable_probe_fails_closed(index: int, field: str, code: str) -> None:
+    probe = _writable_probe()
+    probe["writable_paths"][index][field] = False
+    with pytest.raises(runner.EvaluatorPreflightError, match=code):
+        runner._validate_writable_probe(probe)
+
+
+def test_writable_probe_requires_created_tmpfs_and_accepts_noexec(tmp_path: Path) -> None:
+    with pytest.raises(runner.EvaluatorPreflightError, match="TMPFS_NOT_CREATED"):
+        runner._validate_tmpfs_created({"tmpfs_created": False})
+    probe = _writable_probe()
+    runner._validate_tmpfs_created(probe)
+    runner._validate_writable_probe(probe)
+    source = tmp_path / "source"
+    evaluator = tmp_path / "evaluator"
+    source.mkdir()
+    evaluator.mkdir()
+    command = runner._sandbox_prefix(adapters()[0], "image", source, evaluator, "probe")
+    tmpfs = command[command.index("--tmpfs") + 1]
+    assert "noexec" in tmpfs and "mode=1777" in tmpfs
+
+
+def test_runtime_never_executes_probe_and_relocates_python_and_pytest_writes(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    evaluator = tmp_path / "evaluator"
+    source.mkdir()
+    evaluator.mkdir()
+    command = runner._sandbox_prefix(adapters()[0], "image", source, evaluator, "probe")
+    assert "PYTHONDONTWRITEBYTECODE=1" in command
+    assert "PYTHONPYCACHEPREFIX=/tmp/archguard/pycache" in command
+    assert "HOME=/tmp/home" in command and "TMPDIR=/tmp/archguard" in command
+    assert all("chmod" not in str(value) for value in runner._mount_probe.__code__.co_consts)
+    runtime = runner._runtime_argv(adapters()[0], "TEST_FAILURE")
+    assert "cache_dir=/tmp/pytest-cache" in runtime
+
+
+def test_canary_rejects_batch_a_and_batch_b() -> None:
+    with pytest.raises(ValueError, match="only PySnooper-1"):
+        runner._validate_runtime_canary_selection(BATCH_A)
+    with pytest.raises(ValueError, match="Batch B"):
+        runner._tasks("batch-b")
+
+
+def test_mount_probe_failure_always_cleans_container(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[list[str]] = []
+
+    def failed_probe(command: list[str], **_: Any) -> subprocess.CompletedProcess[bytes]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 1, b"", b"")
+
+    source = tmp_path / "source"
+    evaluator = tmp_path / "evaluator"
+    source.mkdir()
+    evaluator.mkdir()
+    monkeypatch.setattr(subprocess, "run", failed_probe)
+    with pytest.raises(runner.EvaluatorPreflightError, match="MOUNT_PROBE_FAILED"):
+        runner._mount_probe(adapters()[0], "image", source, evaluator, "failed-probe")
+    assert calls[-1] == ["docker", "rm", "-f", "failed-probe"]

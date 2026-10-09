@@ -1,4 +1,4 @@
-name: Phase 12.8F.4.2 PySnooper-1 Runtime Canary
+name: Phase 12.8F.4.2.1 PySnooper-1 Runtime Canary
 
 on:
   workflow_dispatch:
@@ -92,7 +92,7 @@ jobs:
             --external-root "${EXTERNAL_ROOT}" \
             --output "${RESULTS_PATH}"
           jq -e 'length == 1 and .[0].task_id == "PySnooper-1" and
-            .[0].runtime_state_machine.schema == "archguard.evaluator-runtime-state-machine/v1"' \
+            .[0].runtime_state_machine.schema == "archguard.evaluator-runtime-state-machine/v2"' \
             "${RESULTS_PATH}" >/dev/null
       - name: Enforce transfer, disk, leakage, and cleanup gates
         if: always()
@@ -137,7 +137,7 @@ jobs:
           python3 scripts/phase128f_evidence.py validate --archive "${VALIDATION_ZIP}"
           test "$(wc -c < "${VALIDATION_ZIP}")" -le 10485760
           rm -f -- "${VALIDATION_ZIP}"
-          echo "ARTIFACT_NAME=archguard-phase-12-8f4-2-pysnooper-1-runtime-canary-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
+          echo "ARTIFACT_NAME=archguard-phase-12-8f4-2-1-pysnooper-1-runtime-canary-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
       - name: Upload one source-free qualification Artifact
         uses: actions/upload-artifact@v7
         with:

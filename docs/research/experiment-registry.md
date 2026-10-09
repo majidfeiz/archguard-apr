@@ -74,3 +74,6 @@ Run 37847650875 likewise produced zero scientific executions and zero qualificat
 historical and non-imported. Phase 12.8F.4.2 permits only a PySnooper-1 runtime canary and defers the
 other three Batch A adapters. It does not register a scientific result, Batch B execution, repair
 experiment or Phase 13 run.
+Run 37850406131 stopped at the actual non-root temporary-writable probe after evaluator identity was
+verified. It produced zero scientific attempts and remains historical and non-imported. Phase
+12.8F.4.2.1 repairs only PySnooper-1 temporary storage; it registers no Batch A/B or Phase 13 run.
