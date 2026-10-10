@@ -83,3 +83,4 @@ def test_summary_uses_recorded_fixed_stage_and_category() -> None:
     )
     assert "Fixture acquired" in summary and "Source mounted" in summary
     assert "Project import" in summary and "NOT_QUALIFIED" in summary
+    assert "Evaluator loaded by pytest" in summary and "Resolved selector" in summary

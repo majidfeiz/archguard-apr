@@ -111,6 +111,7 @@ def _validate_runtime_state_machine(value: Any, *, qualified: bool) -> None:
     if not isinstance(value, dict) or value.get("schema") not in {
         "archguard.evaluator-runtime-state-machine/v1",
         "archguard.evaluator-runtime-state-machine/v2",
+        "archguard.evaluator-runtime-state-machine/v3",
     }:
         raise ValueError("invalid evaluator runtime state-machine schema")
     transitions = value.get("transitions")

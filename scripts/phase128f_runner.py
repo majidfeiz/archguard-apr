@@ -87,7 +87,7 @@ class RuntimeTransitions:
     def evidence(self) -> dict[str, Any]:
         reached = [record["state"] for record in self._records]
         return {
-            "schema": "archguard.evaluator-runtime-state-machine/v2",
+            "schema": "archguard.evaluator-runtime-state-machine/v3",
             "last_reached": reached[-1] if reached else None,
             "next_required": (
                 RUNTIME_STATE_ORDER[len(reached)].value
@@ -226,6 +226,32 @@ def _collection_count(output: str) -> int:
         return int(output.rsplit("COLLECTION_COUNT=", 1)[1].split()[0])
     matches = re.findall(r"(\d+) (?:test|item)s? collected", output)
     return int(matches[-1]) if matches else 0
+
+
+def _collected_node(output: str, logical_selector: str) -> str:
+    logical_path, separator, node = logical_selector.partition("::")
+    if not separator or not node:
+        raise EvaluatorPreflightError("EVALUATOR_SELECTOR_INVALID")
+    candidates: list[str] = []
+    for line in output.splitlines():
+        value = line.strip()
+        position = value.find(logical_path)
+        if position >= 0 and "::" in value[position:]:
+            candidates.append(value[position:])
+    if candidates != [logical_selector]:
+        raise EvaluatorPreflightError("EVALUATOR_SELECTED_NODE_MISMATCH")
+    return candidates[0]
+
+
+def _pytest_collection_failure_code(output: str, project_module: str = "") -> str:
+    lowered = output.lower()
+    if "not found" in lowered or "no tests ran" in lowered:
+        return "EVALUATOR_SELECTOR_NOT_FOUND"
+    if "importerror" in lowered or "modulenotfounderror" in lowered:
+        if project_module and project_module.lower() in lowered:
+            return "PROJECT_IMPORT_FAILED"
+        return "EVALUATOR_DEPENDENCY_MISSING"
+    return "EVALUATOR_NOT_COLLECTED"
 
 
 def _acquire_framework(destination: Path) -> None:
@@ -396,13 +422,25 @@ def _runtime_selectors(adapter: EvaluatorAdapter, expected_outcome: str) -> tupl
         else adapter.fixed_test_selectors
     )
     assert adapter.evaluator_fixture_path is not None
-    mounted_fixture = f"{EVALUATOR_ROOT}/{adapter.evaluator_fixture_path}"
     if adapter.expected_framework in {"pytest", "tox"}:
-        return tuple(
-            selector.replace(adapter.evaluator_fixture_path, mounted_fixture, 1)
-            for selector in declared
-        )
+        return tuple(_resolve_external_selector(adapter, selector) for selector in declared)
     return declared
+
+
+def _resolve_external_selector(adapter: EvaluatorAdapter, selector: str) -> str:
+    assert adapter.evaluator_fixture_path is not None
+    logical_path, separator, node = selector.partition("::")
+    path = PurePosixPath(logical_path)
+    if (
+        not separator
+        or not node
+        or path.is_absolute()
+        or ".." in path.parts
+        or "." in path.parts
+        or path.as_posix() != adapter.evaluator_fixture_path
+    ):
+        raise EvaluatorPreflightError("EVALUATOR_SELECTOR_OUTSIDE_ROOT")
+    return f"{EVALUATOR_ROOT}/{path.as_posix()}::{node}"
 
 
 def _runtime_argv(adapter: EvaluatorAdapter, expected_outcome: str) -> tuple[str, ...]:
@@ -900,25 +938,26 @@ def _preflight(
                 "module_name_fingerprint": _sha256_record(project_module),
             },
         )
-    evaluator_import_name = f"{name}-evaluator-import"
-    evaluator_import_command = _sandbox_prefix(
-        adapter, image, source, evaluator_root, evaluator_import_name
-    ) + ["python", "-c", "import runpy,sys; runpy.run_path(sys.argv[1])", mounted_fixture]
-    try:
-        evaluator_import = subprocess.run(
-            evaluator_import_command,
-            capture_output=True,
-            timeout=adapter.sandbox.timeout_seconds,
-        )
-        if evaluator_import.returncode != 0:
-            raise EvaluatorPreflightError("EVALUATOR_IMPORT_FAILED")
-    finally:
-        subprocess.run(["docker", "rm", "-f", evaluator_import_name], capture_output=True)
-    if transitions is not None:
-        transitions.reach(
-            EvaluatorRuntimeState.EVALUATOR_IMPORT_VERIFIED,
-            {"exit_status": 0, "fixture_sha256": adapter.evaluator_fixture_sha256},
-        )
+    if adapter.expected_framework != "pytest":
+        evaluator_import_name = f"{name}-evaluator-import"
+        evaluator_import_command = _sandbox_prefix(
+            adapter, image, source, evaluator_root, evaluator_import_name
+        ) + ["python", "-c", "import runpy,sys; runpy.run_path(sys.argv[1])", mounted_fixture]
+        try:
+            evaluator_import = subprocess.run(
+                evaluator_import_command,
+                capture_output=True,
+                timeout=adapter.sandbox.timeout_seconds,
+            )
+            if evaluator_import.returncode != 0:
+                raise EvaluatorPreflightError("EVALUATOR_IMPORT_FAILED")
+        finally:
+            subprocess.run(["docker", "rm", "-f", evaluator_import_name], capture_output=True)
+        if transitions is not None:
+            transitions.reach(
+                EvaluatorRuntimeState.EVALUATOR_IMPORT_VERIFIED,
+                {"exit_status": 0, "fixture_sha256": adapter.evaluator_fixture_sha256},
+            )
     if adapter.expected_framework == "pytest":
         preflight_argv = [
             "python",
@@ -957,14 +996,24 @@ def _preflight(
                     else "TOX_CONFIGURATION_INVALID"
                 )
             else:
-                code = (
-                    "PROJECT_IMPORT_FAILED" if "ImportError" in text else "EVALUATOR_NOT_COLLECTED"
-                )
+                code = _pytest_collection_failure_code(text, project_module)
             raise EvaluatorPreflightError(code)
         output = result.stdout.decode("utf-8", "replace")
         collection_count = _collection_count(output)
         if collection_count != 1:
             raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED")
+        declared_selectors = (
+            adapter.buggy_test_selectors
+            if adapter.expected_framework == "pytest"
+            else _runtime_selectors(adapter, "TEST_FAILURE")
+        )
+        if len(declared_selectors) != 1:
+            raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED")
+        collected_node = (
+            _collected_node(output, declared_selectors[0])
+            if adapter.expected_framework == "pytest"
+            else declared_selectors[0]
+        )
         container_hash_command = _sandbox_prefix(
             adapter, image, source, evaluator_root, f"{name}-identity"
         ) + [
@@ -981,12 +1030,23 @@ def _preflight(
         if container_hash != adapter.evaluator_fixture_sha256:
             raise EvaluatorPreflightError("EVALUATOR_IDENTITY_MISMATCH")
         if transitions is not None:
+            if adapter.expected_framework == "pytest":
+                transitions.reach(
+                    EvaluatorRuntimeState.EVALUATOR_IMPORT_VERIFIED,
+                    {
+                        "collection_exit_status": 0,
+                        "fixture_sha256": container_hash,
+                        "loader": "pytest-collection",
+                    },
+                )
             transitions.reach(
                 EvaluatorRuntimeState.TEST_COLLECTED,
                 {
                     "collection_count": collection_count,
+                    "collected_node_fingerprint": _sha256_record(collected_node),
                     "fixture_sha256": container_hash,
-                    "selector_fingerprint": _sha256_record(
+                    "logical_selector_fingerprint": _sha256_record(list(declared_selectors)),
+                    "resolved_selector_fingerprint": _sha256_record(
                         list(_runtime_selectors(adapter, "TEST_FAILURE"))
                     ),
                 },
@@ -997,6 +1057,9 @@ def _preflight(
             "evaluator_fixture_mounted": True,
             "evaluator_fixture_identity_match": True,
             "evaluator_import_verified": True,
+            "collected_node_fingerprint": _sha256_record(collected_node),
+            "fixture_mount_root_fingerprint": _sha256_record(EVALUATOR_ROOT),
+            "logical_selector_fingerprint": _sha256_record(list(declared_selectors)),
             "mount_topology_verified": True,
             "project_import_verified": True,
             "project_installation_preflight": "PASSED",
@@ -1492,6 +1555,8 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
         "TOX_CONFIGURATION_INVALID": EvaluatorValidationStatus.TOX_CONFIGURATION_INVALID,
         "OFFLINE_DEPENDENCY_MISSING": EvaluatorValidationStatus.OFFLINE_DEPENDENCY_MISSING,
         "EVALUATOR_NOT_COLLECTED": EvaluatorValidationStatus.EVALUATOR_NOT_COLLECTED,
+        "EVALUATOR_SELECTOR_NOT_FOUND": EvaluatorValidationStatus.TEST_NOT_COLLECTED,
+        "EVALUATOR_DEPENDENCY_MISSING": EvaluatorValidationStatus.DEPENDENCY_MISSING,
         "PROJECT_IMPORT_FAILED": EvaluatorValidationStatus.PROJECT_NOT_INSTALLED,
     }
     if diagnostic is not None and diagnostic["failure_code"] in preflight_statuses:

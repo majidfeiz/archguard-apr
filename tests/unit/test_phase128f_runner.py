@@ -14,6 +14,7 @@ from scripts.phase128f_security_scan import scan
 
 REAL_PREPARE_EVALUATOR_FIXTURE = runner._prepare_evaluator_fixture
 REAL_EXECUTION_PLAN = runner._execution_plan
+REAL_PREFLIGHT = runner._preflight
 REAL_VERIFY_SOURCE_UNCHANGED = runner._verify_source_unchanged
 REAL_VERIFY_EVALUATOR_IDENTITY = runner._verify_evaluator_identity
 
@@ -918,3 +919,108 @@ def test_mount_probe_failure_always_cleans_container(
     with pytest.raises(runner.EvaluatorPreflightError, match="MOUNT_PROBE_FAILED"):
         runner._mount_probe(adapters()[0], "image", source, evaluator, "failed-probe")
     assert calls[-1] == ["docker", "rm", "-f", "failed-probe"]
+
+
+def test_pytest_standalone_fixture_uses_external_selector_without_package_import() -> None:
+    adapter = adapters()[0]
+    assert runner._runtime_selectors(adapter, "TEST_FAILURE") == (
+        "/evaluator/tests/test_chinese.py::test_chinese",
+    )
+    assert "tests.test_chinese" not in runner._runtime_argv(adapter, "TEST_FAILURE")
+
+
+@pytest.mark.parametrize(
+    "selector",
+    (
+        "/workspace/tests/test_chinese.py::test_chinese",
+        "../tests/test_chinese.py::test_chinese",
+        "/tmp/test_chinese.py::test_chinese",
+        "tests/other.py::test_chinese",
+    ),
+)
+def test_external_selector_cannot_escape_evaluator_root(selector: str) -> None:
+    with pytest.raises(runner.EvaluatorPreflightError, match="EVALUATOR_SELECTOR_OUTSIDE_ROOT"):
+        runner._resolve_external_selector(adapters()[0], selector)
+
+
+def test_collected_node_requires_exactly_the_approved_node() -> None:
+    logical = "tests/test_chinese.py::test_chinese"
+    assert runner._collected_node(f"{logical}\n1 item collected\n", logical) == logical
+    with pytest.raises(runner.EvaluatorPreflightError, match="SELECTED_NODE_MISMATCH"):
+        runner._collected_node(f"{logical}\n{logical}\n2 items collected\n", logical)
+    with pytest.raises(runner.EvaluatorPreflightError, match="SELECTED_NODE_MISMATCH"):
+        runner._collected_node("tests/test_chinese.py::test_other\n1 item collected\n", logical)
+
+
+@pytest.mark.parametrize(
+    ("output", "code"),
+    [
+        (
+            "ERROR: not found: /evaluator/tests/test_chinese.py::missing",
+            "EVALUATOR_SELECTOR_NOT_FOUND",
+        ),
+        ("ImportError while importing test module", "EVALUATOR_DEPENDENCY_MISSING"),
+        ("ModuleNotFoundError: No module named dependency", "EVALUATOR_DEPENDENCY_MISSING"),
+        ("collection failed", "EVALUATOR_NOT_COLLECTED"),
+    ],
+)
+def test_pytest_collection_failure_is_source_free_and_specific(output: str, code: str) -> None:
+    assert runner._pytest_collection_failure_code(output) == code
+
+
+def test_pytest_collection_distinguishes_target_project_import_error() -> None:
+    output = "ImportError while importing pysnooper.tracer"
+    assert runner._pytest_collection_failure_code(output, "pysnooper") == "PROJECT_IMPORT_FAILED"
+
+
+def test_pytest_collection_proves_evaluator_load_then_exact_node(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    adapter = adapters()[0]
+    fixture = tmp_path / "evaluator/tests/test_chinese.py"
+    fixture.parent.mkdir(parents=True)
+    fixture.write_bytes(b"")
+    source = tmp_path / "source"
+    source.mkdir()
+    commands: list[list[str]] = []
+    monkeypatch.setattr(runner, "_preflight", REAL_PREFLIGHT)
+
+    monkeypatch.setattr(
+        runner,
+        "_mount_probe",
+        lambda *args: {
+            "container_source_fingerprint": "b" * 64,
+            "fixture_sha256": adapter.evaluator_fixture_sha256,
+            "source_read_only": True,
+            "writable_paths": [],
+        },
+    )
+    monkeypatch.setattr(runner, "_validate_tmpfs_created", lambda probe: None)
+    monkeypatch.setattr(runner, "_validate_writable_probe", lambda probe: None)
+    monkeypatch.setattr(runner, "_validate_mount_probe", lambda probe, digest: None)
+
+    def fake_run(command: list[str], **_: Any) -> subprocess.CompletedProcess[bytes]:
+        commands.append(command)
+        joined = " ".join(command)
+        if "hashlib" in joined:
+            return subprocess.CompletedProcess(
+                command, 0, f"{adapter.evaluator_fixture_sha256}\n".encode(), b""
+            )
+        if "--collect-only" in command:
+            return subprocess.CompletedProcess(
+                command, 0, b"tests/test_chinese.py::test_chinese\n1 item collected\n", b""
+            )
+        return subprocess.CompletedProcess(command, 0, b"", b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    transitions = runner.RuntimeTransitions()
+    for state in list(EvaluatorRuntimeState)[:6]:
+        transitions.reach(state, {"prepared": True})
+    result = runner._preflight(adapter, "image", source, "preflight", fixture, transitions)
+    reached = [item["state"] for item in transitions.evidence()["transitions"]]
+    assert reached[-2:] == ["EVALUATOR_IMPORT_VERIFIED", "TEST_COLLECTED"]
+    assert result["collection_count"] == 1
+    assert result["evaluator_import_verified"] is True
+    assert any("PYTHONPATH=/workspace" in command for command in commands)
+    assert any("cache_dir=/tmp/pytest-cache" in command for command in commands)
+    assert all("runpy.run_path" not in " ".join(command) for command in commands)

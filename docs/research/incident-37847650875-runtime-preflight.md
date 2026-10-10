@@ -17,3 +17,11 @@ then stopped at `MOUNT_PROBE_TEMPORARY_WRITABLE`. The dedicated `/tmp/archguard`
 image-owned directory without explicit runtime UID/GID/mode and rejected the non-root write probe.
 No scientific attempt ran and the fixed control was not attempted. Phase 12.8F.4.2.1 uses one explicit
 `/tmp` tmpfs and creates its child directories as the mounted runtime user.
+
+## Follow-up run 37896070272
+
+The PySnooper-1 canary proved the repaired tmpfs topology, source and evaluator mounts, evaluator
+identity, and target-project import. It then stopped at `EVALUATOR_IMPORT_FAILED` before collection,
+with zero buggy scientific attempts and no fixed execution. The preflight incorrectly executed the
+standalone pytest fixture with generic `runpy.run_path()` semantics. Phase 12.8F.4.2.2 instead treats
+successful exact-node pytest collection as the evaluator-loading proof.
