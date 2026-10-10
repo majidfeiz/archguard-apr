@@ -22,18 +22,24 @@ def _selected(selection: str) -> tuple[str, ...]:
 def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
     reached = {item["task_id"] for item in results}
     lines = [
-        "## Phase 12.8F.4.2.1 PySnooper-1 runtime canary",
+        "## Phase 12.8F.4.2.2 PySnooper-1 runtime canary",
         "",
         "| Task | tmpfs created | Writable probe | Fixture acquired | Fixture verified | "
-        "Source mounted | Evaluator mounted | Project import | Evaluator import | Collection | "
+        "Source mounted | Evaluator mounted | Project import | Evaluator loaded by pytest | "
+        "Resolved selector | Collection | "
         "Buggy valid attempts | Fixed result | Qualification |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for result in results:
         fixed = result.get("fixed_control") or {}
         machine = result.get("runtime_state_machine") or {}
         reached_states = {transition.get("state") for transition in machine.get("transitions", [])}
         preflight = result.get("buggy_preflight") or {}
+        resolved_selector = (
+            "/evaluator/tests/test_chinese.py::test_chinese"
+            if preflight.get("selector_fingerprint")
+            else "NOT_REACHED"
+        )
         buggy_collection = sum(
             item.get("tests_passed", 0) + item.get("tests_failed", 0)
             for item in result.get("buggy_attempts", [])
@@ -51,6 +57,7 @@ def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
             f"{'EVALUATOR_MOUNTED' in reached_states} | "
             f"{'PROJECT_IMPORT_VERIFIED' in reached_states} | "
             f"{'EVALUATOR_IMPORT_VERIFIED' in reached_states} | "
+            f"{resolved_selector} | "
             f"{preflight.get('collection_count', buggy_collection)} | "
             f"{scientific_attempts}/{len(buggy_attempts)} | "
             f"{fixed.get('outcome', 'NOT_REACHED')} | "

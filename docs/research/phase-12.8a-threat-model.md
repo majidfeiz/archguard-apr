@@ -64,3 +64,7 @@ Phase 12.8F.4.2.1 mounts `/tmp` as bounded `noexec,nosuid,nodev` tmpfs with expl
 ownership and mode. HOME, temporary data, bytecode, and pytest cache are isolated below that mount.
 Behavioral probes reject missing, symlinked, protected-overlapping, non-tmpfs, ownership-incompatible,
 uncleaned, or unwritable paths without retaining their container paths.
+Phase 12.8F.4.2.2 resolves reviewed logical pytest selectors exclusively below `/evaluator`, rejects
+absolute/traversing or mismatched fixture paths, and requires exactly one collected approved node.
+Collection—not dotted-package or `runpy` execution—proves standalone pytest evaluator loading. Only
+selector, mount-root, collected-node, and immutable fixture fingerprints enter retained evidence.

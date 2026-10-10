@@ -77,3 +77,6 @@ experiment or Phase 13 run.
 Run 37850406131 stopped at the actual non-root temporary-writable probe after evaluator identity was
 verified. It produced zero scientific attempts and remains historical and non-imported. Phase
 12.8F.4.2.1 repairs only PySnooper-1 temporary storage; it registers no Batch A/B or Phase 13 run.
+Run 37896070272 reached target-project import but stopped at the generic evaluator-import preflight.
+It produced zero scientific attempts, remains historical and non-imported, and qualifies no task.
+Phase 12.8F.4.2.2 repairs only PySnooper-1 pytest loading and registers no Batch A/B or Phase 13 run.

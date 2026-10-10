@@ -9,3 +9,6 @@ directories must exist, must not be symlinks, must resolve outside protected mou
 must be ownership-compatible with UID/GID `65532:65532`, and must pass create/write/fsync/stat/delete
 with cleanup. `noexec` is required and no probe file is executed. Only fingerprints, booleans, the
 allowlisted mount category, and transition fingerprints enter evidence.
+
+Phase 12.8F.4.2.2 preserves this ordering in v3 while defining pytest evaluator loading through exact
+standalone-file collection rather than generic script execution.
