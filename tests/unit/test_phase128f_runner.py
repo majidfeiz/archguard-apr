@@ -700,22 +700,21 @@ def test_nested_evaluator_mount_is_rejected(tmp_path: Path) -> None:
         runner._sandbox_prefix(adapters()[0], "image", source, evaluator, "nested")
 
 
-def test_tox_runtime_is_offline_and_uses_reviewed_environment(tmp_path: Path) -> None:
+def test_cookiecutter_uses_direct_offline_pytest_selector(tmp_path: Path) -> None:
     adapter = next(item for item in adapters() if item.task_id == "cookiecutter-4")
     source = tmp_path / "source"
     evaluator = tmp_path / "evaluator"
     source.mkdir()
     evaluator.mkdir()
-    command = runner._sandbox_prefix(adapter, "image", source, evaluator, "tox")
+    command = runner._sandbox_prefix(adapter, "image", source, evaluator, "direct-pytest")
     command += list(runner._runtime_argv(adapter, "TEST_FAILURE"))
     assert command[command.index("--network") + 1] == "none"
     assert "PIP_NO_INDEX=1" in command and "PIP_FIND_LINKS=/wheelhouse" in command
-    assert command[-4:] == [
-        "-e",
-        "py36",
-        "--",
-        "/evaluator/tests/test_hooks.py::TestExternalHooks::test_run_failing_hook",
-    ]
+    assert adapter.expected_framework == "pytest"
+    assert adapter.evaluator_argv[:3] == ("python", "-m", "pytest")
+    assert command[-1] == (
+        "/evaluator/tests/test_hooks.py::TestExternalHooks::test_run_failing_hook"
+    )
 
 
 def test_batch_b_is_unavailable() -> None:
@@ -725,6 +724,30 @@ def test_batch_b_is_unavailable() -> None:
 
 def test_remaining_tasks_are_exact_and_exclude_imported_pysnooper_one() -> None:
     assert runner._tasks("remaining") == ("PySnooper-3", "black-1", "cookiecutter-4")
+
+
+def test_one_task_failure_does_not_stop_remaining_tasks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    selected = runner._tasks("remaining")
+    adapter_map = {adapter.task_id: adapter for adapter in adapters()}
+    calls: list[str] = []
+
+    def qualify_all(adapter: Any, *_: Any) -> dict[str, Any]:
+        calls.append(adapter.task_id)
+        return {
+            "task_id": adapter.task_id,
+            "classification": (
+                "INFRASTRUCTURE_FAILURE" if adapter.task_id == selected[0] else "NOT_REPRODUCIBLE"
+            ),
+        }
+
+    monkeypatch.setattr(runner, "qualify", qualify_all)
+    monkeypatch.setattr(runner, "_tree_bytes", lambda root: 0)
+    results = runner._qualify_selected(selected, adapter_map, tmp_path, tmp_path)
+
+    assert calls == list(selected)
+    assert [result["task_id"] for result in results] == list(selected)
 
 
 @pytest.mark.parametrize("tasks", [("PySnooper-3",), ("black-1",), ("cookiecutter-4",)])
@@ -927,6 +950,32 @@ def test_project_import_plan_is_explicit_and_source_backed() -> None:
     prepared = runner._prepare_project(adapters()[0])
     assert prepared["installation_mode"] == "PYTHONPATH_SOURCE"
     assert prepared["module_name_fingerprint"] == runner._sha256_record("pysnooper")
+
+
+def test_remaining_source_layouts_have_explicit_offline_import_plans() -> None:
+    by_task = {adapter.task_id: adapter for adapter in adapters()}
+    pysnooper = by_task["PySnooper-3"]
+    assert "PYTHONPATH_SOURCE" in pysnooper.installation_plan
+    assert {"future==0.18.2", "python_toolbox==1.3.2", "six==1.15.0"} <= set(
+        pysnooper.dependency_constraints
+    )
+    assert runner.EVALUATOR_SUPPORT_FILES["PySnooper-3"] == {
+        "tests/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tests/utils.py": "5a35aed500bad1792495f38611a3035bd3da49d96a85cbe0eb223e1f33073b5d",
+    }
+    black = by_task["black-1"]
+    assert "GENERATED_VERSION_MODULE_SHIM" in black.installation_plan
+    assert runner._project_pythonpath(black) == "/evaluator/project-support:/workspace"
+    assert {"typing-extensions==3.7.4.2", "mypy-extensions==0.4.3"} <= set(
+        black.dependency_constraints
+    )
+
+
+def test_project_module_origin_must_be_below_workspace() -> None:
+    assert runner._validate_project_module_origin(b"/workspace/pysnooper/__init__.py\n")
+    assert runner._validate_project_module_origin(b"/workspace/black.py\n")
+    with pytest.raises(runner.EvaluatorPreflightError, match="PROJECT_IMPORT_OUTSIDE_SOURCE"):
+        runner._validate_project_module_origin(b"/usr/local/lib/python3.8/site-packages/black.py\n")
 
 
 def test_generic_project_import_name_is_rejected() -> None:
@@ -1290,6 +1339,10 @@ def test_pytest_collection_proves_evaluator_load_then_exact_node(
         if "hashlib" in joined:
             return subprocess.CompletedProcess(
                 command, 0, f"{adapter.evaluator_fixture_sha256}\n".encode(), b""
+            )
+        if "importlib" in joined:
+            return subprocess.CompletedProcess(
+                command, 0, b"/workspace/pysnooper/__init__.py\n", b""
             )
         if "--collect-only" in command:
             return subprocess.CompletedProcess(

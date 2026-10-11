@@ -67,8 +67,18 @@ EVALUATOR_SUPPORT_FILES = {
     "PySnooper-1": {
         "tests/__init__.py": "cf29ef59772b7309424b9229e607daca365cc178249a31f7b1c2ae748bfd1893",
         "tests/utils.py": "ae81d0d19d5b4fdb75c210d951e687f0b4c3bfb03239437240f088c818c6dc83",
-    }
+    },
+    "PySnooper-3": {
+        "tests/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tests/utils.py": "5a35aed500bad1792495f38611a3035bd3da49d96a85cbe0eb223e1f33073b5d",
+    },
 }
+BLACK_VERSION_SITECUSTOMIZE = (
+    "import sys,types\n"
+    "module=types.ModuleType('_black_version')\n"
+    "module.version='19.10b0'\n"
+    "sys.modules['_black_version']=module\n"
+)
 
 
 class EvaluatorPreflightError(RuntimeError):
@@ -556,6 +566,7 @@ def _execution_plan(adapter: EvaluatorAdapter, fixture: Path | None = None) -> d
         "OFFICIAL_SETUP",
         "PYTHONPATH_SOURCE",
         "GENERATED_TEST_PACKAGE_MARKER",
+        "GENERATED_VERSION_MODULE_SHIM",
         "OFFLINE_TOX",
     }
     if (
@@ -707,19 +718,30 @@ def _fixed_control_record(
     }
 
 
+def _project_pythonpath(adapter: EvaluatorAdapter) -> str:
+    return (
+        "/evaluator/project-support:/workspace"
+        if "GENERATED_VERSION_MODULE_SHIM" in adapter.installation_plan
+        else "/workspace"
+    )
+
+
 def _prepare_project(adapter: EvaluatorAdapter) -> dict[str, Any]:
     """Establish the explicit, source-free project import environment."""
     if not adapter.evaluator_argv:
         raise RuntimeError("adapter has no reviewed evaluator")
     if adapter.project not in PROJECT_MODULES:
         raise EvaluatorPreflightError("PROJECT_MODULE_NOT_ALLOWLISTED")
-    if adapter.task_id == "PySnooper-1" and "PYTHONPATH_SOURCE" not in adapter.installation_plan:
+    if adapter.project in {"PySnooper", "black", "cookiecutter"} and (
+        "PYTHONPATH_SOURCE" not in adapter.installation_plan
+    ):
         raise EvaluatorPreflightError("PYTHONPATH_SOURCE_REQUIRED")
-    if adapter.working_directory != "/workspace":
+    if adapter.working_directory not in {"/workspace", "/tmp/archguard"}:
         raise EvaluatorPreflightError("PROJECT_WORKDIR_INVALID")
+    pythonpath = _project_pythonpath(adapter)
     return {
         "environment_fingerprint": _sha256_record(
-            {"home": "/tmp/home", "pythonpath": "/workspace", "workdir": "/workspace"}
+            {"home": "/tmp/home", "pythonpath": pythonpath, "workdir": adapter.working_directory}
         ),
         "installation_mode": (
             "PYTHONPATH_SOURCE"
@@ -728,6 +750,25 @@ def _prepare_project(adapter: EvaluatorAdapter) -> dict[str, Any]:
         ),
         "module_name_fingerprint": _sha256_record(PROJECT_MODULES[adapter.project]),
     }
+
+
+def _validate_project_module_origin(raw_origin: bytes) -> str:
+    try:
+        origin_text = raw_origin.decode("ascii").strip()
+    except UnicodeDecodeError as error:
+        raise EvaluatorPreflightError("PROJECT_IMPORT_OUTSIDE_SOURCE") from error
+    origin = PurePosixPath(origin_text)
+    workspace = PurePosixPath("/workspace")
+    if (
+        not origin_text
+        or "\n" in origin_text
+        or not origin.is_absolute()
+        or origin == workspace
+        or not origin.is_relative_to(workspace)
+        or ".." in origin.parts
+    ):
+        raise EvaluatorPreflightError("PROJECT_IMPORT_OUTSIDE_SOURCE")
+    return _sha256_record(origin.as_posix())
 
 
 def _prepare_evaluator_fixture(adapter: EvaluatorAdapter, fixed: Path, quarantine: Path) -> Path:
@@ -757,6 +798,10 @@ def _prepare_evaluator_fixture(adapter: EvaluatorAdapter, fixed: Path, quarantin
         marker = quarantine / "tests/__init__.py"
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.write_bytes(b"")
+    if "GENERATED_VERSION_MODULE_SHIM" in adapter.installation_plan:
+        support = quarantine / "project-support/sitecustomize.py"
+        support.parent.mkdir(parents=True, exist_ok=True)
+        support.write_text(BLACK_VERSION_SITECUSTOMIZE, encoding="ascii")
     if "OFFLINE_TOX" in adapter.installation_plan:
         (quarantine / "tox-runtime.ini").write_text(
             "[tox]\nenvlist = py36\nskipsdist = true\n"
@@ -823,7 +868,7 @@ def _sandbox_prefix(
         "--workdir",
         adapter.working_directory,
         "--env",
-        "PYTHONPATH=/workspace",
+        f"PYTHONPATH={_project_pythonpath(adapter)}",
         "--env",
         "HOME=/tmp/home",
         "--env",
@@ -1034,7 +1079,10 @@ def _preflight(
     import_command = _sandbox_prefix(adapter, image, source, evaluator_root, import_name) + [
         "python",
         "-c",
-        f"import {project_module}",
+        "import importlib,pathlib,sys; "
+        "module=importlib.import_module(sys.argv[1]); "
+        "print(pathlib.Path(module.__file__).resolve())",
+        project_module,
     ]
     try:
         import_result = subprocess.run(
@@ -1042,6 +1090,7 @@ def _preflight(
         )
         if import_result.returncode != 0:
             raise EvaluatorPreflightError("PROJECT_IMPORT_FAILED")
+        module_origin_fingerprint = _validate_project_module_origin(import_result.stdout)
     finally:
         subprocess.run(["docker", "rm", "-f", import_name], capture_output=True)
     if transitions is not None:
@@ -1049,10 +1098,15 @@ def _preflight(
             EvaluatorRuntimeState.PROJECT_IMPORT_VERIFIED,
             {
                 "environment": _sha256_record(
-                    {"cwd": adapter.working_directory, "pythonpath": "/workspace"}
+                    {
+                        "cwd": adapter.working_directory,
+                        "pythonpath": _project_pythonpath(adapter),
+                    }
                 ),
                 "exit_status": 0,
                 "module_name_fingerprint": _sha256_record(project_module),
+                "module_origin_fingerprint": module_origin_fingerprint,
+                "module_origin_root": "/workspace",
             },
         )
     if adapter.expected_framework != "pytest":
@@ -1925,6 +1979,20 @@ def _tree_bytes(root: Path) -> int:
     return sum(path.stat().st_size for path in root.rglob("*") if path.is_file())
 
 
+def _qualify_selected(
+    tasks: tuple[str, ...],
+    adapter_map: dict[str, EvaluatorAdapter],
+    external_root: Path,
+    framework: Path,
+) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for task in tasks:
+        results.append(qualify(adapter_map[task], external_root, framework))
+        if _tree_bytes(external_root) > MAX_DISK:
+            raise RuntimeError("temporary disk ceiling exceeded")
+    return results
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--adapters", type=Path, required=True)
@@ -1946,14 +2014,10 @@ def main() -> None:
     if not set(tasks) <= set(adapters):
         raise SystemExit("selection is not an adapter-backed selected task")
     args.external_root.mkdir(parents=True, exist_ok=False)
-    results: list[dict[str, Any]] = []
     try:
         framework = args.external_root / "framework-metadata"
         _acquire_framework(framework)
-        for task in tasks:
-            results.append(qualify(adapters[task], args.external_root, framework))
-            if _tree_bytes(args.external_root) > MAX_DISK:
-                raise RuntimeError("temporary disk ceiling exceeded")
+        results = _qualify_selected(tasks, adapters, args.external_root, framework)
         validate_results(results)
         args.output.write_bytes(canonical_json(results))
     finally:

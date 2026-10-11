@@ -8,8 +8,12 @@ from typing import Any
 
 from archguard.domain.phase128f import BATCH_A, BATCH_B
 
+REMAINING_TASKS = ("PySnooper-3", "black-1", "cookiecutter-4")
+
 
 def _selected(selection: str) -> tuple[str, ...]:
+    if selection == "remaining":
+        return REMAINING_TASKS
     if selection == "batch-a":
         return BATCH_A
     if selection == "batch-b":
@@ -22,7 +26,7 @@ def _selected(selection: str) -> tuple[str, ...]:
 def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
     reached = {item["task_id"] for item in results}
     lines = [
-        "## Phase 12.8F.4.2.3 PySnooper-1 external selector canary",
+        "## Phase 12.8F Remaining Evaluator Qualification",
         "",
         "| Task | tmpfs created | Writable probe | Fixture acquired | Fixture verified | "
         "Source mounted | Evaluator mounted | Project import | Evaluator loaded by pytest | "
@@ -35,11 +39,7 @@ def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
         machine = result.get("runtime_state_machine") or {}
         reached_states = {transition.get("state") for transition in machine.get("transitions", [])}
         preflight = result.get("buggy_preflight") or {}
-        resolved_selector = (
-            "/evaluator/tests/test_chinese.py::test_chinese"
-            if preflight.get("selector_fingerprint")
-            else "NOT_REACHED"
-        )
+        resolved_selector = "VERIFIED" if preflight.get("selector_fingerprint") else "NOT_REACHED"
         buggy_collection = sum(
             item.get("tests_passed", 0) + item.get("tests_failed", 0)
             for item in result.get("buggy_attempts", [])

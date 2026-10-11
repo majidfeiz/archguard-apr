@@ -63,7 +63,7 @@ def test_adapter_registry_is_deterministic_complete_and_immutable(repository_roo
     values = adapters()
     assert len(values) == 7
     assert registry()["fingerprint"] == (
-        "c75006d9b413b991d5227df817c454cb908d4a92705111563ba4f19044923700"
+        "e880ea9bce587bf66eab42e3c928800850c8515e7531d880b3cbdb94191d9d28"
     )
     assert len({item.fingerprint for item in values}) == 7
     assert all(len(item.buggy_revision) == len(item.fixed_revision) == 40 for item in values)
