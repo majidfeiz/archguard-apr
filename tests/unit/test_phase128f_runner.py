@@ -875,6 +875,11 @@ def test_collection_requires_exactly_one_selected_test(output: str) -> None:
         runner._validate_pytest_collection(output, "tests/test_chinese.py::test_chinese")
 
 
+def test_compact_pytest_collection_node_is_normalized() -> None:
+    logical = "tests/test_chinese.py::test_chinese"
+    assert runner._validate_pytest_collection("::test_chinese\n", logical) == (1, logical)
+
+
 def test_runtime_state_machine_rejects_skipped_transition() -> None:
     transitions = runner.RuntimeTransitions()
     with pytest.raises(runner.EvaluatorPreflightError, match="MISSING_TRANSITION_PLAN_VALIDATED"):
@@ -1050,10 +1055,73 @@ def test_execution_plan_binds_selector_identities_without_changing_adapter_finge
 def test_collected_node_requires_exactly_the_approved_node() -> None:
     logical = "tests/test_chinese.py::test_chinese"
     assert runner._collected_node(f"{logical}\n1 item collected\n", logical) == logical
-    with pytest.raises(runner.EvaluatorPreflightError, match="SELECTED_NODE_MISMATCH"):
-        runner._collected_node(f"{logical}\n{logical}\n2 items collected\n", logical)
+    assert runner._collected_node("::test_chinese\n", logical) == logical
+    assert runner._collected_node(f"{logical}\n{logical}\n", logical) == logical
     with pytest.raises(runner.EvaluatorPreflightError, match="SELECTED_NODE_MISMATCH"):
         runner._collected_node("tests/test_chinese.py::test_other\n1 item collected\n", logical)
+    assert runner._collected_node("::test_chinese\n::test_chinese\n", logical) == logical
+    assert runner._collected_node("\x1b[32m::test_chinese\x1b[0m\n", logical) == logical
+    with pytest.raises(runner.EvaluatorPreflightError, match="SELECTED_NODE_MISMATCH"):
+        runner._collected_node("::test_chinese\n::test_other\n", logical)
+
+
+def test_pysnooper_evaluator_support_is_identity_checked(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(runner, "_prepare_evaluator_fixture", REAL_PREPARE_EVALUATOR_FIXTURE)
+    adapter = adapters()[0]
+    fixed = tmp_path / "fixed"
+    quarantine = tmp_path / "quarantine"
+    fixture = fixed / str(adapter.evaluator_fixture_path)
+    fixture.parent.mkdir(parents=True)
+    fixture.write_bytes(b"fixture")
+    reviewed = replace(
+        adapter,
+        evaluator_fixture_sha256=hashlib.sha256(fixture.read_bytes()).hexdigest(),
+        fingerprint="",
+    )
+    support = {"tests/__init__.py": b"package", "tests/utils.py": b"helpers"}
+    support_hashes = {
+        relative: hashlib.sha256(content).hexdigest() for relative, content in support.items()
+    }
+    monkeypatch.setitem(runner.EVALUATOR_SUPPORT_FILES, adapter.task_id, support_hashes)
+    for relative, content in support.items():
+        source = fixed / relative
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(content)
+
+    result = runner._prepare_evaluator_fixture(reviewed, fixed, quarantine)
+
+    assert result.read_bytes() == b"fixture"
+    for relative, expected_sha256 in support_hashes.items():
+        assert hashlib.sha256((quarantine / relative).read_bytes()).hexdigest() == expected_sha256
+
+
+def test_pysnooper_evaluator_support_mismatch_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(runner, "_prepare_evaluator_fixture", REAL_PREPARE_EVALUATOR_FIXTURE)
+    adapter = adapters()[0]
+    fixed = tmp_path / "fixed"
+    fixture = fixed / str(adapter.evaluator_fixture_path)
+    fixture.parent.mkdir(parents=True)
+    fixture.write_bytes(b"fixture")
+    support_hashes = {
+        "tests/__init__.py": hashlib.sha256(b"expected-package").hexdigest(),
+        "tests/utils.py": hashlib.sha256(b"expected-helpers").hexdigest(),
+    }
+    monkeypatch.setitem(runner.EVALUATOR_SUPPORT_FILES, adapter.task_id, support_hashes)
+    for relative in support_hashes:
+        source = fixed / relative
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(b"wrong")
+    reviewed = replace(
+        adapter,
+        evaluator_fixture_sha256=hashlib.sha256(fixture.read_bytes()).hexdigest(),
+        fingerprint="",
+    )
+    with pytest.raises(RuntimeError, match="support identity mismatch"):
+        runner._prepare_evaluator_fixture(reviewed, fixed, tmp_path / "quarantine")
 
 
 @pytest.mark.parametrize(

@@ -61,6 +61,12 @@ V3_RUNTIME_FIELDS = (
 )
 RUNTIME_STATE_ORDER = tuple(EvaluatorRuntimeState)
 PROJECT_MODULES = {"PySnooper": "pysnooper", "black": "black", "cookiecutter": "cookiecutter"}
+EVALUATOR_SUPPORT_FILES = {
+    "PySnooper-1": {
+        "tests/__init__.py": "cf29ef59772b7309424b9229e607daca365cc178249a31f7b1c2ae748bfd1893",
+        "tests/utils.py": "ae81d0d19d5b4fdb75c210d951e687f0b4c3bfb03239437240f088c818c6dc83",
+    }
+}
 
 
 class EvaluatorPreflightError(RuntimeError):
@@ -241,22 +247,25 @@ def _collected_node(output: str, logical_selector: str) -> str:
     logical_path, separator, node = logical_selector.partition("::")
     if not separator or not node:
         raise EvaluatorPreflightError("EVALUATOR_SELECTOR_INVALID")
-    candidates: list[str] = []
+    compact_selector = f"::{node}"
+    candidates: set[str] = set()
     for line in output.splitlines():
-        value = line.strip()
-        position = value.find(logical_path)
-        if position >= 0 and "::" in value[position:]:
-            candidates.append(value[position:])
-    if candidates != [logical_selector]:
+        value = re.sub(r"\x1b\[[0-9;]*m", "", line).strip()
+        if value == compact_selector or value.endswith(logical_selector):
+            candidates.add(logical_selector)
+        elif "::" in value and not value.startswith(("ERROR", "WARNING")):
+            candidates.add(value)
+    if candidates != {logical_selector}:
         raise EvaluatorPreflightError("EVALUATOR_SELECTED_NODE_MISMATCH")
-    return candidates[0]
+    return logical_selector
 
 
 def _validate_pytest_collection(output: str, logical_selector: str) -> tuple[int, str]:
     collection_count = _collection_count(output)
-    if collection_count != 1:
+    if "no tests ran" in output.lower() or collection_count not in (0, 1):
         raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED", 0)
-    return collection_count, _collected_node(output, logical_selector)
+    collected_node = _collected_node(output, logical_selector)
+    return 1, collected_node
 
 
 def _pytest_collection_failure_code(output: str, project_module: str = "") -> str:
@@ -708,6 +717,19 @@ def _prepare_evaluator_fixture(adapter: EvaluatorAdapter, fixed: Path, quarantin
     shutil.copyfile(source, destination)
     if hashlib.sha256(destination.read_bytes()).hexdigest() != adapter.evaluator_fixture_sha256:
         raise RuntimeError("external evaluator identity mismatch")
+    for relative, expected_sha256 in EVALUATOR_SUPPORT_FILES.get(adapter.task_id, {}).items():
+        support_source = fixed / relative
+        support_destination = quarantine / relative
+        if (
+            not support_source.is_file()
+            or support_source.is_symlink()
+            or hashlib.sha256(support_source.read_bytes()).hexdigest() != expected_sha256
+        ):
+            raise RuntimeError("external evaluator support identity mismatch")
+        support_destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(support_source, support_destination)
+        if hashlib.sha256(support_destination.read_bytes()).hexdigest() != expected_sha256:
+            raise RuntimeError("external evaluator support identity mismatch")
     if "GENERATED_TEST_PACKAGE_MARKER" in adapter.installation_plan:
         marker = quarantine / "tests/__init__.py"
         marker.parent.mkdir(parents=True, exist_ok=True)
