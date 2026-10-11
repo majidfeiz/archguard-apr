@@ -29,7 +29,7 @@ from archguard.domain.phase128f import (
     prior_evidence_status,
     qualification_decision,
 )
-from archguard.infrastructure.phase128f_evidence import validate_results
+from archguard.infrastructure.phase128f_evidence import validate_results as validate_results
 
 MAX_TRANSFER = 2 * 1024**3
 MAX_DISK = 8 * 1024**3
