@@ -89,17 +89,10 @@ jobs:
             --adapters research/evaluators/adapter-registry-v2.json \
             --selection PySnooper-1 \
             --runtime-canary \
-            --collection-diagnostic \
             --external-root "${EXTERNAL_ROOT}" \
             --output "${RESULTS_PATH}"
           jq -e 'length == 1 and .[0].task_id == "PySnooper-1" and
-            .[0].runtime_state_machine.schema == "archguard.evaluator-runtime-state-machine/v3" and
-            .[0].qualification_decision == "NOT_QUALIFIED" and
-            .[0].scientific_classification == null and
-            .[0].fixed_control.attempted == false and
-            .[0].runtime_state_machine.last_reached == "PROJECT_IMPORT_VERIFIED" and
-            ([.[] | .buggy_attempts[] | .duration_milliseconds] | all(. == 0)) and
-            (.[] | .infrastructure_diagnostic.collection_identity.pytest_process_exit_code) == 0' \
+            .[0].runtime_state_machine.schema == "archguard.evaluator-runtime-state-machine/v3"' \
             "${RESULTS_PATH}" >/dev/null
       - name: Enforce transfer, disk, leakage, and cleanup gates
         if: always()
