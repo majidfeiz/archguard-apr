@@ -685,3 +685,27 @@ def test_frozen_state_and_phase13_remain_unchanged(repository_root: Path) -> Non
     supplied = diagnostic.pop("fingerprint")
     assert supplied == fingerprint(diagnostic)
     assert diagnostic["qualified_tasks"] == 0 and diagnostic["imported"] is False
+
+
+def test_imported_pysnooper_one_non_reproducibility_is_preserved(
+    repository_root: Path,
+) -> None:
+    imported = json.loads(
+        (repository_root / "research/evidence/phase-12.8f-qualification.json").read_text()
+    )
+    assert imported["fingerprint"] == (
+        "477bc32a8302e2892293f9b533062715745d943fe198d541f7cacdfbda1c3606"
+    )
+    assert imported["archive_sha256"] == (
+        "03dceada05ba317478a2392729912dd381a24e5c77728ffaae0b4be5c2aae9f5"
+    )
+    assert imported["manifest"]["github_run_id"] == "38147331854"
+    assert imported["phase_13_ready"] is False
+    result = imported["qualification"]["results"][0]
+    assert result["task_id"] == "PySnooper-1"
+    assert result["classification"] == "NOT_REPRODUCIBLE"
+    assert result["qualification_decision"] == "NOT_QUALIFIED"
+    assert [attempt["outcome"] for attempt in result["buggy_attempts"]] == ["PASS"] * 3
+    assert [attempt["tests_passed"] for attempt in result["buggy_attempts"]] == [1] * 3
+    assert result["fixed_control_passed"] is False
+    assert result["fixed_control"]["attempted"] is False

@@ -84,3 +84,7 @@ Run 38035903312 reached `PROJECT_IMPORT_VERIFIED` but stopped before evaluator-l
 `EVALUATOR_SELECTOR_NOT_FOUND`. It produced zero scientific attempts, remains historical and
 non-imported, and qualifies no task. Phase 12.8F.4.2.3 repairs only the explicit PySnooper-1 external
 selector contract; it registers no Batch A/B or Phase 13 run.
+Run 38147331854 is the imported Linux x86 PySnooper-1 qualification result. Three actual buggy
+executions each passed the one selected test, yielding `NOT_REPRODUCIBLE` and `NOT_QUALIFIED`; the
+fixed control was consequently not required or attempted. The result is not an infrastructure
+failure, changes no adapter or candidate, selects no replacement, and leaves `phase_13_ready=false`.
