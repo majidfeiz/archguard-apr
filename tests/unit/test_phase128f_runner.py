@@ -254,7 +254,19 @@ def _run_with_fixed_attempt(
         100,
         normalized_failure_class="TEST_FAILURE",
     )
-    attempts = iter((buggy, buggy, buggy, fixed))
+    return _run_with_attempts(
+        monkeypatch, tmp_path, (buggy, buggy, buggy, fixed), adapter_index=adapter_index
+    )
+
+
+def _run_with_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    supplied_attempts: tuple[AttemptEvidence | BaseException, ...],
+    *,
+    adapter_index: int = 1,
+) -> dict[str, Any]:
+    attempts = iter(supplied_attempts)
     monkeypatch.setattr(runner, "_safe_checkout", _checkout_identity)
     monkeypatch.setattr(runner, "_verify_identities", lambda *args: None)
     monkeypatch.setattr(
@@ -285,7 +297,14 @@ def _run_with_fixed_attempt(
             },
         ),
     )
-    monkeypatch.setattr(runner, "_execute", lambda *args, **kwargs: next(attempts))
+
+    def execute(*args: Any, **kwargs: Any) -> AttemptEvidence:
+        value = next(attempts)
+        if isinstance(value, BaseException):
+            raise value
+        return value
+
+    monkeypatch.setattr(runner, "_execute", execute)
     return runner.qualify(adapters()[adapter_index], tmp_path, tmp_path)
 
 
@@ -303,6 +322,35 @@ def test_fixed_control_passes_with_bound_environment(
     )
     assert result["runtime_state_machine"]["last_reached"] == "CLEANED"
     assert result["runtime_state_machine"]["next_required"] is None
+    runner.validate_results([result])
+
+
+def test_unexpected_buggy_pass_is_not_reproducible(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    passed = AttemptEvidence(Outcome.PASS, 0, None, 1, 0, 100)
+    result = _run_with_attempts(monkeypatch, tmp_path, (passed, passed, passed))
+
+    assert result["classification"] == "NOT_REPRODUCIBLE"
+    assert result["buggy_result_status"] == "NOT_REPRODUCIBLE"
+    assert result["execution_status"] == "SCIENTIFIC_RESULT"
+    assert result["fixed_control_passed"] is False
+    assert result["qualification_decision"] == "NOT_QUALIFIED"
+    runner.validate_results([result])
+
+
+def test_execution_infrastructure_failure_after_collection_is_consistent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    failure = subprocess.CalledProcessError(125, ["docker", "run"], stderr=b"runtime failed")
+    result = _run_with_attempts(monkeypatch, tmp_path, (failure,))
+
+    assert result["classification"] == "INFRASTRUCTURE_FAILURE"
+    assert result["buggy_result_status"] == "INFRASTRUCTURE_FAILURE"
+    assert result["execution_status"] == "INFRASTRUCTURE_FAILURE"
+    assert result["infrastructure_diagnostic"]["failure_stage"] == "BUGGY_EXECUTION"
+    assert result["fixed_control"]["attempted"] is False
+    runner.validate_results([result])
 
 
 def test_pysnooper_one_canary_qualifies_only_after_complete_runtime(
@@ -689,7 +737,11 @@ def test_docker_exit_125_is_infrastructure_failure(
     monkeypatch.setattr(
         runner,
         "_acquire_base_image",
-        lambda *args: ("base", {"architecture": "amd64", "image_id": "id"}, 1),
+        lambda *args: (
+            "base",
+            {"architecture": "amd64", "image_id": "id", "operating_system": "linux"},
+            1,
+        ),
     )
     monkeypatch.setattr(
         runner,
@@ -727,7 +779,11 @@ def test_collection_failure_retains_only_source_free_process_diagnostic(
     monkeypatch.setattr(
         runner,
         "_acquire_base_image",
-        lambda *args: ("base", {"architecture": "amd64", "image_id": "id"}, 1),
+        lambda *args: (
+            "base",
+            {"architecture": "amd64", "image_id": "id", "operating_system": "linux"},
+            1,
+        ),
     )
     monkeypatch.setattr(
         runner,
@@ -755,6 +811,12 @@ def test_collection_failure_retains_only_source_free_process_diagnostic(
     diagnostic = result["infrastructure_diagnostic"]
     assert diagnostic["process_return_code"] == 4
     assert diagnostic["failure_code"] == "EVALUATOR_SELECTOR_NOT_FOUND"
+    assert result["scientific_classification"] is None
+    assert all(
+        attempt["normalized_failure_class"] == "PRE_EXECUTION_INFRASTRUCTURE_FAILURE"
+        for attempt in result["buggy_attempts"]
+    )
+    runner.validate_results([result])
     assert "raw_log" not in json.dumps(result)
 
 

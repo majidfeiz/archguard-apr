@@ -29,6 +29,7 @@ def test_workflow_sandbox_cleanup_and_single_artifact(repository_root: Path) -> 
         repository_root / ".github/workflows/phase-12-8f-linux-x86-qualification.yml"
     ).read_text()
     assert raw.count("uses: actions/upload-artifact@v7") == 1
+    assert "- name: Upload one source-free qualification Artifact\n        if: always()" in raw
     assert "retention-days: 14" in raw
     assert "if: always()" in raw
     assert "name: Enforce transfer, disk, leakage, and cleanup gates\n        if: always()" in raw

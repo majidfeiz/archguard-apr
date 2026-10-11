@@ -29,6 +29,7 @@ from archguard.domain.phase128f import (
     prior_evidence_status,
     qualification_decision,
 )
+from archguard.infrastructure.phase128f_evidence import validate_results
 
 MAX_TRANSFER = 2 * 1024**3
 MAX_DISK = 8 * 1024**3
@@ -1440,6 +1441,72 @@ def _failure_category(text: str, returncode: int) -> str | None:
     return "TEST_PROCESS_ERROR"
 
 
+def _derive_final_classification(
+    attempts: tuple[AttemptEvidence, ...],
+    fixed_attempt: AttemptEvidence | None,
+    failure_stage: str,
+    diagnostic: dict[str, Any] | None,
+) -> Classification:
+    if len(attempts) != 3:
+        raise RuntimeError("final evidence requires exactly three buggy attempt records")
+    adapter_failure_codes = {
+        "EVALUATOR_PROVENANCE_INVALID",
+        "EVALUATOR_SOURCE_TYPE_UNSUPPORTED",
+        "FRAMEWORK_COMMAND_MISMATCH",
+        "INSTALLATION_PLAN_UNSUPPORTED",
+        "QUARANTINE_POLICY_INVALID",
+        "UNREVIEWED_ADAPTER",
+        "V3_FIELD_IGNORED",
+    }
+    if diagnostic is not None and failure_stage in {"IDENTITY_VERIFICATION", "EVALUATOR_PREFLIGHT"}:
+        return (
+            Classification.EVALUATOR_ADAPTER_INVALID
+            if diagnostic["failure_code"] in adapter_failure_codes
+            else Classification.EVALUATOR_ENVIRONMENT_INVALID
+        )
+    if diagnostic is not None and failure_stage == "FIXED_CONTROL_EXECUTION":
+        return Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE
+    fixed_passed = fixed_attempt is not None and fixed_attempt.outcome is Outcome.PASS
+    if fixed_attempt is not None and fixed_attempt.outcome in {
+        Outcome.INFRASTRUCTURE_FAILURE,
+        Outcome.RESOURCE_LIMIT,
+        Outcome.TIMEOUT,
+    }:
+        return Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE
+    return classify(attempts, fixed_control_passed=fixed_passed)
+
+
+def _stable_buggy_attempts(attempts: tuple[AttemptEvidence, ...]) -> bool:
+    signatures = {attempt.failure_signature for attempt in attempts}
+    return (
+        len(attempts) == 3
+        and all(attempt.outcome is Outcome.EXPECTED_FAILURE for attempt in attempts)
+        and None not in signatures
+        and len(signatures) == 1
+    )
+
+
+def _execution_diagnostic(attempts: tuple[AttemptEvidence, ...]) -> dict[str, Any]:
+    return {
+        "command_category": "BUGGY_EXECUTION",
+        "failure_code": "BUGGY_SCIENTIFIC_ATTEMPTS_INVALID",
+        "failure_stage": "BUGGY_EXECUTION",
+        "normalized_error_class": "AttemptEvidenceMismatch",
+        "normalized_stderr_sha256": _sha256_record(
+            [
+                {
+                    "exit_code": attempt.exit_code,
+                    "normalized_failure_class": attempt.normalized_failure_class,
+                    "outcome": attempt.outcome.value,
+                }
+                for attempt in attempts
+            ]
+        ),
+        "process_return_code": None,
+        "retryable": False,
+    }
+
+
 def qualify(
     adapter: EvaluatorAdapter,
     root: Path,
@@ -1468,6 +1535,7 @@ def qualify(
     buggy_preflight: dict[str, Any] | None = None
     fixed_preflight: dict[str, Any] | None = None
     transitions = RuntimeTransitions()
+    fixed_passed = False
     try:
         execution_plan = _execution_plan(adapter)
         transitions.reach(
@@ -1555,8 +1623,8 @@ def qualify(
         if not execution_plan["fixture_bytes_identical"]:
             raise EvaluatorPreflightError("EVALUATOR_IDENTITY_MISMATCH")
         failure_stage = "BUGGY_EXECUTION"
-        attempts = tuple(
-            _execute(
+        for index in range(1, 4):
+            attempt = _execute(
                 adapter,
                 image,
                 buggy,
@@ -1565,83 +1633,67 @@ def qualify(
                 source_identity=buggy_identity,
                 evaluator_fixture=evaluator_fixture,
             )
-            for index in range(1, 4)
-        )
-        attempt_signatures = {attempt.failure_signature for attempt in attempts}
-        if (
-            len(attempts) != 3
-            or any(attempt.outcome is not Outcome.EXPECTED_FAILURE for attempt in attempts)
-            or None in attempt_signatures
-            or len(attempt_signatures) != 1
-        ):
-            raise EvaluatorPreflightError("BUGGY_SCIENTIFIC_ATTEMPTS_INVALID")
+            attempts = (*attempts, attempt)
         transitions.reach(
             EvaluatorRuntimeState.BUGGY_EXECUTED,
-            {"attempt_count": 3, "failure_signature": next(iter(attempt_signatures))},
+            {
+                "attempt_count": 3,
+                "attempt_identity_fingerprint": _sha256_record(
+                    [
+                        {
+                            "failure_signature": attempt.failure_signature,
+                            "outcome": attempt.outcome.value,
+                        }
+                        for attempt in attempts
+                    ]
+                ),
+            },
         )
-        failure_stage = "FIXED_CONTROL_EXECUTION"
-        fixed_attempt = _execute(
-            adapter,
-            image,
-            fixed,
-            f"phase128f-{adapter.task_id.lower()}-fixed",
-            expected_outcome="EXIT_ZERO",
-            source_identity=fixed_identity,
-            evaluator_fixture=evaluator_fixture,
-        )
+        if _stable_buggy_attempts(attempts):
+            failure_stage = "FIXED_CONTROL_EXECUTION"
+            fixed_attempt = _execute(
+                adapter,
+                image,
+                fixed,
+                f"phase128f-{adapter.task_id.lower()}-fixed",
+                expected_outcome="EXIT_ZERO",
+                source_identity=fixed_identity,
+                evaluator_fixture=evaluator_fixture,
+            )
+            fixed_passed = fixed_attempt.outcome is Outcome.PASS
+            if fixed_passed and fixed_attempt.tests_passed == 1 and fixed_attempt.tests_failed == 0:
+                transitions.reach(
+                    EvaluatorRuntimeState.FIXED_EXECUTED,
+                    {"exit_code": fixed_attempt.exit_code, "tests_failed": 0, "tests_passed": 1},
+                )
+        else:
+            diagnostic = _execution_diagnostic(attempts)
         _verify_source_unchanged(buggy, buggy_identity)
         _verify_source_unchanged(fixed, fixed_identity)
-        fixed_passed = fixed_attempt.outcome is Outcome.PASS
-        if fixed_passed and fixed_attempt.tests_passed == 1 and fixed_attempt.tests_failed == 0:
-            transitions.reach(
-                EvaluatorRuntimeState.FIXED_EXECUTED,
-                {"exit_code": fixed_attempt.exit_code, "tests_failed": 0, "tests_passed": 1},
-            )
         shutil.rmtree(quarantine, ignore_errors=True)
         if transitions.evidence()["last_reached"] == EvaluatorRuntimeState.FIXED_EXECUTED.value:
             transitions.reach(
                 EvaluatorRuntimeState.CLEANED,
                 {"evaluator_quarantine_removed": not quarantine.exists()},
             )
-        classification = (
-            Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE
-            if fixed_attempt.outcome
-            in {Outcome.INFRASTRUCTURE_FAILURE, Outcome.RESOURCE_LIMIT, Outcome.TIMEOUT}
-            else classify(attempts, fixed_control_passed=fixed_passed)
-        )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError) as error:
-        if len(attempts) != 3:
-            attempts = tuple(
-                AttemptEvidence(
-                    Outcome.INFRASTRUCTURE_FAILURE,
-                    None,
-                    None,
-                    0,
-                    0,
-                    0,
-                    normalized_failure_class="PRE_EXECUTION_INFRASTRUCTURE_FAILURE",
-                )
-                for _ in range(3)
+        if len(attempts) < 3:
+            attempts = (
+                *attempts,
+                *tuple(
+                    AttemptEvidence(
+                        Outcome.INFRASTRUCTURE_FAILURE,
+                        None,
+                        None,
+                        0,
+                        0,
+                        0,
+                        normalized_failure_class="PRE_EXECUTION_INFRASTRUCTURE_FAILURE",
+                    )
+                    for _ in range(3 - len(attempts))
+                ),
             )
         fixed_passed = False
-        adapter_failure_codes = {
-            "EVALUATOR_PROVENANCE_INVALID",
-            "EVALUATOR_SOURCE_TYPE_UNSUPPORTED",
-            "FRAMEWORK_COMMAND_MISMATCH",
-            "INSTALLATION_PLAN_UNSUPPORTED",
-            "QUARANTINE_POLICY_INVALID",
-            "UNREVIEWED_ADAPTER",
-            "V3_FIELD_IGNORED",
-        }
-        classification = (
-            Classification.EVALUATOR_ADAPTER_INVALID
-            if isinstance(error, EvaluatorPreflightError) and error.code in adapter_failure_codes
-            else Classification.EVALUATOR_ENVIRONMENT_INVALID
-            if isinstance(error, EvaluatorPreflightError)
-            else Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE
-            if failure_stage == "FIXED_CONTROL_EXECUTION"
-            else Classification.INFRASTRUCTURE_FAILURE
-        )
         return_code = (
             error.returncode
             if isinstance(error, subprocess.CalledProcessError)
@@ -1674,6 +1726,9 @@ def qualify(
         }
         if failure_stage == "DEPENDENCY_BUILD":
             dependency_build_status = "FAILED"
+    classification = _derive_final_classification(
+        attempts, fixed_attempt, failure_stage, diagnostic
+    )
     non_scientific = {
         Classification.INFRASTRUCTURE_FAILURE,
         Classification.FIXED_CONTROL_FAILED,
@@ -1762,6 +1817,8 @@ def qualify(
         and len(buggy_signatures) == 1
         else "INFRASTRUCTURE_FAILURE"
         if any(attempt.outcome is Outcome.INFRASTRUCTURE_FAILURE for attempt in attempts)
+        else "NOT_REPRODUCIBLE"
+        if all(attempt.outcome is Outcome.PASS for attempt in attempts)
         else "INVALID_EVALUATOR_RESULT"
     )
     return {
@@ -1902,6 +1959,7 @@ def main() -> None:
                 break
             if _tree_bytes(args.external_root) > MAX_DISK:
                 raise RuntimeError("temporary disk ceiling exceeded")
+        validate_results(results)
         args.output.write_bytes(canonical_json(results))
     finally:
         cleanup(args.external_root)

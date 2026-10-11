@@ -363,6 +363,40 @@ def _validate_results(value: dict[str, Any]) -> None:
                     and not pre_execution_evaluator_failure
                 ):
                     raise ValueError("classification inconsistent with run evidence")
+            signatures = {attempt.failure_signature for attempt in parsed}
+            expected_buggy_status = (
+                "BUGGY_RESULT"
+                if all(attempt.outcome is Outcome.EXPECTED_FAILURE for attempt in parsed)
+                and None not in signatures
+                and len(signatures) == 1
+                else "INFRASTRUCTURE_FAILURE"
+                if any(attempt.outcome is Outcome.INFRASTRUCTURE_FAILURE for attempt in parsed)
+                else "NOT_REPRODUCIBLE"
+                if all(attempt.outcome is Outcome.PASS for attempt in parsed)
+                else "INVALID_EVALUATOR_RESULT"
+            )
+            expected_execution_status = (
+                "INFRASTRUCTURE_FAILURE"
+                if classification is Classification.INFRASTRUCTURE_FAILURE
+                else "FIXED_CONTROL_FAILED"
+                if classification
+                in {
+                    Classification.FIXED_CONTROL_FAILED,
+                    Classification.FIXED_CONTROL_INFRASTRUCTURE_FAILURE,
+                }
+                else "INVALID_EVALUATOR_RESULT"
+                if classification
+                in {
+                    Classification.EVALUATOR_ADAPTER_INVALID,
+                    Classification.EVALUATOR_ENVIRONMENT_INVALID,
+                }
+                else "SCIENTIFIC_RESULT"
+            )
+            if (
+                result.get("buggy_result_status") != expected_buggy_status
+                or result.get("execution_status") != expected_execution_status
+            ):
+                raise ValueError("classification/status contradiction")
             if classification is Classification.INFRASTRUCTURE_FAILURE and any(
                 attempt.duration_milliseconds == 0
                 and result["infrastructure_diagnostic"].get("failure_stage") is None
@@ -388,6 +422,11 @@ def _validate_results(value: dict[str, Any]) -> None:
             digest = artifact.get("sha256")
             if not isinstance(digest, str) or len(digest) != 64:
                 raise ValueError("invalid acquired dependency hash")
+
+
+def validate_results(results: list[dict[str, Any]]) -> None:
+    """Validate producer results with the same strict artifact rules."""
+    _validate_results({"schema": QUALIFICATION_SCHEMA, "results": results})
 
 
 def validate_directory(root: Path) -> dict[str, Any]:

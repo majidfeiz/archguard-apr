@@ -41,6 +41,7 @@ jobs:
           echo "RESULTS_PATH=${results_path}" >> "${GITHUB_ENV}"
           echo "VALIDATION_ZIP=${validation_zip}" >> "${GITHUB_ENV}"
           echo "SECURITY_SCAN_PATH=${security_scan_path}" >> "${GITHUB_ENV}"
+          echo "ARTIFACT_NAME=archguard-phase-12-8f4-2-3-pysnooper-1-runtime-canary-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
           echo "TRANSFER_START=$(cat /sys/class/net/eth0/statistics/rx_bytes)" >> "${GITHUB_ENV}"
           test "$(uname -s)" = Linux
           test "$(uname -m)" = x86_64
@@ -137,8 +138,8 @@ jobs:
           python3 scripts/phase128f_evidence.py validate --archive "${VALIDATION_ZIP}"
           test "$(wc -c < "${VALIDATION_ZIP}")" -le 10485760
           rm -f -- "${VALIDATION_ZIP}"
-          echo "ARTIFACT_NAME=archguard-phase-12-8f4-2-3-pysnooper-1-runtime-canary-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
       - name: Upload one source-free qualification Artifact
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: ${{ env.ARTIFACT_NAME }}

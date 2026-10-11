@@ -234,6 +234,7 @@ def result(task_id: str = "black-1") -> dict[str, Any]:
         "buggy_attempts": attempts,
         "buggy_environment_fingerprint": SHA,
         "buggy_revision": adapter.buggy_revision,
+        "buggy_result_status": "BUGGY_RESULT",
         "classification": "STABLE",
         "dependency_artifacts": [{"filename": "dependency.whl", "sha256": SHA}],
         "dependency_build_status": "COMPLETE",
@@ -425,6 +426,7 @@ def test_preflight_evaluator_failure_can_be_packaged_as_non_scientific() -> None
     )
     failed.update(
         {
+            "buggy_result_status": "INFRASTRUCTURE_FAILURE",
             "classification": "EVALUATOR_ENVIRONMENT_INVALID",
             "execution_status": "INVALID_EVALUATOR_RESULT",
             "fixed_control_passed": False,
@@ -600,6 +602,7 @@ def test_source_free_infrastructure_diagnostic_is_validated() -> None:
         {
             "base_image_identity": None,
             "buggy_environment_fingerprint": None,
+            "buggy_result_status": "INFRASTRUCTURE_FAILURE",
             "buggy_attempts": [
                 {
                     "duration_milliseconds": 0,
