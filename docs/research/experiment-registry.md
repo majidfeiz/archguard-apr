@@ -80,3 +80,7 @@ verified. It produced zero scientific attempts and remains historical and non-im
 Run 37896070272 reached target-project import but stopped at the generic evaluator-import preflight.
 It produced zero scientific attempts, remains historical and non-imported, and qualifies no task.
 Phase 12.8F.4.2.2 repairs only PySnooper-1 pytest loading and registers no Batch A/B or Phase 13 run.
+Run 38035903312 reached `PROJECT_IMPORT_VERIFIED` but stopped before evaluator-load verification with
+`EVALUATOR_SELECTOR_NOT_FOUND`. It produced zero scientific attempts, remains historical and
+non-imported, and qualifies no task. Phase 12.8F.4.2.3 repairs only the explicit PySnooper-1 external
+selector contract; it registers no Batch A/B or Phase 13 run.

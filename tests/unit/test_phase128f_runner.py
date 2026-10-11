@@ -719,6 +719,45 @@ def test_docker_exit_125_is_infrastructure_failure(
     assert result["infrastructure_diagnostic"]["process_return_code"] == 125
 
 
+def test_collection_failure_retains_only_source_free_process_diagnostic(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(runner, "_safe_checkout", _checkout_identity)
+    monkeypatch.setattr(runner, "_verify_identities", lambda *args: None)
+    monkeypatch.setattr(
+        runner,
+        "_acquire_base_image",
+        lambda *args: ("base", {"architecture": "amd64", "image_id": "id"}, 1),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_build_image",
+        lambda *args: (
+            "image",
+            [],
+            1,
+            {
+                "build_context_fingerprint": "c" * 64,
+                "image_id": "id",
+                "source_in_image": "ABSENT_DEPENDENCY_ONLY",
+                "tag": "image",
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_preflight",
+        lambda *args: (_ for _ in ()).throw(
+            runner.EvaluatorPreflightError("EVALUATOR_SELECTOR_NOT_FOUND", 4)
+        ),
+    )
+    result = runner.qualify(adapters()[0], tmp_path, tmp_path)
+    diagnostic = result["infrastructure_diagnostic"]
+    assert diagnostic["process_return_code"] == 4
+    assert diagnostic["failure_code"] == "EVALUATOR_SELECTOR_NOT_FOUND"
+    assert "raw_log" not in json.dumps(result)
+
+
 def test_offline_dependency_absence_is_non_scientific(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -802,6 +841,22 @@ def test_mount_probe_rejects_missing_or_wrong_topology(field: str, code: str) ->
         runner._validate_mount_probe(probe, "a" * 64)
 
 
+def test_mount_probe_rejects_wrong_container_visible_fixture_hash() -> None:
+    probe = {
+        "source_exists": True,
+        "evaluator_exists": True,
+        "fixture_exists": True,
+        "fixture_sha256": "b" * 64,
+        "mounts_distinct": True,
+        "source_read_only": True,
+        "evaluator_read_only": True,
+        "docker_socket_absent": True,
+        "network_disabled": True,
+    }
+    with pytest.raises(runner.EvaluatorPreflightError, match="EVALUATOR_IDENTITY_MISMATCH"):
+        runner._validate_mount_probe(probe, "a" * 64)
+
+
 def test_project_import_plan_is_explicit_and_source_backed() -> None:
     prepared = runner._prepare_project(adapters()[0])
     assert prepared["installation_mode"] == "PYTHONPATH_SOURCE"
@@ -816,7 +871,8 @@ def test_generic_project_import_name_is_rejected() -> None:
 
 @pytest.mark.parametrize("output", ["no tests ran", "2 tests collected"])
 def test_collection_requires_exactly_one_selected_test(output: str) -> None:
-    assert runner._collection_count(output) != 1
+    with pytest.raises(runner.EvaluatorPreflightError, match="EVALUATOR_NOT_COLLECTED"):
+        runner._validate_pytest_collection(output, "tests/test_chinese.py::test_chinese")
 
 
 def test_runtime_state_machine_rejects_skipped_transition() -> None:
@@ -923,6 +979,15 @@ def test_mount_probe_failure_always_cleans_container(
 
 def test_pytest_standalone_fixture_uses_external_selector_without_package_import() -> None:
     adapter = adapters()[0]
+    resolution = runner._resolve_external_pytest_selector(
+        adapter.buggy_test_selectors[0],
+        adapter.evaluator_fixture_path or "",
+        "/evaluator",
+        adapter.expected_framework,
+    )
+    assert resolution.logical_selector == "tests/test_chinese.py::test_chinese"
+    assert resolution.physical_fixture == "/evaluator/tests/test_chinese.py"
+    assert resolution.runtime_selector == "/evaluator/tests/test_chinese.py::test_chinese"
     assert runner._runtime_selectors(adapter, "TEST_FAILURE") == (
         "/evaluator/tests/test_chinese.py::test_chinese",
     )
@@ -936,11 +1001,50 @@ def test_pytest_standalone_fixture_uses_external_selector_without_package_import
         "../tests/test_chinese.py::test_chinese",
         "/tmp/test_chinese.py::test_chinese",
         "tests/other.py::test_chinese",
+        "tests/tests/test_chinese.py::test_chinese",
+        "tests/test_chinese.py::",
     ),
 )
 def test_external_selector_cannot_escape_evaluator_root(selector: str) -> None:
+    adapter = adapters()[0]
     with pytest.raises(runner.EvaluatorPreflightError, match="EVALUATOR_SELECTOR_OUTSIDE_ROOT"):
-        runner._resolve_external_selector(adapters()[0], selector)
+        runner._resolve_external_pytest_selector(
+            selector,
+            adapter.evaluator_fixture_path or "",
+            "/evaluator",
+            adapter.expected_framework,
+        )
+
+
+def test_external_selector_rejects_unverified_mount_root_and_framework() -> None:
+    logical = "tests/test_chinese.py::test_chinese"
+    for root, framework in (("/workspace", "pytest"), ("/evaluator", "unittest")):
+        with pytest.raises(runner.EvaluatorPreflightError, match="OUTSIDE_ROOT"):
+            runner._resolve_external_pytest_selector(
+                logical, "tests/test_chinese.py", root, framework
+            )
+
+
+def test_execution_plan_binds_selector_identities_without_changing_adapter_fingerprint() -> None:
+    adapter = adapters()[0]
+    before = adapter.fingerprint
+    plan = REAL_EXECUTION_PLAN(adapter)
+    resolution = plan["selector_resolutions"][0]
+    assert set(resolution) == {
+        "logical_selector_fingerprint",
+        "physical_fixture_fingerprint",
+        "role",
+        "runtime_selector_fingerprint",
+    }
+    assert {item["role"] for item in plan["selector_resolutions"]} == {"buggy", "fixed"}
+    assert plan["selector_resolution_fingerprint"] == runner._sha256_record(
+        plan["selector_resolutions"]
+    )
+    assert (
+        adapter.fingerprint
+        == before
+        == "d3a4938e74e6287056a21ab937a167e18c3c8c0e274a719f713068f28e96db10"
+    )
 
 
 def test_collected_node_requires_exactly_the_approved_node() -> None:
@@ -971,6 +1075,15 @@ def test_pytest_collection_failure_is_source_free_and_specific(output: str, code
 def test_pytest_collection_distinguishes_target_project_import_error() -> None:
     output = "ImportError while importing pysnooper.tracer"
     assert runner._pytest_collection_failure_code(output, "pysnooper") == "PROJECT_IMPORT_FAILED"
+
+
+def test_evaluator_import_error_precedes_pytest_selector_not_found_footer() -> None:
+    output = (
+        "ImportError: attempted relative import with no known parent package\n"
+        "ERROR: not found: /evaluator/tests/test_chinese.py::test_chinese\n"
+        "no tests ran"
+    )
+    assert runner._pytest_collection_failure_code(output) == "EVALUATOR_DEPENDENCY_MISSING"
 
 
 def test_pytest_collection_proves_evaluator_load_then_exact_node(

@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import time
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -63,9 +64,17 @@ PROJECT_MODULES = {"PySnooper": "pysnooper", "black": "black", "cookiecutter": "
 
 
 class EvaluatorPreflightError(RuntimeError):
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, process_return_code: int | None = None) -> None:
         super().__init__(code)
         self.code = code
+        self.process_return_code = process_return_code
+
+
+@dataclass(frozen=True)
+class ExternalSelectorResolution:
+    logical_selector: str
+    physical_fixture: str
+    runtime_selector: str
 
 
 class RuntimeTransitions:
@@ -243,14 +252,21 @@ def _collected_node(output: str, logical_selector: str) -> str:
     return candidates[0]
 
 
+def _validate_pytest_collection(output: str, logical_selector: str) -> tuple[int, str]:
+    collection_count = _collection_count(output)
+    if collection_count != 1:
+        raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED", 0)
+    return collection_count, _collected_node(output, logical_selector)
+
+
 def _pytest_collection_failure_code(output: str, project_module: str = "") -> str:
     lowered = output.lower()
-    if "not found" in lowered or "no tests ran" in lowered:
-        return "EVALUATOR_SELECTOR_NOT_FOUND"
     if "importerror" in lowered or "modulenotfounderror" in lowered:
         if project_module and project_module.lower() in lowered:
             return "PROJECT_IMPORT_FAILED"
         return "EVALUATOR_DEPENDENCY_MISSING"
+    if "not found" in lowered or "no tests ran" in lowered:
+        return "EVALUATOR_SELECTOR_NOT_FOUND"
     return "EVALUATOR_NOT_COLLECTED"
 
 
@@ -422,25 +438,56 @@ def _runtime_selectors(adapter: EvaluatorAdapter, expected_outcome: str) -> tupl
         else adapter.fixed_test_selectors
     )
     assert adapter.evaluator_fixture_path is not None
-    if adapter.expected_framework in {"pytest", "tox"}:
-        return tuple(_resolve_external_selector(adapter, selector) for selector in declared)
+    if adapter.expected_framework == "pytest":
+        return tuple(
+            _resolve_external_pytest_selector(
+                selector,
+                adapter.evaluator_fixture_path,
+                EVALUATOR_ROOT,
+                adapter.expected_framework,
+            ).runtime_selector
+            for selector in declared
+        )
+    if adapter.expected_framework == "tox":
+        mounted_fixture = f"{EVALUATOR_ROOT}/{adapter.evaluator_fixture_path}"
+        return tuple(
+            selector.replace(adapter.evaluator_fixture_path, mounted_fixture, 1)
+            for selector in declared
+        )
     return declared
 
 
-def _resolve_external_selector(adapter: EvaluatorAdapter, selector: str) -> str:
-    assert adapter.evaluator_fixture_path is not None
-    logical_path, separator, node = selector.partition("::")
-    path = PurePosixPath(logical_path)
+def _resolve_external_pytest_selector(
+    logical_selector: str,
+    fixture_relative_path: str,
+    evaluator_mount_root: str,
+    expected_framework: str,
+) -> ExternalSelectorResolution:
+    logical_path, separator, node = logical_selector.partition("::")
+    fixture = PurePosixPath(fixture_relative_path)
+    logical = PurePosixPath(logical_path)
+    mount_root = PurePosixPath(evaluator_mount_root)
     if (
-        not separator
+        expected_framework != "pytest"
+        or not separator
         or not node
-        or path.is_absolute()
-        or ".." in path.parts
-        or "." in path.parts
-        or path.as_posix() != adapter.evaluator_fixture_path
+        or logical.is_absolute()
+        or fixture.is_absolute()
+        or not mount_root.is_absolute()
+        or mount_root != PurePosixPath(EVALUATOR_ROOT)
+        or any(part in {"", ".", ".."} for part in logical.parts)
+        or any(part in {"", ".", ".."} for part in fixture.parts)
+        or logical != fixture
     ):
         raise EvaluatorPreflightError("EVALUATOR_SELECTOR_OUTSIDE_ROOT")
-    return f"{EVALUATOR_ROOT}/{path.as_posix()}::{node}"
+    physical = mount_root / fixture
+    if not physical.is_relative_to(mount_root) or physical == mount_root:
+        raise EvaluatorPreflightError("EVALUATOR_SELECTOR_OUTSIDE_ROOT")
+    return ExternalSelectorResolution(
+        logical_selector=logical_selector,
+        physical_fixture=physical.as_posix(),
+        runtime_selector=f"{physical.as_posix()}::{node}",
+    )
 
 
 def _runtime_argv(adapter: EvaluatorAdapter, expected_outcome: str) -> tuple[str, ...]:
@@ -467,6 +514,8 @@ def _execution_plan(adapter: EvaluatorAdapter, fixture: Path | None = None) -> d
         raise EvaluatorPreflightError("QUARANTINE_POLICY_INVALID")
     if adapter.evaluator_source_type != "FIXED_REVISION_QUARANTINED_TEST":
         raise EvaluatorPreflightError("EVALUATOR_SOURCE_TYPE_UNSUPPORTED")
+    if adapter.evaluator_fixture_path is None:
+        raise EvaluatorPreflightError("EVALUATOR_FIXTURE_PATH_MISSING")
     if not adapter.evaluator_provenance.startswith(f"BugsInPy@{BUGSINPY_REVISION}:"):
         raise EvaluatorPreflightError("EVALUATOR_PROVENANCE_INVALID")
     if adapter.expected_framework != adapter.evaluator_argv[2]:
@@ -499,6 +548,27 @@ def _execution_plan(adapter: EvaluatorAdapter, fixture: Path | None = None) -> d
     host_hash = hashlib.sha256(fixture.read_bytes()).hexdigest() if fixture is not None else None
     if host_hash is not None and host_hash != adapter.evaluator_fixture_sha256:
         raise EvaluatorPreflightError("EVALUATOR_IDENTITY_MISMATCH")
+    selector_resolutions = []
+    if adapter.expected_framework == "pytest":
+        for role, logical_selectors in (
+            ("buggy", adapter.buggy_test_selectors),
+            ("fixed", adapter.fixed_test_selectors),
+        ):
+            for logical_selector in logical_selectors:
+                resolution = _resolve_external_pytest_selector(
+                    logical_selector,
+                    adapter.evaluator_fixture_path,
+                    EVALUATOR_ROOT,
+                    adapter.expected_framework,
+                )
+                selector_resolutions.append(
+                    {
+                        "logical_selector_fingerprint": _sha256_record(resolution.logical_selector),
+                        "physical_fixture_fingerprint": _sha256_record(resolution.physical_fixture),
+                        "role": role,
+                        "runtime_selector_fingerprint": _sha256_record(resolution.runtime_selector),
+                    }
+                )
     return {
         "schema": "archguard.phase-12.8f4-1-execution-plan/v1",
         "adapter_fingerprint": adapter.fingerprint,
@@ -520,6 +590,8 @@ def _execution_plan(adapter: EvaluatorAdapter, fixture: Path | None = None) -> d
         ),
         "host_fixture_fingerprint": host_hash,
         "runtime_consumers": consumers,
+        "selector_resolution_fingerprint": _sha256_record(selector_resolutions),
+        "selector_resolutions": selector_resolutions,
         "v3_plan_validation": "VALID",
     }
 
@@ -958,7 +1030,34 @@ def _preflight(
                 EvaluatorRuntimeState.EVALUATOR_IMPORT_VERIFIED,
                 {"exit_status": 0, "fixture_sha256": adapter.evaluator_fixture_sha256},
             )
+    selector_resolution: ExternalSelectorResolution | None = None
+    container_hash: str | None = None
     if adapter.expected_framework == "pytest":
+        if len(adapter.buggy_test_selectors) != 1:
+            raise EvaluatorPreflightError("EVALUATOR_SELECTOR_INVALID")
+        selector_resolution = _resolve_external_pytest_selector(
+            adapter.buggy_test_selectors[0],
+            adapter.evaluator_fixture_path,
+            EVALUATOR_ROOT,
+            adapter.expected_framework,
+        )
+        container_hash_command = _sandbox_prefix(
+            adapter, image, source, evaluator_root, f"{name}-identity"
+        ) + [
+            "python",
+            "-c",
+            "import hashlib,pathlib,sys; "
+            "path=pathlib.Path(sys.argv[1]); "
+            "assert path.is_file() and not path.is_symlink(); "
+            "print(hashlib.sha256(path.read_bytes()).hexdigest())",
+            selector_resolution.physical_fixture,
+        ]
+        identity = subprocess.run(container_hash_command, capture_output=True, timeout=120)
+        if identity.returncode != 0:
+            raise EvaluatorPreflightError("EVALUATOR_IDENTITY_UNREADABLE", identity.returncode)
+        container_hash = identity.stdout.decode("ascii").strip()
+        if container_hash != adapter.evaluator_fixture_sha256:
+            raise EvaluatorPreflightError("EVALUATOR_IDENTITY_MISMATCH", identity.returncode)
         preflight_argv = [
             "python",
             "-m",
@@ -967,7 +1066,7 @@ def _preflight(
             "-q",
             "-o",
             f"cache_dir={PYTEST_CACHE}",
-            *_runtime_selectors(adapter, "TEST_FAILURE"),
+            selector_resolution.runtime_selector,
         ]
     elif adapter.expected_framework == "unittest":
         selector = _runtime_selectors(adapter, "TEST_FAILURE")[0]
@@ -983,10 +1082,19 @@ def _preflight(
     else:
         preflight_argv = [*_runtime_argv(adapter, "TEST_FAILURE"), "--collect-only"]
     command = _sandbox_prefix(adapter, image, source, evaluator_root, name) + preflight_argv
-    result = subprocess.run(command, capture_output=True, timeout=adapter.sandbox.timeout_seconds)
     try:
+        collection_started = time.monotonic()
+        result = subprocess.run(
+            command, capture_output=True, timeout=adapter.sandbox.timeout_seconds
+        )
+        collection_duration_milliseconds = int((time.monotonic() - collection_started) * 1000)
+        raw_collection_output = result.stdout + result.stderr
+        collection_output_truncated = len(raw_collection_output) > adapter.sandbox.output_bytes
+        bounded_collection_output = raw_collection_output[: adapter.sandbox.output_bytes].decode(
+            "utf-8", "replace"
+        )
         if result.returncode != 0:
-            text = (result.stdout + result.stderr).decode("utf-8", "replace")
+            text = bounded_collection_output
             if adapter.expected_framework == "tox":
                 code = (
                     "OFFLINE_DEPENDENCY_MISSING"
@@ -997,44 +1105,47 @@ def _preflight(
                 )
             else:
                 code = _pytest_collection_failure_code(text, project_module)
-            raise EvaluatorPreflightError(code)
-        output = result.stdout.decode("utf-8", "replace")
-        collection_count = _collection_count(output)
-        if collection_count != 1:
-            raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED")
+            raise EvaluatorPreflightError(code, result.returncode)
+        output = bounded_collection_output
         declared_selectors = (
             adapter.buggy_test_selectors
             if adapter.expected_framework == "pytest"
             else _runtime_selectors(adapter, "TEST_FAILURE")
         )
         if len(declared_selectors) != 1:
-            raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED")
-        collected_node = (
-            _collected_node(output, declared_selectors[0])
-            if adapter.expected_framework == "pytest"
-            else declared_selectors[0]
-        )
-        container_hash_command = _sandbox_prefix(
-            adapter, image, source, evaluator_root, f"{name}-identity"
-        ) + [
-            "python",
-            "-c",
-            "import hashlib,pathlib,sys; "
-            "print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())",
-            mounted_fixture,
-        ]
-        identity = subprocess.run(container_hash_command, capture_output=True, timeout=120)
-        if identity.returncode != 0:
-            raise EvaluatorPreflightError("EVALUATOR_IDENTITY_UNREADABLE")
-        container_hash = identity.stdout.decode("ascii").strip()
-        if container_hash != adapter.evaluator_fixture_sha256:
-            raise EvaluatorPreflightError("EVALUATOR_IDENTITY_MISMATCH")
+            raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED", 0)
+        if adapter.expected_framework == "pytest":
+            collection_count, collected_node = _validate_pytest_collection(
+                output, declared_selectors[0]
+            )
+        else:
+            collection_count = _collection_count(output)
+            if collection_count != 1:
+                raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED", 0)
+            collected_node = declared_selectors[0]
+        if container_hash is None:
+            container_hash_command = _sandbox_prefix(
+                adapter, image, source, evaluator_root, f"{name}-identity"
+            ) + [
+                "python",
+                "-c",
+                "import hashlib,pathlib,sys; "
+                "print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())",
+                mounted_fixture,
+            ]
+            identity = subprocess.run(container_hash_command, capture_output=True, timeout=120)
+            if identity.returncode != 0:
+                raise EvaluatorPreflightError("EVALUATOR_IDENTITY_UNREADABLE", identity.returncode)
+            container_hash = identity.stdout.decode("ascii").strip()
+            if container_hash != adapter.evaluator_fixture_sha256:
+                raise EvaluatorPreflightError("EVALUATOR_IDENTITY_MISMATCH", identity.returncode)
         if transitions is not None:
             if adapter.expected_framework == "pytest":
                 transitions.reach(
                     EvaluatorRuntimeState.EVALUATOR_IMPORT_VERIFIED,
                     {
                         "collection_exit_status": 0,
+                        "collection_duration_milliseconds": collection_duration_milliseconds,
                         "fixture_sha256": container_hash,
                         "loader": "pytest-collection",
                     },
@@ -1043,16 +1154,21 @@ def _preflight(
                 EvaluatorRuntimeState.TEST_COLLECTED,
                 {
                     "collection_count": collection_count,
+                    "collection_duration_milliseconds": collection_duration_milliseconds,
                     "collected_node_fingerprint": _sha256_record(collected_node),
                     "fixture_sha256": container_hash,
                     "logical_selector_fingerprint": _sha256_record(list(declared_selectors)),
                     "resolved_selector_fingerprint": _sha256_record(
                         list(_runtime_selectors(adapter, "TEST_FAILURE"))
                     ),
+                    "output_truncated": collection_output_truncated,
                 },
             )
         return {
             "collection_count": collection_count,
+            "collection_duration_milliseconds": collection_duration_milliseconds,
+            "collection_exit_code": result.returncode,
+            "collection_output_truncated": collection_output_truncated,
             "container_visible_fixture_fingerprint": container_hash,
             "evaluator_fixture_mounted": True,
             "evaluator_fixture_identity_match": True,
@@ -1469,7 +1585,13 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             if failure_stage == "FIXED_CONTROL_EXECUTION"
             else Classification.INFRASTRUCTURE_FAILURE
         )
-        return_code = error.returncode if isinstance(error, subprocess.CalledProcessError) else None
+        return_code = (
+            error.returncode
+            if isinstance(error, subprocess.CalledProcessError)
+            else error.process_return_code
+            if isinstance(error, EvaluatorPreflightError)
+            else None
+        )
         stderr = error.stderr if isinstance(error, subprocess.CalledProcessError) else b""
         if isinstance(stderr, str):
             stderr = stderr.encode()

@@ -25,3 +25,12 @@ identity, and target-project import. It then stopped at `EVALUATOR_IMPORT_FAILED
 with zero buggy scientific attempts and no fixed execution. The preflight incorrectly executed the
 standalone pytest fixture with generic `runpy.run_path()` semantics. Phase 12.8F.4.2.2 instead treats
 successful exact-node pytest collection as the evaluator-loading proof.
+
+## Follow-up run 38035903312
+
+The PySnooper-1 canary again reached `PROJECT_IMPORT_VERIFIED`, then stopped with
+`EVALUATOR_SELECTOR_NOT_FOUND` before evaluator-load verification or collection. The source-free
+artifact proves the intended runtime-selector fingerprint, mounted fixture identity, zero collection,
+and zero scientific attempts, but deliberately retains no raw pytest output. Phase 12.8F.4.2.3 binds
+logical, physical, and runtime selector identities explicitly, rechecks the physical fixture before
+collection, and retains bounded source-free collection diagnostics.
