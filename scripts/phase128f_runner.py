@@ -33,6 +33,7 @@ from archguard.infrastructure.phase128f_evidence import validate_results as vali
 
 MAX_TRANSFER = 2 * 1024**3
 MAX_DISK = 8 * 1024**3
+REMAINING_TASKS = ("PySnooper-3", "black-1", "cookiecutter-4")
 ALLOWED_HOSTS = (
     "github.com",
     "api.github.com",
@@ -134,6 +135,8 @@ def _adapter(value: dict[str, Any]) -> EvaluatorAdapter:
 
 
 def _tasks(selection: str) -> tuple[str, ...]:
+    if selection == "remaining":
+        return REMAINING_TASKS
     if selection == "batch-a":
         return BATCH_A
     if selection == "batch-b":
@@ -1949,14 +1952,6 @@ def main() -> None:
         _acquire_framework(framework)
         for task in tasks:
             results.append(qualify(adapters[task], args.external_root, framework))
-            if (
-                sum(
-                    result["classification"] == Classification.INFRASTRUCTURE_FAILURE
-                    for result in results
-                )
-                > 1
-            ):
-                break
             if _tree_bytes(args.external_root) > MAX_DISK:
                 raise RuntimeError("temporary disk ceiling exceeded")
         validate_results(results)

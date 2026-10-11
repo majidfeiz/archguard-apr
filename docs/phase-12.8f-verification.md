@@ -10,8 +10,11 @@ Seven adapters cover PySnooper-1, PySnooper-3, Black-1 through Black-4, and Cook
 PySnooper-2 references its existing imported STABLE qualification. No adapter is unavailable. Exact
 commands, selectors and dependency-file hashes derive from BugsInPy revision
 `11c5f1eea954a42132cfd06bf257766a7963e0fd`; revisions and license identities bind official upstream
-repositories. PySnooper-1 remains NOT_REPRODUCIBLE unless a consistency run agrees; contradiction
-records `EVIDENCE_CONFLICT_REVIEW_REQUIRED` and cannot qualify it.
+repositories. GitHub run `38147331854` is imported as the canonical Linux x86 PySnooper-1 result.
+All three actual buggy executions passed the one exactly selected test, so the expected buggy failure
+did not reproduce. Its classification is `NOT_REPRODUCIBLE`, its decision is `NOT_QUALIFIED`, and the
+fixed control was correctly not required or attempted. This is a scientific result, not an
+infrastructure failure, and it authorizes neither adapter mutation nor candidate replacement.
 
 Phase 12.8F.1 replaces the v1 opaque evaluator command with allowlisted structured argv and separately
 binds the upstream requirements-file identity, explicit empty-file state, declared constraint-set
@@ -33,36 +36,34 @@ removed after adapter review. No PyPI package was downloaded locally.
 
 ## Workflow
 
-Run Batch A after merge:
+Run the remaining reviewed evaluators after merge:
 
 ```bash
-gh workflow run phase-12-8f-linux-x86-qualification.yml --ref main -f task_id=batch-a
+gh workflow run phase-12-8f-linux-x86-qualification.yml --ref main
 ```
 
-Phase 12.8F.2 temporarily narrows the input to `batch-a` only while fixed-control failures are diagnosed.
-Batch A is PySnooper-1 consistency, PySnooper-3, black-1 and cookiecutter-4. Execution is serial.
-PySnooper-2 appears through prior evidence and is not rerun. Batch B remains defined historically but
-cannot be started from the diagnostic workflow.
+The consolidated workflow runs exactly PySnooper-3, black-1 and cookiecutter-4, serially. PySnooper-1
+is not rerun after its imported result, PySnooper-2 remains prior evidence, and Batch B cannot be
+started from this workflow.
 
 The workflow explicitly pulls `python:<exact-version>` for `linux/amd64`, verifies its requested tag,
 ID/digests, OS and architecture, records that identity, and builds with `--pull=false`. It uses only
 GitHub, Docker Hub for the declared Python base image, and PyPI hosts declared in its log, permits
 network only for Git, base acquisition and container dependency preparation, and runs evaluator
 attempts with network none. It enforces 2 GiB
-aggregate transfer, 8 GiB temporary disk, and 10 MiB retained Artifact ceilings. Prospective Batch A
-planning is under 700 MiB transfer, 5 GiB disk, and the 350-minute job timeout; Batch B is under
-900 MiB transfer, 6 GiB disk, and the same timeout. These are conservative pre-run bounds, not measured
-results. A standard-library scanner must complete successfully before security status can be PASSED or
-an Artifact published; missing inputs, non-UTF-8 content, secrets, diff markers, forbidden fields and
-absolute runner paths fail closed.
+aggregate transfer, 8 GiB temporary disk, and 10 MiB retained Artifact ceilings. Prospective planning
+for the three remaining tasks is under 700 MiB transfer, 5 GiB disk, and the 350-minute job timeout.
+These are conservative pre-run bounds, not measured results. A standard-library scanner must complete
+successfully before security status can be PASSED or an Artifact published; missing inputs, non-UTF-8
+content, secrets, diff markers, forbidden fields and absolute runner paths fail closed.
 
 Each run uploads exactly one flat, source-free, 14-day Artifact named
-`archguard-phase-12-8f-qualification-<selection>-<run-id>`. Download it outside the repository and run:
+`archguard-phase-12-8f-remaining-qualification-<run-id>`. Download it outside the repository and run:
 
 ```bash
 PYTHONPATH=src python scripts/phase128f_evidence.py validate --archive /path/evidence.zip
 PYTHONPATH=src python scripts/phase128f_evidence.py import \
-  --archive /path/evidence.zip --output research/evidence/phase-12.8f-qualification.json
+  --archive /path/evidence.zip --output research/evidence/phase-12.8f-remaining-qualification.json
 ```
 
 Import requires separate review and a later commit. Implementation is not qualification evidence;

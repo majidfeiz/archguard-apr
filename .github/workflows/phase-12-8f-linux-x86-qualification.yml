@@ -1,15 +1,7 @@
-name: Phase 12.8F.4.2.3 PySnooper-1 External Selector Canary
+name: Phase 12.8F Remaining Evaluator Qualification
 
 on:
-  workflow_dispatch:
-    inputs:
-      task_id:
-        description: Fixed single-task runtime canary
-        required: true
-        default: PySnooper-1
-        type: choice
-        options:
-          - PySnooper-1
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -41,12 +33,11 @@ jobs:
           echo "RESULTS_PATH=${results_path}" >> "${GITHUB_ENV}"
           echo "VALIDATION_ZIP=${validation_zip}" >> "${GITHUB_ENV}"
           echo "SECURITY_SCAN_PATH=${security_scan_path}" >> "${GITHUB_ENV}"
-          echo "ARTIFACT_NAME=archguard-phase-12-8f4-2-3-pysnooper-1-runtime-canary-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
+          echo "ARTIFACT_NAME=archguard-phase-12-8f-remaining-qualification-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
           echo "TRANSFER_START=$(cat /sys/class/net/eth0/statistics/rx_bytes)" >> "${GITHUB_ENV}"
           test "$(uname -s)" = Linux
           test "$(uname -m)" = x86_64
           test "$(df --output=avail -B1 "${RUNNER_TEMP}" | tail -1)" -ge 8589934592
-          test "${{ inputs.task_id }}" = PySnooper-1
       - name: Declare controlled network and resource policy
         shell: bash
         run: |
@@ -74,12 +65,17 @@ jobs:
           test "$(jq -r .fingerprint research/evaluators/adapter-registry-v2.json)" = c75006d9b413b991d5227df817c454cb908d4a92705111563ba4f19044923700
           test "$(jq -r .selection_policy_fingerprint research/evaluators/adapter-registry-v2.json)" = 0987d60ff9b5c2071f0c1dd82a91c680a6aafa885a37b12003bc34dc4add7e01
           test "$(jq -c .selected_identifiers research/candidates/candidate-pool-v1.json)" = '["PySnooper-1","black-1","cookiecutter-4","PySnooper-2","black-2","PySnooper-3","black-3","black-4"]'
-          adapter="$(jq -c '.adapters[] | select(.task_id == "PySnooper-1")' research/evaluators/adapter-registry-v2.json)"
-          test "$(jq -r .buggy_revision <<<"${adapter}")" = e21a31162f4c54be693d8ca8260e42393b39abd3
-          test "$(jq -r .fixed_revision <<<"${adapter}")" = 56f22f8ffe1c6b2be4d2cf3ad1987fdb66113da2
-          test "$(jq -r .fingerprint <<<"${adapter}")" = d3a4938e74e6287056a21ab937a167e18c3c8c0e274a719f713068f28e96db10
-          test "$(jq -r .evaluator_fixture_sha256 <<<"${adapter}")" = 7a3d64cd702fdfa1eba8c08ac3c8934948a3ef0178f141c1f5599307c1fe59f3
-          test "$(jq -r .test_selectors[0] <<<"${adapter}")" = tests/test_chinese.py::test_chinese
+          check_adapter() {
+            adapter="$(jq -c --arg task "$1" '.adapters[] | select(.task_id == $task)' research/evaluators/adapter-registry-v2.json)"
+            test "$(jq -r .buggy_revision <<<"${adapter}")" = "$2"
+            test "$(jq -r .fixed_revision <<<"${adapter}")" = "$3"
+            test "$(jq -r .fingerprint <<<"${adapter}")" = "$4"
+            test "$(jq -r .evaluator_fixture_sha256 <<<"${adapter}")" = "$5"
+            test "$(jq -r .test_selectors[0] <<<"${adapter}")" = "$6"
+          }
+          check_adapter PySnooper-3 6e3d797be3fa0a746fb5b1b7c7fea78eb926c208 15555ed760000b049aff8fecc79d29339c1224c3 8be2d7c2752d4a31b101571f85e65416c64243dbaaa46782d5b1efaa3b7fc244 852e76799d5a97d2e8e87d0db6b5e6fd7884fbff6fbe2049734c268bd8c7c753 tests/test_pysnooper.py::test_file_output
+          check_adapter black-1 26c9465a22c732ab1e17b0dec578fa3432e9b558 c0a7582e3d4cc8bec3b7f5a6c52b36880dcb57d7 45af5d136425d7378e1a66f5c7deb6cb162442863a353fcb5b795bcef9960162 3a690fb9c66f3d85b89594f4577e3632ec069389e3af669becb3b899ded59373 tests.test_black.BlackTestCase.test_works_in_mono_process_only_environment
+          check_adapter cookiecutter-4 9568ab6ecd2d6836646006c59473c4a4ac0dee04 457a1a4e862aab4102b644ff1d2b2e2b5a766b3c cd1ad0be37d784697a74099fe350a92f6f2f6887eb4553afecb3f200ecf546cf c74875f38e1948d6b5bb1e8ea04d165df54d188d04be14e79439b907ca266d0f tests/test_hooks.py::TestExternalHooks::test_run_failing_hook
       - name: Execute selected adapters serially in hardened containers
         shell: bash
         env:
@@ -88,12 +84,11 @@ jobs:
           set -euo pipefail
           timeout 350m python3 scripts/phase128f_runner.py \
             --adapters research/evaluators/adapter-registry-v2.json \
-            --selection PySnooper-1 \
-            --runtime-canary \
+            --selection remaining \
             --external-root "${EXTERNAL_ROOT}" \
             --output "${RESULTS_PATH}"
-          jq -e 'length == 1 and .[0].task_id == "PySnooper-1" and
-            .[0].runtime_state_machine.schema == "archguard.evaluator-runtime-state-machine/v3"' \
+          jq -e 'map(.task_id) == ["PySnooper-3", "black-1", "cookiecutter-4"] and
+            all(.[]; .runtime_state_machine.schema == "archguard.evaluator-runtime-state-machine/v3")' \
             "${RESULTS_PATH}" >/dev/null
       - name: Enforce transfer, disk, leakage, and cleanup gates
         if: always()
@@ -172,7 +167,7 @@ jobs:
           test -z "$(docker ps -aq --filter label=archguard.phase=12.8f)"
           test -z "$(docker images -q --filter label=archguard.phase=12.8f)"
           python3 scripts/phase128f_job_summary.py \
-            --selection PySnooper-1 \
+            --selection remaining \
             --results "${RESULTS_PATH:-${RUNNER_TEMP}/archguard-phase-12-8f-results.json}" \
             --security-scan "${SECURITY_SCAN_PATH:-${RUNNER_TEMP}/archguard-phase-12-8f-security-scan.json}" \
             --output "${GITHUB_STEP_SUMMARY}"
