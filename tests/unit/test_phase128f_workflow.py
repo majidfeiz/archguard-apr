@@ -10,6 +10,7 @@ def test_workflow_inputs_batches_and_runner_temp(repository_root: Path) -> None:
     path = repository_root / ".github/workflows/phase-12-8f-linux-x86-qualification.yml"
     raw = path.read_text()
     workflow = yaml.safe_load(raw)
+    assert workflow["name"] == "Phase 12.8F.4.2.3 PySnooper-1 External Selector Canary"
     dispatch = workflow[True]["workflow_dispatch"]
     assert dispatch["inputs"]["task_id"]["default"] == "PySnooper-1"
     assert dispatch["inputs"]["task_id"]["options"] == ["PySnooper-1"]
@@ -57,6 +58,11 @@ def test_workflow_sandbox_cleanup_and_single_artifact(repository_root: Path) -> 
     assert "black-1" not in dispatch["inputs"]["task_id"]["options"]
     assert "cookiecutter-4" not in dispatch["inputs"]["task_id"]["options"]
     assert "batch-b" not in raw
+    assert "--input research/evaluators/adapter-registry-v2.json" in raw
+    assert "adapter-registry-v3.json" not in raw
+    assert raw.count("--input") == 2
+    assert '--input "${RESULTS_PATH}"' in raw
+    assert "archguard-phase-12-8f4-2-3-pysnooper-1-runtime-canary-${GITHUB_RUN_ID}" in raw
 
 
 def test_summary_uses_recorded_fixed_stage_and_category() -> None:

@@ -22,7 +22,7 @@ def _selected(selection: str) -> tuple[str, ...]:
 def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
     reached = {item["task_id"] for item in results}
     lines = [
-        "## Phase 12.8F.4.2.2 PySnooper-1 runtime canary",
+        "## Phase 12.8F.4.2.3 PySnooper-1 external selector canary",
         "",
         "| Task | tmpfs created | Writable probe | Fixture acquired | Fixture verified | "
         "Source mounted | Evaluator mounted | Project import | Evaluator loaded by pytest | "
