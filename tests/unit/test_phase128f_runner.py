@@ -723,6 +723,10 @@ def test_batch_b_is_unavailable() -> None:
         runner._tasks("batch-b")
 
 
+def test_remaining_tasks_are_exact_and_exclude_imported_pysnooper_one() -> None:
+    assert runner._tasks("remaining") == ("PySnooper-3", "black-1", "cookiecutter-4")
+
+
 @pytest.mark.parametrize("tasks", [("PySnooper-3",), ("black-1",), ("cookiecutter-4",)])
 def test_runtime_canary_rejects_every_other_task(tasks: tuple[str, ...]) -> None:
     with pytest.raises(ValueError, match="only PySnooper-1"):

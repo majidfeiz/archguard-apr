@@ -51,12 +51,11 @@ ID/digests, OS and architecture, records that identity, and builds with `--pull=
 GitHub, Docker Hub for the declared Python base image, and PyPI hosts declared in its log, permits
 network only for Git, base acquisition and container dependency preparation, and runs evaluator
 attempts with network none. It enforces 2 GiB
-aggregate transfer, 8 GiB temporary disk, and 10 MiB retained Artifact ceilings. Prospective Batch A
-planning is under 700 MiB transfer, 5 GiB disk, and the 350-minute job timeout; Batch B is under
-900 MiB transfer, 6 GiB disk, and the same timeout. These are conservative pre-run bounds, not measured
-results. A standard-library scanner must complete successfully before security status can be PASSED or
-an Artifact published; missing inputs, non-UTF-8 content, secrets, diff markers, forbidden fields and
-absolute runner paths fail closed.
+aggregate transfer, 8 GiB temporary disk, and 10 MiB retained Artifact ceilings. Prospective planning
+for the three remaining tasks is under 700 MiB transfer, 5 GiB disk, and the 350-minute job timeout.
+These are conservative pre-run bounds, not measured results. A standard-library scanner must complete
+successfully before security status can be PASSED or an Artifact published; missing inputs, non-UTF-8
+content, secrets, diff markers, forbidden fields and absolute runner paths fail closed.
 
 Each run uploads exactly one flat, source-free, 14-day Artifact named
 `archguard-phase-12-8f-remaining-qualification-<run-id>`. Download it outside the repository and run:
@@ -64,7 +63,7 @@ Each run uploads exactly one flat, source-free, 14-day Artifact named
 ```bash
 PYTHONPATH=src python scripts/phase128f_evidence.py validate --archive /path/evidence.zip
 PYTHONPATH=src python scripts/phase128f_evidence.py import \
-  --archive /path/evidence.zip --output research/evidence/phase-12.8f-qualification.json
+  --archive /path/evidence.zip --output research/evidence/phase-12.8f-remaining-qualification.json
 ```
 
 Import requires separate review and a later commit. Implementation is not qualification evidence;

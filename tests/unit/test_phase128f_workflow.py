@@ -10,10 +10,9 @@ def test_workflow_inputs_batches_and_runner_temp(repository_root: Path) -> None:
     path = repository_root / ".github/workflows/phase-12-8f-linux-x86-qualification.yml"
     raw = path.read_text()
     workflow = yaml.safe_load(raw)
-    assert workflow["name"] == "Phase 12.8F.4.2.3 PySnooper-1 External Selector Canary"
+    assert workflow["name"] == "Phase 12.8F Remaining Evaluator Qualification"
     dispatch = workflow[True]["workflow_dispatch"]
-    assert dispatch["inputs"]["task_id"]["default"] == "PySnooper-1"
-    assert dispatch["inputs"]["task_id"]["options"] == ["PySnooper-1"]
+    assert dispatch == {}
     assert workflow["permissions"] == {"contents": "read"}
     assert "runs-on: ubuntu-24.04" in raw
     assert "max-parallel: 1" in raw and "fail-fast: false" in raw
@@ -51,20 +50,19 @@ def test_workflow_sandbox_cleanup_and_single_artifact(repository_root: Path) -> 
     assert "phase128f_job_summary.py" in raw
     runner = (repository_root / "scripts/phase128f_runner.py").read_text()
     assert '"pull", "--platform", "linux/amd64"' in runner
-    assert "> 1" in runner
+    assert 'REMAINING_TASKS = ("PySnooper-3", "black-1", "cookiecutter-4")' in runner
     assert "owned-base-reference.txt" in raw and "label=archguard.phase=12.8f" in raw
-    assert "--selection PySnooper-1" in raw and "--runtime-canary" in raw
+    assert "--selection remaining" in raw and "--runtime-canary" not in raw
     assert "--collection-diagnostic" not in raw
-    dispatch = yaml.safe_load(raw)[True]["workflow_dispatch"]
-    assert "PySnooper-3" not in dispatch["inputs"]["task_id"]["options"]
-    assert "black-1" not in dispatch["inputs"]["task_id"]["options"]
-    assert "cookiecutter-4" not in dispatch["inputs"]["task_id"]["options"]
+    assert "--selection PySnooper-1" not in raw
+    for task_id in ("PySnooper-3", "black-1", "cookiecutter-4"):
+        assert task_id in raw
     assert "batch-b" not in raw
     assert "--input research/evaluators/adapter-registry-v2.json" in raw
     assert "adapter-registry-v3.json" not in raw
     assert raw.count("--input") == 2
     assert '--input "${RESULTS_PATH}"' in raw
-    assert "archguard-phase-12-8f4-2-3-pysnooper-1-runtime-canary-${GITHUB_RUN_ID}" in raw
+    assert "archguard-phase-12-8f-remaining-qualification-${GITHUB_RUN_ID}" in raw
 
 
 def test_summary_uses_recorded_fixed_stage_and_category() -> None:
