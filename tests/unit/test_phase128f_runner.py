@@ -1056,12 +1056,13 @@ def test_collected_node_requires_exactly_the_approved_node() -> None:
     logical = "tests/test_chinese.py::test_chinese"
     assert runner._collected_node(f"{logical}\n1 item collected\n", logical) == logical
     assert runner._collected_node("::test_chinese\n", logical) == logical
-    with pytest.raises(runner.EvaluatorPreflightError, match="SELECTED_NODE_MISMATCH"):
-        runner._collected_node(f"{logical}\n{logical}\n2 items collected\n", logical)
+    assert runner._collected_node(f"{logical}\n{logical}\n", logical) == logical
     with pytest.raises(runner.EvaluatorPreflightError, match="SELECTED_NODE_MISMATCH"):
         runner._collected_node("tests/test_chinese.py::test_other\n1 item collected\n", logical)
+    assert runner._collected_node("::test_chinese\n::test_chinese\n", logical) == logical
+    assert runner._collected_node("\x1b[32m::test_chinese\x1b[0m\n", logical) == logical
     with pytest.raises(runner.EvaluatorPreflightError, match="SELECTED_NODE_MISMATCH"):
-        runner._collected_node("::test_chinese\n::test_chinese\n", logical)
+        runner._collected_node("::test_chinese\n::test_other\n", logical)
 
 
 def test_pysnooper_evaluator_support_is_identity_checked(

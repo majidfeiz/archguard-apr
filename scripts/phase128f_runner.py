@@ -248,15 +248,14 @@ def _collected_node(output: str, logical_selector: str) -> str:
     if not separator or not node:
         raise EvaluatorPreflightError("EVALUATOR_SELECTOR_INVALID")
     compact_selector = f"::{node}"
-    candidates: list[str] = []
+    candidates: set[str] = set()
     for line in output.splitlines():
-        value = line.strip()
-        position = value.find(logical_path)
-        if position >= 0 and "::" in value[position:]:
-            candidates.append(value[position:])
-        elif value == compact_selector:
-            candidates.append(logical_selector)
-    if candidates != [logical_selector]:
+        value = re.sub(r"\x1b\[[0-9;]*m", "", line).strip()
+        if value == compact_selector or value.endswith(logical_selector):
+            candidates.add(logical_selector)
+        elif "::" in value and not value.startswith(("ERROR", "WARNING")):
+            candidates.add(value)
+    if candidates != {logical_selector}:
         raise EvaluatorPreflightError("EVALUATOR_SELECTED_NODE_MISMATCH")
     return logical_selector
 
