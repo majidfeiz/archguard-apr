@@ -217,7 +217,10 @@ class EvaluatorAdapter:
                 "selector plans required",
             )
             check(self.expected_framework in {"pytest", "unittest", "tox"}, "invalid framework")
-            check(self.working_directory.startswith("/workspace"), "invalid working directory")
+            check(
+                self.working_directory in {"/workspace", "/tmp/archguard"},
+                "invalid working directory",
+            )
             check(self.review_status == "REVIEWED", "adapter review required")
             check(bool(self.installation_plan), "installation plan required")
             if self.evaluator_source_type == "FIXED_REVISION_QUARANTINED_TEST":

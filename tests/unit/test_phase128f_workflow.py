@@ -88,5 +88,6 @@ def test_summary_uses_recorded_fixed_stage_and_category() -> None:
         "PASSED",
     )
     assert "Fixture acquired" in summary and "Source mounted" in summary
+    assert summary.startswith("## Phase 12.8F Remaining Evaluator Qualification")
     assert "Project import" in summary and "NOT_QUALIFIED" in summary
     assert "Evaluator loaded by pytest" in summary and "Resolved selector" in summary

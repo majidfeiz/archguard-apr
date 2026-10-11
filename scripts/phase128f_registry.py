@@ -73,9 +73,14 @@ def _adapter(
             else ""
         ),
         installation_plan=(
-            ("OFFICIAL_SETUP", "OFFLINE_TOX")
+            ("OFFICIAL_SETUP", "PYTHONPATH_SOURCE")
             if project == "cookiecutter"
-            else ("OFFICIAL_SETUP", "GENERATED_TEST_PACKAGE_MARKER")
+            else (
+                "OFFICIAL_SETUP",
+                "PYTHONPATH_SOURCE",
+                "GENERATED_TEST_PACKAGE_MARKER",
+                "GENERATED_VERSION_MODULE_SHIM",
+            )
             if project == "black"
             else ("OFFICIAL_SETUP", "PYTHONPATH_SOURCE")
         )
@@ -93,6 +98,7 @@ def _adapter(
         }.get(task_id)
         if reviewed
         else None,
+        working_directory="/tmp/archguard" if project == "cookiecutter" else "/workspace",
     )
 
 
@@ -124,7 +130,13 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
             "15555ed760000b049aff8fecc79d29339c1224c3",
             "3.8.1",
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            ("decorator==4.4.2", "pytest==5.4.3"),
+            (
+                "decorator==4.4.2",
+                "future==0.18.2",
+                "pytest==5.4.3",
+                "python_toolbox==1.3.2",
+                "six==1.15.0",
+            ),
             ("python", "-m", "pytest", "-q", "-s"),
             "tests/test_pysnooper.py::test_file_output",
             "MIT",
@@ -148,6 +160,8 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
                 "regex==2020.2.20",
                 "toml==0.10.0",
                 "typed-ast==1.4.0",
+                "typing-extensions==3.7.4.2",
+                "mypy-extensions==0.4.3",
             ),
             ("python", "-m", "unittest", "-q"),
             "tests.test_black.BlackTestCase.test_works_in_mono_process_only_environment",
@@ -175,9 +189,8 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
                 "python-slugify==4.0.0",
                 "requests==2.23.0",
                 "text-unidecode==1.3",
-                "tox==3.15.2",
             ),
-            ("python", "-m", "tox"),
+            ("python", "-m", "pytest", "-q", "-s"),
             "tests/test_hooks.py::TestExternalHooks::test_run_failing_hook",
             "BSD-3-Clause",
             "31f691f875aa4ccfbd491b1dc3bf0f2f44e48c53ec573c4eaae79a9afedae7cf",

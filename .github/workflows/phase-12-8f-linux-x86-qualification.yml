@@ -62,7 +62,7 @@ jobs:
           python3 scripts/phase128f_registry.py --output "${RUNNER_TEMP}/adapters-regenerated.json"
           cmp "${RUNNER_TEMP}/adapters-regenerated.json" research/evaluators/adapter-registry-v2.json
           test "$(jq -r .candidate_registry_fingerprint research/evaluators/adapter-registry-v2.json)" = d1068112a12c63e24ee780ad9b31b05c04f9b1417efa50ffa04a1b8b4aac1903
-          test "$(jq -r .fingerprint research/evaluators/adapter-registry-v2.json)" = c75006d9b413b991d5227df817c454cb908d4a92705111563ba4f19044923700
+          test "$(jq -r .fingerprint research/evaluators/adapter-registry-v2.json)" = e880ea9bce587bf66eab42e3c928800850c8515e7531d880b3cbdb94191d9d28
           test "$(jq -r .selection_policy_fingerprint research/evaluators/adapter-registry-v2.json)" = 0987d60ff9b5c2071f0c1dd82a91c680a6aafa885a37b12003bc34dc4add7e01
           test "$(jq -c .selected_identifiers research/candidates/candidate-pool-v1.json)" = '["PySnooper-1","black-1","cookiecutter-4","PySnooper-2","black-2","PySnooper-3","black-3","black-4"]'
           check_adapter() {
@@ -73,9 +73,9 @@ jobs:
             test "$(jq -r .evaluator_fixture_sha256 <<<"${adapter}")" = "$5"
             test "$(jq -r .test_selectors[0] <<<"${adapter}")" = "$6"
           }
-          check_adapter PySnooper-3 6e3d797be3fa0a746fb5b1b7c7fea78eb926c208 15555ed760000b049aff8fecc79d29339c1224c3 8be2d7c2752d4a31b101571f85e65416c64243dbaaa46782d5b1efaa3b7fc244 852e76799d5a97d2e8e87d0db6b5e6fd7884fbff6fbe2049734c268bd8c7c753 tests/test_pysnooper.py::test_file_output
-          check_adapter black-1 26c9465a22c732ab1e17b0dec578fa3432e9b558 c0a7582e3d4cc8bec3b7f5a6c52b36880dcb57d7 45af5d136425d7378e1a66f5c7deb6cb162442863a353fcb5b795bcef9960162 3a690fb9c66f3d85b89594f4577e3632ec069389e3af669becb3b899ded59373 tests.test_black.BlackTestCase.test_works_in_mono_process_only_environment
-          check_adapter cookiecutter-4 9568ab6ecd2d6836646006c59473c4a4ac0dee04 457a1a4e862aab4102b644ff1d2b2e2b5a766b3c cd1ad0be37d784697a74099fe350a92f6f2f6887eb4553afecb3f200ecf546cf c74875f38e1948d6b5bb1e8ea04d165df54d188d04be14e79439b907ca266d0f tests/test_hooks.py::TestExternalHooks::test_run_failing_hook
+          check_adapter PySnooper-3 6e3d797be3fa0a746fb5b1b7c7fea78eb926c208 15555ed760000b049aff8fecc79d29339c1224c3 735cd3b2e75d89388b39c3815cee6fc1cb96ccb8938a4d86247ebfda0748f8ad 852e76799d5a97d2e8e87d0db6b5e6fd7884fbff6fbe2049734c268bd8c7c753 tests/test_pysnooper.py::test_file_output
+          check_adapter black-1 26c9465a22c732ab1e17b0dec578fa3432e9b558 c0a7582e3d4cc8bec3b7f5a6c52b36880dcb57d7 69fe3ca5092ee79cfdf090a594c1fc275b9ca785fe6404e640b187c3ea3e9ecb 3a690fb9c66f3d85b89594f4577e3632ec069389e3af669becb3b899ded59373 tests.test_black.BlackTestCase.test_works_in_mono_process_only_environment
+          check_adapter cookiecutter-4 9568ab6ecd2d6836646006c59473c4a4ac0dee04 457a1a4e862aab4102b644ff1d2b2e2b5a766b3c e21d53d7942cbb7fb15175005a620b178b2f46db6022061509ce58b64ca62a26 c74875f38e1948d6b5bb1e8ea04d165df54d188d04be14e79439b907ca266d0f tests/test_hooks.py::TestExternalHooks::test_run_failing_hook
       - name: Execute selected adapters serially in hardened containers
         shell: bash
         env:
