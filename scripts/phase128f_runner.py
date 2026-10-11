@@ -70,10 +70,16 @@ EVALUATOR_SUPPORT_FILES = {
 
 
 class EvaluatorPreflightError(RuntimeError):
-    def __init__(self, code: str, process_return_code: int | None = None) -> None:
+    def __init__(
+        self,
+        code: str,
+        process_return_code: int | None = None,
+        diagnostic: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(code)
         self.code = code
         self.process_return_code = process_return_code
+        self.diagnostic = diagnostic
 
 
 @dataclass(frozen=True)
@@ -266,6 +272,86 @@ def _validate_pytest_collection(output: str, logical_selector: str) -> tuple[int
         raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED", 0)
     collected_node = _collected_node(output, logical_selector)
     return 1, collected_node
+
+
+def _collection_identity_diagnostic(
+    output: str,
+    process_exit_code: int,
+    logical_selector: str,
+    runtime_selector: str,
+) -> dict[str, Any]:
+    logical_path, _, expected_node_id = logical_selector.partition("::")
+    safe_runtime = runtime_selector.replace(EVALUATOR_ROOT, "<EVALUATOR_ROOT>").replace(
+        "/workspace", "<WORKSPACE_ROOT>"
+    )
+    records: list[dict[str, Any]] = []
+    collected_count = 0
+    for line in output.splitlines():
+        value = re.sub(r"\x1b\[[0-9;]*m", "", line).strip()
+        if "::" not in value or value.startswith(("ERROR", "WARNING")):
+            continue
+        value = value.replace(EVALUATOR_ROOT, "<EVALUATOR_ROOT>").replace(
+            "/workspace", "<WORKSPACE_ROOT>"
+        )
+        path_component, separator, node_id_component = value.partition("::")
+        if (
+            not separator
+            or (path_component and not path_component.endswith(".py"))
+            or len(value.encode("utf-8")) > 256
+            or "=" in value
+            or "://" in value
+            or "@" in value
+            or value.startswith(("/", "~"))
+            or not re.fullmatch(r"[A-Za-z0-9_./<>:\[\]-]+", value)
+        ):
+            continue
+        collected_count += 1
+        normalized_path = path_component or logical_path
+        if normalized_path.startswith("<EVALUATOR_ROOT>/"):
+            normalized_path = normalized_path.removeprefix("<EVALUATOR_ROOT>/")
+        elif normalized_path.startswith("<WORKSPACE_ROOT>/"):
+            normalized_path = normalized_path.removeprefix("<WORKSPACE_ROOT>/")
+        path_matches = normalized_path == logical_path
+        node_matches = node_id_component == expected_node_id
+        comparison_result = path_matches and node_matches
+        reason = (
+            "MATCH"
+            if comparison_result
+            else "PATH_COMPONENT_MISMATCH"
+            if not path_matches
+            else "NODE_ID_COMPONENT_MISMATCH"
+        )
+        if len(records) < 10:
+            records.append(
+                {
+                    "comparison_reason": reason,
+                    "comparison_result": comparison_result,
+                    "normalized_node_id_component": node_id_component,
+                    "normalized_path_component": normalized_path,
+                    "sanitized_node": value,
+                    "sanitized_node_sha256": hashlib.sha256(value.encode()).hexdigest(),
+                }
+            )
+    diagnostic = {
+        "collected_node_count": collected_count,
+        "comparison_reason": (
+            "EXACTLY_ONE_MATCH"
+            if len(records) == 1 and records[0]["comparison_result"]
+            else "COLLECTED_NODE_IDENTITY_MISMATCH"
+        ),
+        "comparison_result": len(records) == 1 and records[0]["comparison_result"],
+        "expected_logical_selector": logical_selector,
+        "expected_runtime_selector": safe_runtime,
+        "pytest_process_exit_code": process_exit_code,
+        "sanitized_collected_nodes": records,
+        "sanitized_nodes_truncated": collected_count > len(records),
+    }
+    while len(canonical_json(diagnostic)) > 2048 and records:
+        records.pop()
+        diagnostic["sanitized_nodes_truncated"] = True
+    if len(canonical_json(diagnostic)) > 2048:
+        raise EvaluatorPreflightError("COLLECTION_DIAGNOSTIC_SIZE_INVALID")
+    return diagnostic
 
 
 def _pytest_collection_failure_code(output: str, project_module: str = "") -> str:
@@ -958,6 +1044,7 @@ def _preflight(
     name: str,
     evaluator_fixture: Path,
     transitions: RuntimeTransitions | None = None,
+    collection_diagnostic: bool = False,
 ) -> dict[str, Any]:
     evaluator_root = _quarantine_root(adapter, evaluator_fixture)
     assert adapter.evaluator_fixture_path is not None
@@ -1137,9 +1224,27 @@ def _preflight(
         if len(declared_selectors) != 1:
             raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED", 0)
         if adapter.expected_framework == "pytest":
-            collection_count, collected_node = _validate_pytest_collection(
-                output, declared_selectors[0]
+            assert selector_resolution is not None
+            identity_diagnostic = _collection_identity_diagnostic(
+                output,
+                result.returncode,
+                declared_selectors[0],
+                selector_resolution.runtime_selector,
             )
+            try:
+                collection_count, collected_node = _validate_pytest_collection(
+                    output, declared_selectors[0]
+                )
+            except EvaluatorPreflightError as error:
+                raise EvaluatorPreflightError(
+                    error.code, result.returncode, identity_diagnostic
+                ) from error
+            if collection_diagnostic:
+                raise EvaluatorPreflightError(
+                    "EVALUATOR_COLLECTION_DIAGNOSTIC_COMPLETE",
+                    result.returncode,
+                    identity_diagnostic,
+                )
         else:
             collection_count = _collection_count(output)
             if collection_count != 1:
@@ -1409,7 +1514,13 @@ def _failure_category(text: str, returncode: int) -> str | None:
     return "TEST_PROCESS_ERROR"
 
 
-def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str, Any]:
+def qualify(
+    adapter: EvaluatorAdapter,
+    root: Path,
+    framework: Path,
+    *,
+    collection_diagnostic: bool = False,
+) -> dict[str, Any]:
     task_root = root / adapter.task_id
     buggy = task_root / "buggy"
     fixed = task_root / "fixed"
@@ -1491,13 +1602,18 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
         installation = _prepare_project(adapter)
         transitions.reach(EvaluatorRuntimeState.INSTALLATION_PREPARED, installation)
         failure_stage = "EVALUATOR_PREFLIGHT"
-        buggy_preflight = _preflight(
+        preflight_arguments = (
             adapter,
             image,
             buggy,
             f"phase128f-{adapter.task_id.lower()}-buggy-preflight",
             evaluator_fixture,
             transitions,
+        )
+        buggy_preflight = (
+            _preflight(*preflight_arguments, collection_diagnostic=True)
+            if collection_diagnostic
+            else _preflight(*preflight_arguments)
         )
         fixed_preflight = _preflight(
             adapter,
@@ -1637,6 +1753,8 @@ def qualify(adapter: EvaluatorAdapter, root: Path, framework: Path) -> dict[str,
             "process_return_code": return_code,
             "retryable": failure_stage in {"SOURCE_ACQUISITION", "BASE_IMAGE_ACQUISITION"},
         }
+        if isinstance(error, EvaluatorPreflightError) and error.diagnostic is not None:
+            diagnostic["collection_identity"] = error.diagnostic
         if failure_stage == "DEPENDENCY_BUILD":
             dependency_build_status = "FAILED"
     non_scientific = {
@@ -1835,6 +1953,7 @@ def main() -> None:
     parser.add_argument("--adapters", type=Path, required=True)
     parser.add_argument("--selection", required=True)
     parser.add_argument("--runtime-canary", action="store_true")
+    parser.add_argument("--collection-diagnostic", action="store_true")
     parser.add_argument("--external-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -1848,6 +1967,8 @@ def main() -> None:
             _validate_runtime_canary_selection(tasks)
         except ValueError as error:
             raise SystemExit(str(error)) from error
+    if args.collection_diagnostic and (not args.runtime_canary or tasks != ("PySnooper-1",)):
+        raise SystemExit("collection diagnostic requires the PySnooper-1 runtime canary")
     if not set(tasks) <= set(adapters):
         raise SystemExit("selection is not an adapter-backed selected task")
     args.external_root.mkdir(parents=True, exist_ok=False)
@@ -1856,7 +1977,14 @@ def main() -> None:
         framework = args.external_root / "framework-metadata"
         _acquire_framework(framework)
         for task in tasks:
-            results.append(qualify(adapters[task], args.external_root, framework))
+            results.append(
+                qualify(
+                    adapters[task],
+                    args.external_root,
+                    framework,
+                    collection_diagnostic=args.collection_diagnostic,
+                )
+            )
             if (
                 sum(
                     result["classification"] == Classification.INFRASTRUCTURE_FAILURE

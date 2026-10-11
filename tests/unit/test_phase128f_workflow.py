@@ -53,6 +53,9 @@ def test_workflow_sandbox_cleanup_and_single_artifact(repository_root: Path) -> 
     assert "> 1" in runner
     assert "owned-base-reference.txt" in raw and "label=archguard.phase=12.8f" in raw
     assert "--selection PySnooper-1" in raw and "--runtime-canary" in raw
+    assert "--collection-diagnostic" in raw
+    assert ".fixed_control.attempted == false" in raw
+    assert '.qualification_decision == "NOT_QUALIFIED"' in raw
     dispatch = yaml.safe_load(raw)[True]["workflow_dispatch"]
     assert "PySnooper-3" not in dispatch["inputs"]["task_id"]["options"]
     assert "black-1" not in dispatch["inputs"]["task_id"]["options"]

@@ -758,6 +758,58 @@ def test_collection_failure_retains_only_source_free_process_diagnostic(
     assert "raw_log" not in json.dumps(result)
 
 
+def test_collection_diagnostic_stops_before_scientific_execution(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(runner, "_safe_checkout", _checkout_identity)
+    monkeypatch.setattr(runner, "_verify_identities", lambda *args: None)
+    monkeypatch.setattr(
+        runner,
+        "_acquire_base_image",
+        lambda *args: ("base", {"architecture": "amd64", "image_id": "id"}, 1),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_build_image",
+        lambda *args: (
+            "image",
+            [],
+            1,
+            {
+                "build_context_fingerprint": "c" * 64,
+                "image_id": "id",
+                "source_in_image": "ABSENT_DEPENDENCY_ONLY",
+                "tag": "image",
+            },
+        ),
+    )
+    identity = runner._collection_identity_diagnostic(
+        "test_chinese.py::test_chinese\n",
+        0,
+        "tests/test_chinese.py::test_chinese",
+        "/evaluator/tests/test_chinese.py::test_chinese",
+    )
+    monkeypatch.setattr(
+        runner,
+        "_preflight",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            runner.EvaluatorPreflightError("EVALUATOR_SELECTED_NODE_MISMATCH", 0, identity)
+        ),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_execute",
+        lambda *args, **kwargs: pytest.fail("scientific execution must not start"),
+    )
+
+    result = runner.qualify(adapters()[0], tmp_path, tmp_path, collection_diagnostic=True)
+
+    assert result["qualification_decision"] == "NOT_QUALIFIED"
+    assert result["fixed_control"]["attempted"] is False
+    assert result["infrastructure_diagnostic"]["collection_identity"] == identity
+    assert all(attempt["duration_milliseconds"] == 0 for attempt in result["buggy_attempts"])
+
+
 def test_offline_dependency_absence_is_non_scientific(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -878,6 +930,54 @@ def test_collection_requires_exactly_one_selected_test(output: str) -> None:
 def test_compact_pytest_collection_node_is_normalized() -> None:
     logical = "tests/test_chinese.py::test_chinese"
     assert runner._validate_pytest_collection("::test_chinese\n", logical) == (1, logical)
+
+
+def test_collection_identity_diagnostic_is_bounded_and_source_free() -> None:
+    logical = "tests/test_chinese.py::test_chinese"
+    runtime = "/evaluator/tests/test_chinese.py::test_chinese"
+    output = "\n".join(
+        [
+            "::test_chinese",
+            "/evaluator/tests/test_chinese.py::test_chinese",
+            "/workspace/tests/test_chinese.py::test_other",
+            "https://example.invalid/log::ignored",
+            "/home/runner/private.py::ignored",
+            "TOKEN=value::ignored",
+            *(f"tests/test_chinese.py::test_{index}" for index in range(12)),
+        ]
+    )
+
+    diagnostic = runner._collection_identity_diagnostic(output, 0, logical, runtime)
+
+    assert diagnostic["pytest_process_exit_code"] == 0
+    assert diagnostic["expected_logical_selector"] == logical
+    assert diagnostic["expected_runtime_selector"].startswith("<EVALUATOR_ROOT>/")
+    assert diagnostic["collected_node_count"] == 15
+    assert len(diagnostic["sanitized_collected_nodes"]) <= 10
+    serialized = json.dumps(diagnostic, sort_keys=True, separators=(",", ":"))
+    assert len(serialized.encode()) <= 2048
+    assert "/evaluator" not in serialized
+    assert "/workspace" not in serialized
+    assert "/home/" not in serialized
+    assert "https://" not in serialized
+    assert "TOKEN=" not in serialized
+    assert all(
+        len(item["sanitized_node_sha256"]) == 64 for item in diagnostic["sanitized_collected_nodes"]
+    )
+
+
+def test_collection_identity_diagnostic_reports_exact_components() -> None:
+    diagnostic = runner._collection_identity_diagnostic(
+        "test_chinese.py::test_chinese\n",
+        0,
+        "tests/test_chinese.py::test_chinese",
+        "/evaluator/tests/test_chinese.py::test_chinese",
+    )
+    node = diagnostic["sanitized_collected_nodes"][0]
+    assert node["normalized_path_component"] == "test_chinese.py"
+    assert node["normalized_node_id_component"] == "test_chinese"
+    assert node["comparison_result"] is False
+    assert node["comparison_reason"] == "PATH_COMPONENT_MISMATCH"
 
 
 def test_runtime_state_machine_rejects_skipped_transition() -> None:
