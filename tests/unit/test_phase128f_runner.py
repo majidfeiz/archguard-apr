@@ -758,58 +758,6 @@ def test_collection_failure_retains_only_source_free_process_diagnostic(
     assert "raw_log" not in json.dumps(result)
 
 
-def test_collection_diagnostic_stops_before_scientific_execution(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setattr(runner, "_safe_checkout", _checkout_identity)
-    monkeypatch.setattr(runner, "_verify_identities", lambda *args: None)
-    monkeypatch.setattr(
-        runner,
-        "_acquire_base_image",
-        lambda *args: ("base", {"architecture": "amd64", "image_id": "id"}, 1),
-    )
-    monkeypatch.setattr(
-        runner,
-        "_build_image",
-        lambda *args: (
-            "image",
-            [],
-            1,
-            {
-                "build_context_fingerprint": "c" * 64,
-                "image_id": "id",
-                "source_in_image": "ABSENT_DEPENDENCY_ONLY",
-                "tag": "image",
-            },
-        ),
-    )
-    identity = runner._collection_identity_diagnostic(
-        "test_chinese.py::test_chinese\n",
-        0,
-        "tests/test_chinese.py::test_chinese",
-        "/evaluator/tests/test_chinese.py::test_chinese",
-    )
-    monkeypatch.setattr(
-        runner,
-        "_preflight",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            runner.EvaluatorPreflightError("EVALUATOR_SELECTED_NODE_MISMATCH", 0, identity)
-        ),
-    )
-    monkeypatch.setattr(
-        runner,
-        "_execute",
-        lambda *args, **kwargs: pytest.fail("scientific execution must not start"),
-    )
-
-    result = runner.qualify(adapters()[0], tmp_path, tmp_path, collection_diagnostic=True)
-
-    assert result["qualification_decision"] == "NOT_QUALIFIED"
-    assert result["fixed_control"]["attempted"] is False
-    assert result["infrastructure_diagnostic"]["collection_identity"] == identity
-    assert all(attempt["duration_milliseconds"] == 0 for attempt in result["buggy_attempts"])
-
-
 def test_offline_dependency_absence_is_non_scientific(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -921,63 +869,66 @@ def test_generic_project_import_name_is_rejected() -> None:
         runner._prepare_project(adapter)
 
 
-@pytest.mark.parametrize("output", ["no tests ran", "2 tests collected"])
-def test_collection_requires_exactly_one_selected_test(output: str) -> None:
-    with pytest.raises(runner.EvaluatorPreflightError, match="EVALUATOR_NOT_COLLECTED"):
-        runner._validate_pytest_collection(output, "tests/test_chinese.py::test_chinese")
-
-
-def test_compact_pytest_collection_node_is_normalized() -> None:
-    logical = "tests/test_chinese.py::test_chinese"
-    assert runner._validate_pytest_collection("::test_chinese\n", logical) == (1, logical)
-
-
-def test_collection_identity_diagnostic_is_bounded_and_source_free() -> None:
-    logical = "tests/test_chinese.py::test_chinese"
-    runtime = "/evaluator/tests/test_chinese.py::test_chinese"
-    output = "\n".join(
-        [
-            "::test_chinese",
-            "/evaluator/tests/test_chinese.py::test_chinese",
-            "/workspace/tests/test_chinese.py::test_other",
-            "https://example.invalid/log::ignored",
-            "/home/runner/private.py::ignored",
-            "TOKEN=value::ignored",
-            *(f"tests/test_chinese.py::test_{index}" for index in range(12)),
-        ]
+def _validated_external_collection(
+    output: str, fixture_hash: str | None = None
+) -> tuple[int, str, str]:
+    adapter = adapters()[0]
+    resolution = runner._resolve_external_pytest_selector(
+        adapter.test_selectors[0],
+        adapter.evaluator_fixture_path or "",
+        runner.EVALUATOR_ROOT,
+        adapter.expected_framework,
     )
-
-    diagnostic = runner._collection_identity_diagnostic(output, 0, logical, runtime)
-
-    assert diagnostic["pytest_process_exit_code"] == 0
-    assert diagnostic["expected_logical_selector"] == logical
-    assert diagnostic["expected_runtime_selector"].startswith("<EVALUATOR_ROOT>/")
-    assert diagnostic["collected_node_count"] == 15
-    assert len(diagnostic["sanitized_collected_nodes"]) <= 10
-    serialized = json.dumps(diagnostic, sort_keys=True, separators=(",", ":"))
-    assert len(serialized.encode()) <= 2048
-    assert "/evaluator" not in serialized
-    assert "/workspace" not in serialized
-    assert "/home/" not in serialized
-    assert "https://" not in serialized
-    assert "TOKEN=" not in serialized
-    assert all(
-        len(item["sanitized_node_sha256"]) == 64 for item in diagnostic["sanitized_collected_nodes"]
-    )
-
-
-def test_collection_identity_diagnostic_reports_exact_components() -> None:
-    diagnostic = runner._collection_identity_diagnostic(
-        "test_chinese.py::test_chinese\n",
+    return runner._validate_external_pytest_collection(
+        output,
         0,
-        "tests/test_chinese.py::test_chinese",
-        "/evaluator/tests/test_chinese.py::test_chinese",
+        resolution,
+        adapter.evaluator_fixture_path or "",
+        fixture_hash or adapter.evaluator_fixture_sha256 or "",
+        adapter.evaluator_fixture_sha256 or "",
     )
-    node = diagnostic["sanitized_collected_nodes"][0]
-    assert node["normalized_path_component"] == "test_chinese.py"
-    assert node["normalized_node_id_component"] == "test_chinese"
-    assert node["comparison_result"] is False
-    assert node["comparison_reason"] == "PATH_COMPONENT_MISMATCH"
+
+
+def test_external_pytest_collection_accepts_exact_verified_basename() -> None:
+    assert _validated_external_collection("test_chinese.py::test_chinese\n") == (
+        1,
+        "tests/test_chinese.py::test_chinese",
+        "VERIFIED_EXTERNAL_FIXTURE_BASENAME",
+    )
+
+
+def test_external_pytest_collection_accepts_reviewed_relative_path() -> None:
+    result = _validated_external_collection("tests/test_chinese.py::test_chinese\n")
+    assert result[2] == "VERIFIED_REVIEWED_RELATIVE_FIXTURE"
+
+
+@pytest.mark.parametrize(
+    "node", ["alternate.py::test_chinese\n", "other/tests/test_chinese.py::test_chinese\n"]
+)
+def test_external_pytest_collection_rejects_wrong_or_suffix_path(node: str) -> None:
+    with pytest.raises(runner.EvaluatorPreflightError, match="SELECTED_NODE_MISMATCH"):
+        _validated_external_collection(node)
+
+
+def test_external_pytest_collection_rejects_wrong_node_id() -> None:
+    with pytest.raises(runner.EvaluatorPreflightError, match="SELECTED_NODE_MISMATCH"):
+        _validated_external_collection("test_chinese.py::test_other\n")
+
+
+def test_external_pytest_collection_rejects_multiple_nodes() -> None:
+    output = "test_chinese.py::test_chinese\ntest_chinese.py::test_chinese\n"
+    with pytest.raises(runner.EvaluatorPreflightError, match="EVALUATOR_NOT_COLLECTED"):
+        _validated_external_collection(output)
+
+
+def test_external_pytest_collection_rejects_zero_nodes() -> None:
+    with pytest.raises(runner.EvaluatorPreflightError, match="EVALUATOR_NOT_COLLECTED"):
+        _validated_external_collection("no tests ran\n")
+
+
+def test_external_pytest_collection_rejects_wrong_fixture_hash() -> None:
+    with pytest.raises(runner.EvaluatorPreflightError, match="EVALUATOR_IDENTITY_MISMATCH"):
+        _validated_external_collection("test_chinese.py::test_chinese\n", "0" * 64)
 
 
 def test_runtime_state_machine_rejects_skipped_transition() -> None:
@@ -1150,19 +1101,6 @@ def test_execution_plan_binds_selector_identities_without_changing_adapter_finge
         == before
         == "d3a4938e74e6287056a21ab937a167e18c3c8c0e274a719f713068f28e96db10"
     )
-
-
-def test_collected_node_requires_exactly_the_approved_node() -> None:
-    logical = "tests/test_chinese.py::test_chinese"
-    assert runner._collected_node(f"{logical}\n1 item collected\n", logical) == logical
-    assert runner._collected_node("::test_chinese\n", logical) == logical
-    assert runner._collected_node(f"{logical}\n{logical}\n", logical) == logical
-    with pytest.raises(runner.EvaluatorPreflightError, match="SELECTED_NODE_MISMATCH"):
-        runner._collected_node("tests/test_chinese.py::test_other\n1 item collected\n", logical)
-    assert runner._collected_node("::test_chinese\n::test_chinese\n", logical) == logical
-    assert runner._collected_node("\x1b[32m::test_chinese\x1b[0m\n", logical) == logical
-    with pytest.raises(runner.EvaluatorPreflightError, match="SELECTED_NODE_MISMATCH"):
-        runner._collected_node("::test_chinese\n::test_other\n", logical)
 
 
 def test_pysnooper_evaluator_support_is_identity_checked(

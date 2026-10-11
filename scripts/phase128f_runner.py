@@ -70,16 +70,10 @@ EVALUATOR_SUPPORT_FILES = {
 
 
 class EvaluatorPreflightError(RuntimeError):
-    def __init__(
-        self,
-        code: str,
-        process_return_code: int | None = None,
-        diagnostic: dict[str, Any] | None = None,
-    ) -> None:
+    def __init__(self, code: str, process_return_code: int | None = None) -> None:
         super().__init__(code)
         self.code = code
         self.process_return_code = process_return_code
-        self.diagnostic = diagnostic
 
 
 @dataclass(frozen=True)
@@ -249,109 +243,48 @@ def _collection_count(output: str) -> int:
     return int(matches[-1]) if matches else 0
 
 
-def _collected_node(output: str, logical_selector: str) -> str:
-    logical_path, separator, node = logical_selector.partition("::")
-    if not separator or not node:
-        raise EvaluatorPreflightError("EVALUATOR_SELECTOR_INVALID")
-    compact_selector = f"::{node}"
-    candidates: set[str] = set()
-    for line in output.splitlines():
-        value = re.sub(r"\x1b\[[0-9;]*m", "", line).strip()
-        if value == compact_selector or value.endswith(logical_selector):
-            candidates.add(logical_selector)
-        elif "::" in value and not value.startswith(("ERROR", "WARNING")):
-            candidates.add(value)
-    if candidates != {logical_selector}:
-        raise EvaluatorPreflightError("EVALUATOR_SELECTED_NODE_MISMATCH")
-    return logical_selector
-
-
-def _validate_pytest_collection(output: str, logical_selector: str) -> tuple[int, str]:
-    collection_count = _collection_count(output)
-    if "no tests ran" in output.lower() or collection_count not in (0, 1):
-        raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED", 0)
-    collected_node = _collected_node(output, logical_selector)
-    return 1, collected_node
-
-
-def _collection_identity_diagnostic(
+def _validate_external_pytest_collection(
     output: str,
     process_exit_code: int,
-    logical_selector: str,
-    runtime_selector: str,
-) -> dict[str, Any]:
-    logical_path, _, expected_node_id = logical_selector.partition("::")
-    safe_runtime = runtime_selector.replace(EVALUATOR_ROOT, "<EVALUATOR_ROOT>").replace(
-        "/workspace", "<WORKSPACE_ROOT>"
-    )
-    records: list[dict[str, Any]] = []
-    collected_count = 0
+    resolution: ExternalSelectorResolution,
+    reviewed_fixture_path: str,
+    container_fixture_sha256: str,
+    reviewed_fixture_sha256: str,
+) -> tuple[int, str, str]:
+    logical_path, separator, reviewed_node_id = resolution.logical_selector.partition("::")
+    reviewed_path = PurePosixPath(reviewed_fixture_path)
+    expected_runtime_selector = f"{EVALUATOR_ROOT}/{reviewed_fixture_path}::{reviewed_node_id}"
+    if (
+        process_exit_code != 0
+        or not separator
+        or logical_path != reviewed_fixture_path
+        or reviewed_path.is_absolute()
+        or ".." in reviewed_path.parts
+        or resolution.physical_fixture != f"{EVALUATOR_ROOT}/{reviewed_fixture_path}"
+        or resolution.runtime_selector != expected_runtime_selector
+    ):
+        raise EvaluatorPreflightError("EVALUATOR_SELECTOR_INVALID", process_exit_code)
+    if container_fixture_sha256 != reviewed_fixture_sha256:
+        raise EvaluatorPreflightError("EVALUATOR_IDENTITY_MISMATCH", process_exit_code)
+
+    candidates: list[tuple[str, str]] = []
     for line in output.splitlines():
         value = re.sub(r"\x1b\[[0-9;]*m", "", line).strip()
-        if "::" not in value or value.startswith(("ERROR", "WARNING")):
-            continue
-        value = value.replace(EVALUATOR_ROOT, "<EVALUATOR_ROOT>").replace(
-            "/workspace", "<WORKSPACE_ROOT>"
-        )
-        path_component, separator, node_id_component = value.partition("::")
-        if (
-            not separator
-            or (path_component and not path_component.endswith(".py"))
-            or len(value.encode("utf-8")) > 256
-            or "=" in value
-            or "://" in value
-            or "@" in value
-            or value.startswith(("/", "~"))
-            or not re.fullmatch(r"[A-Za-z0-9_./<>:\[\]-]+", value)
-        ):
-            continue
-        collected_count += 1
-        normalized_path = path_component or logical_path
-        if normalized_path.startswith("<EVALUATOR_ROOT>/"):
-            normalized_path = normalized_path.removeprefix("<EVALUATOR_ROOT>/")
-        elif normalized_path.startswith("<WORKSPACE_ROOT>/"):
-            normalized_path = normalized_path.removeprefix("<WORKSPACE_ROOT>/")
-        path_matches = normalized_path == logical_path
-        node_matches = node_id_component == expected_node_id
-        comparison_result = path_matches and node_matches
-        reason = (
-            "MATCH"
-            if comparison_result
-            else "PATH_COMPONENT_MISMATCH"
-            if not path_matches
-            else "NODE_ID_COMPONENT_MISMATCH"
-        )
-        if len(records) < 10:
-            records.append(
-                {
-                    "comparison_reason": reason,
-                    "comparison_result": comparison_result,
-                    "normalized_node_id_component": node_id_component,
-                    "normalized_path_component": normalized_path,
-                    "sanitized_node": value,
-                    "sanitized_node_sha256": hashlib.sha256(value.encode()).hexdigest(),
-                }
-            )
-    diagnostic = {
-        "collected_node_count": collected_count,
-        "comparison_reason": (
-            "EXACTLY_ONE_MATCH"
-            if len(records) == 1 and records[0]["comparison_result"]
-            else "COLLECTED_NODE_IDENTITY_MISMATCH"
-        ),
-        "comparison_result": len(records) == 1 and records[0]["comparison_result"],
-        "expected_logical_selector": logical_selector,
-        "expected_runtime_selector": safe_runtime,
-        "pytest_process_exit_code": process_exit_code,
-        "sanitized_collected_nodes": records,
-        "sanitized_nodes_truncated": collected_count > len(records),
-    }
-    while len(canonical_json(diagnostic)) > 2048 and records:
-        records.pop()
-        diagnostic["sanitized_nodes_truncated"] = True
-    if len(canonical_json(diagnostic)) > 2048:
-        raise EvaluatorPreflightError("COLLECTION_DIAGNOSTIC_SIZE_INVALID")
-    return diagnostic
+        match = re.fullmatch(r"([A-Za-z0-9_./-]+\.py)::([A-Za-z0-9_.\[\]-]+)", value)
+        if match:
+            candidates.append((match.group(1), match.group(2)))
+    if len(candidates) != 1:
+        raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED", process_exit_code)
+    collected_path, collected_node_id = candidates[0]
+    if collected_node_id != reviewed_node_id:
+        raise EvaluatorPreflightError("EVALUATOR_SELECTED_NODE_MISMATCH", process_exit_code)
+    if collected_path == reviewed_fixture_path:
+        reason = "VERIFIED_REVIEWED_RELATIVE_FIXTURE"
+    elif collected_path == reviewed_path.name:
+        reason = "VERIFIED_EXTERNAL_FIXTURE_BASENAME"
+    else:
+        raise EvaluatorPreflightError("EVALUATOR_SELECTED_NODE_MISMATCH", process_exit_code)
+    return 1, resolution.logical_selector, reason
 
 
 def _pytest_collection_failure_code(output: str, project_module: str = "") -> str:
@@ -1044,7 +977,6 @@ def _preflight(
     name: str,
     evaluator_fixture: Path,
     transitions: RuntimeTransitions | None = None,
-    collection_diagnostic: bool = False,
 ) -> dict[str, Any]:
     evaluator_root = _quarantine_root(adapter, evaluator_fixture)
     assert adapter.evaluator_fixture_path is not None
@@ -1225,31 +1157,23 @@ def _preflight(
             raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED", 0)
         if adapter.expected_framework == "pytest":
             assert selector_resolution is not None
-            identity_diagnostic = _collection_identity_diagnostic(
-                output,
-                result.returncode,
-                declared_selectors[0],
-                selector_resolution.runtime_selector,
-            )
-            try:
-                collection_count, collected_node = _validate_pytest_collection(
-                    output, declared_selectors[0]
-                )
-            except EvaluatorPreflightError as error:
-                raise EvaluatorPreflightError(
-                    error.code, result.returncode, identity_diagnostic
-                ) from error
-            if collection_diagnostic:
-                raise EvaluatorPreflightError(
-                    "EVALUATOR_COLLECTION_DIAGNOSTIC_COMPLETE",
+            assert container_hash is not None
+            collection_count, collected_node, collection_comparison_reason = (
+                _validate_external_pytest_collection(
+                    output,
                     result.returncode,
-                    identity_diagnostic,
+                    selector_resolution,
+                    adapter.evaluator_fixture_path,
+                    container_hash,
+                    adapter.evaluator_fixture_sha256,
                 )
+            )
         else:
             collection_count = _collection_count(output)
             if collection_count != 1:
                 raise EvaluatorPreflightError("EVALUATOR_NOT_COLLECTED", 0)
             collected_node = declared_selectors[0]
+            collection_comparison_reason = "REVIEWED_SELECTOR_EXACT"
         if container_hash is None:
             container_hash_command = _sandbox_prefix(
                 adapter, image, source, evaluator_root, f"{name}-identity"
@@ -1281,6 +1205,7 @@ def _preflight(
                 EvaluatorRuntimeState.TEST_COLLECTED,
                 {
                     "collection_count": collection_count,
+                    "collection_comparison_reason": collection_comparison_reason,
                     "collection_duration_milliseconds": collection_duration_milliseconds,
                     "collected_node_fingerprint": _sha256_record(collected_node),
                     "fixture_sha256": container_hash,
@@ -1293,6 +1218,7 @@ def _preflight(
             )
         return {
             "collection_count": collection_count,
+            "collection_comparison_reason": collection_comparison_reason,
             "collection_duration_milliseconds": collection_duration_milliseconds,
             "collection_exit_code": result.returncode,
             "collection_output_truncated": collection_output_truncated,
@@ -1518,8 +1444,6 @@ def qualify(
     adapter: EvaluatorAdapter,
     root: Path,
     framework: Path,
-    *,
-    collection_diagnostic: bool = False,
 ) -> dict[str, Any]:
     task_root = root / adapter.task_id
     buggy = task_root / "buggy"
@@ -1602,18 +1526,13 @@ def qualify(
         installation = _prepare_project(adapter)
         transitions.reach(EvaluatorRuntimeState.INSTALLATION_PREPARED, installation)
         failure_stage = "EVALUATOR_PREFLIGHT"
-        preflight_arguments = (
+        buggy_preflight = _preflight(
             adapter,
             image,
             buggy,
             f"phase128f-{adapter.task_id.lower()}-buggy-preflight",
             evaluator_fixture,
             transitions,
-        )
-        buggy_preflight = (
-            _preflight(*preflight_arguments, collection_diagnostic=True)
-            if collection_diagnostic
-            else _preflight(*preflight_arguments)
         )
         fixed_preflight = _preflight(
             adapter,
@@ -1753,8 +1672,6 @@ def qualify(
             "process_return_code": return_code,
             "retryable": failure_stage in {"SOURCE_ACQUISITION", "BASE_IMAGE_ACQUISITION"},
         }
-        if isinstance(error, EvaluatorPreflightError) and error.diagnostic is not None:
-            diagnostic["collection_identity"] = error.diagnostic
         if failure_stage == "DEPENDENCY_BUILD":
             dependency_build_status = "FAILED"
     non_scientific = {
@@ -1953,7 +1870,6 @@ def main() -> None:
     parser.add_argument("--adapters", type=Path, required=True)
     parser.add_argument("--selection", required=True)
     parser.add_argument("--runtime-canary", action="store_true")
-    parser.add_argument("--collection-diagnostic", action="store_true")
     parser.add_argument("--external-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -1967,8 +1883,6 @@ def main() -> None:
             _validate_runtime_canary_selection(tasks)
         except ValueError as error:
             raise SystemExit(str(error)) from error
-    if args.collection_diagnostic and (not args.runtime_canary or tasks != ("PySnooper-1",)):
-        raise SystemExit("collection diagnostic requires the PySnooper-1 runtime canary")
     if not set(tasks) <= set(adapters):
         raise SystemExit("selection is not an adapter-backed selected task")
     args.external_root.mkdir(parents=True, exist_ok=False)
@@ -1977,14 +1891,7 @@ def main() -> None:
         framework = args.external_root / "framework-metadata"
         _acquire_framework(framework)
         for task in tasks:
-            results.append(
-                qualify(
-                    adapters[task],
-                    args.external_root,
-                    framework,
-                    collection_diagnostic=args.collection_diagnostic,
-                )
-            )
+            results.append(qualify(adapters[task], args.external_root, framework))
             if (
                 sum(
                     result["classification"] == Classification.INFRASTRUCTURE_FAILURE
