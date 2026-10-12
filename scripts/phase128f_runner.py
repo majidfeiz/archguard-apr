@@ -34,6 +34,7 @@ from archguard.infrastructure.phase128f_evidence import validate_results as vali
 MAX_TRANSFER = 2 * 1024**3
 MAX_DISK = 8 * 1024**3
 REMAINING_TASKS = ("PySnooper-3", "black-1", "cookiecutter-4")
+FINAL_BLACK_TASKS = BATCH_B
 ALLOWED_HOSTS = (
     "github.com",
     "api.github.com",
@@ -71,6 +72,16 @@ EVALUATOR_SUPPORT_FILES = {
     "PySnooper-3": {
         "tests/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "tests/utils.py": "5a35aed500bad1792495f38611a3035bd3da49d96a85cbe0eb223e1f33073b5d",
+    },
+    "black-2": {
+        "tests/data/fmtonoff4.py": (
+            "5c68a12bf43fb632b30e71fb0b231395f842f61df7b4e082f8927449f30178e3"
+        ),
+    },
+    "black-4": {
+        "tests/data/beginning_backslash.py": (
+            "cccd4c67d6584721723ebe59c7532dca56ced95511e2b6aebfcdf3123e25cded"
+        ),
     },
 }
 BLACK_VERSION_SITECUSTOMIZE = (
@@ -147,10 +158,12 @@ def _adapter(value: dict[str, Any]) -> EvaluatorAdapter:
 def _tasks(selection: str) -> tuple[str, ...]:
     if selection == "remaining":
         return REMAINING_TASKS
+    if selection == "final-black":
+        return FINAL_BLACK_TASKS
     if selection == "batch-a":
         return BATCH_A
     if selection == "batch-b":
-        raise ValueError("Batch B is unavailable in Phase 12.8F.4.1")
+        return BATCH_B
     if selection == "all":
         raise ValueError("Batch B is unavailable in Phase 12.8F.4.1")
     if selection in BATCH_B:
@@ -719,11 +732,9 @@ def _fixed_control_record(
 
 
 def _project_pythonpath(adapter: EvaluatorAdapter) -> str:
-    return (
-        "/evaluator/project-support:/workspace"
-        if "GENERATED_VERSION_MODULE_SHIM" in adapter.installation_plan
-        else "/workspace"
-    )
+    if adapter.project == "black":
+        return "/evaluator/project-support:/evaluator:/workspace"
+    return "/workspace"
 
 
 def _prepare_project(adapter: EvaluatorAdapter) -> dict[str, Any]:

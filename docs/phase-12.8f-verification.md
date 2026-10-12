@@ -71,6 +71,41 @@ GitHub Actions must still run. Non-STABLE candidates remain scientific results. 
 provider call, patch generation, gold inspection, local target execution, pilot freeze, or Phase 13
 execution occurred. `phase_13_ready=false`.
 
+## Imported remaining-task result
+
+GitHub run `38149905317` was strictly validated and imported from archive SHA-256
+`f802a552d53345208084e34b3a39b563019f0f9d71eebbaf03a19522819be001`; its canonical import
+fingerprint is `f975e236f0394bcf0138073919119c2df4f2f3d9961abdc781c18d6b2721f7c1`.
+PySnooper-3 is `QUALIFIED`/`STABLE` after three identical assertion failures and a passing fixed
+control. Black-1 remains `NOT_QUALIFIED` because its evaluator environment was invalid, and
+Cookiecutter-4 remains `NOT_QUALIFIED` after its writable-environment failure. These results are
+preserved verbatim; deterministic reimport is non-mutating and no task was replaced.
+
+## Final Black qualification pass
+
+The final workflow runs exactly the already selected Black-2, Black-3 and Black-4 tasks. Immutable
+tree inspection confirmed all six buggy/fixed revisions use a repository-root `black.py` module.
+Black-2 and Black-3 import the SCM-generated `_black_version` module and `typing_extensions`;
+Black-2 and Black-4 read their exact fixed-revision data fixture beside `tests/test_black.py`.
+The shared runtime therefore places the read-only evaluator root before `/workspace` for the
+`tests.test_black` import, retains `/workspace` as the only source of the `black` module, verifies
+that module's resolved origin, and acquires all pinned dependencies before network isolation.
+
+The reviewed execution-metadata changes produce these adapter fingerprints without changing task
+membership, revisions, selectors or expected outcomes:
+
+| Task | Prior fingerprint | Final fingerprint |
+|---|---|---|
+| black-2 | `f59d4429f66d9b91f8a2b6d0e9eb09f5ca217cd86fdbd7587d76af972662bf48` | `a1c3c11f95c66b76261052b9f30440e54a564ee91cc77093455868aee006a185` |
+| black-3 | `0fce6a06fbe89ec9b88bda5c14fbd430b3a864b68bcc8736a636a5c5caeb515f` | `5c021ca1913d2a4457dafb42e2f78b722dc775dd70c74b362dd71bc9636f1bf5` |
+| black-4 | `fa77421323136ea9b6ee3fef805e9b1e9d2f1eeef5e09a6c4cb512e19dab1fa5` | `e4719238881c6b073855e708bb22bc2d604297b9fb88ddc86d22d01045ea1e46` |
+
+The active registry remains the top-level v2 registry containing reviewed v3 adapters, so the
+security inventory's `adapter-registry-v2.json` reference is current. The final eligible population
+can be frozen only from strictly imported qualified evidence after this one workflow pass. No later
+diagnostic workflow or outcome-based replacement is authorized, and `phase_13_ready=false` pending
+protocol approval.
+
 ## Remaining-adapter execution repair
 
 Run `38148411956` retained valid source-free diagnostics for all three remaining tasks and no
