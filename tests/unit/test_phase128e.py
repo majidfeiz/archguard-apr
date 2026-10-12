@@ -117,7 +117,7 @@ def test_no_evaluator_execution_fields_and_readiness_stays_false(
     assert "execution_result" not in json.dumps(pool)
 
 
-def test_frozen_profile_and_protocol_are_unchanged(repository_root: Path) -> None:
+def test_frozen_profile_and_protocol_history_are_preserved(repository_root: Path) -> None:
     expected = {
         "research/profiles/pysnooper-profile-freeze.json": (
             "345b134bfb1f3e3faf6a8fe08b9edb870b92c25242e9f86edbcb3344a78d91f3"
@@ -128,8 +128,8 @@ def test_frozen_profile_and_protocol_are_unchanged(repository_root: Path) -> Non
         "research/reviews/pysnooper-profile-decision.json": (
             "47caf830435e4649719dafaf46d533d0f6b84449b369a1908241eec755df70f4"
         ),
-        "research/reviews/protocol-decision.json": (
-            "1d9e3a7fe69ca330571abbfca469433010a6acfdf7f47a6f788d9cc8349ab474"
+        "research/reviews/protocol-decision-history-v1.json": (
+            "bc19d920338354298eee6f7582e597a7e17929a93067b5a9c603b4edc00621a7"
         ),
     }
     for name, digest in expected.items():

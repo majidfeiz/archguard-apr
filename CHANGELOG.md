@@ -2,6 +2,8 @@
 
 ## 0.12.8
 
+- Close Phase 12 with a hash-bound three-task, two-project exploratory feasibility population while
+  preserving all qualification attrition and separating scientific readiness from provider readiness.
 - Prepare Phase 12.8A source-free license, graph, candidate, pilot, and power-analysis contracts and
   fail-closed external workflows without changing human decisions or readiness thresholds.
 - Add hardened, hash-bound, source-free Phase 12.7 qualification evidence ingestion.

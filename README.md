@@ -8,12 +8,12 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
-Version 0.12.8 adds fail-closed Phase 12.7 evidence ingestion, human review and protocol-freeze
-contracts, deterministic representative-task selection policy, and a factual Phase 13 readiness gate.
-Phase 12.8A additionally prepares separately scoped license evidence, revision/profile-bound graph
-evidence, outcome-blind pilot selection, and prospective power scenarios; external execution and human
-review remain required.
-Human decisions remain pending and no Phase 13 experiment is run. Version 0.12.6 added a strict
+Version 0.12.8 closes Phase 12 with fail-closed evidence ingestion, a human-approved exploratory
+three-task/two-project population, protocol-freeze contracts, and a factual Phase 13 readiness gate.
+Scientific preparation is complete; provider/model/cost approval remains the sole operational blocker.
+Phase 12.8A additionally prepared separately scoped license evidence, revision/profile-bound graph
+evidence, outcome-blind selection, and prospective power scenarios. No Phase 13 experiment has run.
+Version 0.12.6 added a strict
 low-resource local micro-pilot: two real BugsInPy tasks were attempted,
 one stable task/evaluator qualified, and its architecture profile remains review-required. No paid
 provider or SWE-bench task ran, and Phase 13 remains blocked. Version 0.12.5 added external benchmark onboarding controls, source allowlists, external storage

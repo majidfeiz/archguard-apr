@@ -70,12 +70,12 @@ def test_old_evidence_remains_bound_to_old_profile(repository_root: Path) -> Non
     assert imported["manifest"]["profile_fingerprint"] == OLD_PROFILE_FINGERPRINT
 
 
-def test_protocol_unchanged_and_phase13_false(repository_root: Path) -> None:
+def test_protocol_approved_and_scientific_phase_ready(repository_root: Path) -> None:
     protocol = json.loads((repository_root / "research/reviews/protocol-decision.json").read_text())
     facts = json.loads((repository_root / "research/readiness-facts.json").read_text())
-    assert protocol["decision"] == "PENDING"
-    assert facts["architecture_analysis_complete"] is False
-    assert facts["profiles_frozen"] is False
+    assert protocol["decision"] == "APPROVE"
+    assert facts["architecture_analysis_complete"] is True
+    assert facts["profiles_frozen"] is True
 
 
 def test_workflow_has_runtime_temp_exact_artifact_and_limits(repository_root: Path) -> None:

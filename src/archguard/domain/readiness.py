@@ -13,6 +13,7 @@ IMPORTED_EVIDENCE_SCHEMA = "archguard.phase-12.7-x86-qualification-import/v1"
 DECISION_SCHEMA = "archguard.human-decision/v1"
 BOUND_DECISION_SCHEMA = "archguard.human-decision/v2"
 APPROVAL_DECISION_SCHEMA = "archguard.human-decision/v3"
+PROTOCOL_APPROVAL_DECISION_SCHEMA = "archguard.human-decision/v4"
 PROTOCOL_SCHEMA = "archguard.confirmatory-protocol/v1"
 READINESS_SCHEMA = "archguard.phase-13-readiness/v1"
 
@@ -62,11 +63,22 @@ class HumanDecisionRecord:
 
     def __post_init__(self) -> None:
         check(
-            self.schema in {DECISION_SCHEMA, BOUND_DECISION_SCHEMA, APPROVAL_DECISION_SCHEMA},
+            self.schema
+            in {
+                DECISION_SCHEMA,
+                BOUND_DECISION_SCHEMA,
+                APPROVAL_DECISION_SCHEMA,
+                PROTOCOL_APPROVAL_DECISION_SCHEMA,
+            },
             "unsupported human decision schema",
         )
         check(
-            self.subject_kind in {"architecture_profile", "confirmatory_protocol"},
+            self.subject_kind
+            in {
+                "architecture_profile",
+                "confirmatory_protocol",
+                "exploratory_feasibility_protocol",
+            },
             "invalid subject",
         )
         digest(self.reviewed_fingerprint)
@@ -93,6 +105,17 @@ class HumanDecisionRecord:
             check(binding["task_id"] == "PySnooper-2", "wrong bound task")
             check(self.approval_binding is None, "AMEND decision cannot carry approval binding")
             check(self.previous_decision_sha256 is None, "AMEND decision cannot carry history")
+        elif self.schema == PROTOCOL_APPROVAL_DECISION_SCHEMA:
+            binding = self.approval_binding or {}
+            check(
+                set(binding) == {"population_fingerprint", "protocol_definition_fingerprint"},
+                "invalid protocol approval binding",
+            )
+            sha256_digest(binding["population_fingerprint"])
+            sha256_digest(binding["protocol_definition_fingerprint"])
+            sha256_digest(self.previous_decision_sha256 or "")
+            check(self.decision == HumanDecision.APPROVE, "v4 is reserved for approval")
+            check(self.evidence_binding is None, "approval cannot use AMEND binding")
         elif self.schema == APPROVAL_DECISION_SCHEMA:
             binding = self.approval_binding or {}
             check(
@@ -243,6 +266,44 @@ MANDATORY_BLOCKERS = (
 
 def readiness_report(facts: dict[str, Any]) -> dict[str, Any]:
     """Aggregate factual gates; callers cannot manually override readiness."""
+    if facts.get("study_designation") == "Exploratory Multi-Project Feasibility Protocol":
+        scientific_checks = {
+            "PHASE_12_7_EVIDENCE_MISSING": bool(facts.get("phase_12_7_evidence")),
+            "INSUFFICIENT_QUALIFIED_TASKS": int(facts.get("qualified_stable_tasks", 0)) == 3,
+            "INSUFFICIENT_PROJECT_DIVERSITY": int(facts.get("qualified_projects", 0)) == 2,
+            "INSUFFICIENT_CANDIDATE_POOL": int(facts.get("candidate_pool_count", 0)) >= 8,
+            "PILOT_SELECTION_NOT_READY": int(facts.get("selected_pilot_tasks", 0)) == 3,
+            "GRAPH_EVIDENCE_EXTERNAL_EXECUTION_REQUIRED": bool(
+                facts.get("graph_evidence_validated")
+            ),
+            "TASK_LIST_NOT_FROZEN": bool(facts.get("task_list_frozen")),
+            "LICENSES_UNVERIFIED": bool(facts.get("frozen_population_licenses_verified")),
+            "EVALUATORS_UNQUALIFIED": bool(facts.get("evaluators_qualified")),
+            "LINUX_X86_EVIDENCE_MISSING": bool(facts.get("linux_x86_evidence")),
+            "ARCHITECTURE_ANALYSIS_INCOMPLETE": bool(facts.get("architecture_analysis_complete")),
+            "PROFILE_REVIEW_REQUIRED": bool(facts.get("profiles_frozen")),
+            "PROTOCOL_REVIEW_REQUIRED": bool(facts.get("protocol_frozen")),
+        }
+        scientific_blockers = [code for code, passed in scientific_checks.items() if not passed]
+        operational_checks = {
+            "PROVIDER_NOT_CONFIGURED": bool(facts.get("provider_decision_recorded"))
+        }
+        operational_blockers = [code for code, passed in operational_checks.items() if not passed]
+        phase_12_complete = not scientific_blockers
+        scientifically_ready = phase_12_complete
+        operationally_ready = scientifically_ready and not operational_blockers
+        exploratory_result = {
+            "schema": "archguard.phase-13-readiness/v2",
+            "phase_12_complete": phase_12_complete,
+            "phase_13_scientifically_ready": scientifically_ready,
+            "phase_13_operationally_ready": operationally_ready,
+            "phase_13_ready": operationally_ready,
+            "blocker_codes": scientific_blockers + operational_blockers,
+            "scientific_checks": scientific_checks,
+            "operational_checks": operational_checks,
+        }
+        exploratory_result["fingerprint"] = fingerprint(exploratory_result)
+        return exploratory_result
     checks = {
         "PHASE_12_7_EVIDENCE_MISSING": bool(facts.get("phase_12_7_evidence")),
         "INSUFFICIENT_QUALIFIED_TASKS": int(facts.get("qualified_stable_tasks", 0)) >= 4,

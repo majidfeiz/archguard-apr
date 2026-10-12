@@ -32,6 +32,16 @@ def load_human_decision(path: Path) -> HumanDecisionRecord:
         expected.add("evidence_binding")
     if value.get("schema") == "archguard.human-decision/v3":
         expected.update({"approval_binding", "previous_decision_sha256"})
+    if value.get("schema") == "archguard.human-decision/v4":
+        expected.update(
+            {
+                "approval_binding",
+                "designation",
+                "fingerprint",
+                "previous_decision_sha256",
+                "purpose",
+            }
+        )
     if (
         set(value) != expected
         or not isinstance(value["checklist"], dict)

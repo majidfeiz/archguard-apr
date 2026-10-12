@@ -120,12 +120,12 @@ def test_import_fingerprint_tampering_fails_closed(repository_root: Path, tmp_pa
         validate_imported_evidence(path)
 
 
-def test_protocol_unchanged_and_global_phase13_false(repository_root: Path) -> None:
+def test_protocol_approval_closes_scientific_phase12(repository_root: Path) -> None:
     protocol = json.loads((repository_root / "research/reviews/protocol-decision.json").read_text())
     facts = json.loads((repository_root / "research/readiness-facts.json").read_text())
-    assert protocol["decision"] == "PENDING"
+    assert protocol["decision"] == "APPROVE"
     assert facts["pysnooper_architecture_analysis_complete"] is True
     assert facts["pysnooper_profile_approved"] is True
     assert facts["pysnooper_profile_frozen"] is True
-    assert facts["architecture_analysis_complete"] is False
-    assert facts["profiles_frozen"] is False
+    assert facts["architecture_analysis_complete"] is True
+    assert facts["profiles_frozen"] is True
