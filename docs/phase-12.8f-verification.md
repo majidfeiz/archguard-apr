@@ -71,6 +71,16 @@ GitHub Actions must still run. Non-STABLE candidates remain scientific results. 
 provider call, patch generation, gold inspection, local target execution, pilot freeze, or Phase 13
 execution occurred. `phase_13_ready=false`.
 
+## Imported remaining-task result
+
+GitHub run `38149905317` was strictly validated and imported from archive SHA-256
+`f802a552d53345208084e34b3a39b563019f0f9d71eebbaf03a19522819be001`; its canonical import
+fingerprint is `f975e236f0394bcf0138073919119c2df4f2f3d9961abdc781c18d6b2721f7c1`.
+PySnooper-3 is `QUALIFIED`/`STABLE` after three identical assertion failures and a passing fixed
+control. Black-1 remains `NOT_QUALIFIED` because its evaluator environment was invalid, and
+Cookiecutter-4 remains `NOT_QUALIFIED` after its writable-environment failure. These results are
+preserved verbatim; deterministic reimport is non-mutating and no task was replaced.
+
 ## Remaining-adapter execution repair
 
 Run `38148411956` retained valid source-free diagnostics for all three remaining tasks and no

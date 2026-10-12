@@ -709,3 +709,31 @@ def test_imported_pysnooper_one_non_reproducibility_is_preserved(
     assert [attempt["tests_passed"] for attempt in result["buggy_attempts"]] == [1] * 3
     assert result["fixed_control_passed"] is False
     assert result["fixed_control"]["attempted"] is False
+
+
+def test_imported_remaining_qualification_is_preserved(repository_root: Path) -> None:
+    imported = json.loads(
+        (repository_root / "research/evidence/phase-12.8f-remaining-qualification.json").read_text()
+    )
+    assert imported["fingerprint"] == (
+        "f975e236f0394bcf0138073919119c2df4f2f3d9961abdc781c18d6b2721f7c1"
+    )
+    assert imported["archive_sha256"] == (
+        "f802a552d53345208084e34b3a39b563019f0f9d71eebbaf03a19522819be001"
+    )
+    assert imported["manifest"]["github_run_id"] == "38149905317"
+    assert imported["phase_13_ready"] is False
+    results = {result["task_id"]: result for result in imported["qualification"]["results"]}
+    pysnooper = results["PySnooper-3"]
+    assert (pysnooper["classification"], pysnooper["qualification_decision"]) == (
+        "STABLE",
+        "QUALIFIED",
+    )
+    attempts = results["PySnooper-3"]["buggy_attempts"]
+    assert [attempt["outcome"] for attempt in attempts] == ["EXPECTED_FAILURE"] * 3
+    assert len({attempt["failure_signature"] for attempt in attempts}) == 1
+    assert results["PySnooper-3"]["fixed_control_passed"] is True
+    assert results["black-1"]["classification"] == "EVALUATOR_ENVIRONMENT_INVALID"
+    assert results["black-1"]["qualification_decision"] == "NOT_QUALIFIED"
+    assert results["cookiecutter-4"]["classification"] == "EVALUATOR_ENVIRONMENT_INVALID"
+    assert results["cookiecutter-4"]["qualification_decision"] == "NOT_QUALIFIED"
