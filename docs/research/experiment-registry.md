@@ -88,3 +88,9 @@ Run 38147331854 is the imported Linux x86 PySnooper-1 qualification result. Thre
 executions each passed the one selected test, yielding `NOT_REPRODUCIBLE` and `NOT_QUALIFIED`; the
 fixed control was consequently not required or attempted. The result is not an infrastructure
 failure, changes no adapter or candidate, selects no replacement, and leaves `phase_13_ready=false`.
+Runs 38149905317 and 38221805148 complete the outcome-blind qualification population. PySnooper-3
+and black-4 are `STABLE`/`QUALIFIED`; black-1, black-2, black-3, and cookiecutter-4 retain their exact
+environment diagnostics. Together with qualified PySnooper-2, the approved exploratory population is
+frozen at three tasks across two projects. Five negative outcomes remain in the canonical registry;
+no outcome-based replacement occurred. Phase 13 has not executed and remains operationally blocked
+only by prospective provider/model/cost approval.

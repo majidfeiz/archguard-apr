@@ -8,7 +8,7 @@ from archguard.entrypoints.cli.app import app
 runner = CliRunner()
 
 
-def test_pending_decision_reports_not_approved(repository_root: Path) -> None:
+def test_protocol_decision_reports_approved(repository_root: Path) -> None:
     result = runner.invoke(
         app,
         [
@@ -18,11 +18,11 @@ def test_pending_decision_reports_not_approved(repository_root: Path) -> None:
             "--decision",
             str(repository_root / "research/reviews/protocol-decision.json"),
             "--fingerprint",
-            "921a3ffa97e866b9ce7aa3431463ab6e8efbf41814a223ffe040e978a44dd0d9",
+            "7d43e50dca1be8b2e776bed8d2714000e92e69127bd6c2c46c4a1005bad4f3c1",
         ],
     )
-    assert result.exit_code == 3
-    assert json.loads(result.stdout)["approved"] is False
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["approved"] is True
 
 
 def test_phase13_gate_reports_all_current_blockers(repository_root: Path) -> None:
@@ -33,7 +33,9 @@ def test_phase13_gate_reports_all_current_blockers(repository_root: Path) -> Non
     assert result.exit_code == 4
     output = json.loads(result.stdout)
     assert output["phase_13_ready"] is False
-    assert "PROFILE_REVIEW_REQUIRED" in output["blocker_codes"]
+    assert output["phase_12_complete"] is True
+    assert output["phase_13_scientifically_ready"] is True
+    assert output["blocker_codes"] == ["PROVIDER_NOT_CONFIGURED"]
 
 
 def test_phase128a_artifacts_validate(repository_root: Path) -> None:

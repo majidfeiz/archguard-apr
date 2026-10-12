@@ -711,13 +711,13 @@ def test_source_free_infrastructure_diagnostic_is_validated() -> None:
         _validate_results({"schema": QUALIFICATION_SCHEMA, "results": [failed]})
 
 
-def test_frozen_state_and_phase13_remain_unchanged(repository_root: Path) -> None:
+def test_phase128f_history_remains_preserved(repository_root: Path) -> None:
     expected = {
         "research/profiles/pysnooper-profile-freeze.json": (
             "345b134bfb1f3e3faf6a8fe08b9edb870b92c25242e9f86edbcb3344a78d91f3"
         ),
-        "research/reviews/protocol-decision.json": (
-            "1d9e3a7fe69ca330571abbfca469433010a6acfdf7f47a6f788d9cc8349ab474"
+        "research/reviews/protocol-decision-history-v1.json": (
+            "bc19d920338354298eee6f7582e597a7e17929a93067b5a9c603b4edc00621a7"
         ),
     }
     for path, digest in expected.items():

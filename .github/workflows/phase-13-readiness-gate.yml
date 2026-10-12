@@ -31,14 +31,21 @@ jobs:
             echo "::error title=Readiness gate execution failed::Unexpected exit code $status"
             exit "$status"
           fi
-          jq -e '.schema == "archguard.phase-13-readiness/v1" and (.phase_13_ready | type == "boolean") and (.blocker_codes | type == "array")' phase-13-readiness-report.json >/dev/null
+          jq -e '.schema == "archguard.phase-13-readiness/v2"
+            and .phase_12_complete == true
+            and .phase_13_scientifically_ready == true
+            and (.phase_13_operationally_ready | type == "boolean")
+            and (.phase_13_ready == .phase_13_operationally_ready)
+            and (.blocker_codes | type == "array")' phase-13-readiness-report.json >/dev/null
           ready="$(jq -r .phase_13_ready phase-13-readiness-report.json)"
+          scientific="$(jq -r .phase_13_scientifically_ready phase-13-readiness-report.json)"
           blockers="$(jq -r '.blocker_codes | join(", ")' phase-13-readiness-report.json)"
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
           {
             echo "## Phase 13 readiness"
             echo
-            echo "- Ready: \`$ready\`"
+            echo "- Scientifically ready: \`$scientific\`"
+            echo "- Operationally ready: \`$ready\`"
             echo "- Blockers: ${blockers:-none}"
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$ready" = false ]; then

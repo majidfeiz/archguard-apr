@@ -299,17 +299,9 @@ def test_imported_evidence_and_later_candidate_pool_preserve_other_blockers(
 
     assert "GRAPH_EVIDENCE_EXTERNAL_EXECUTION_REQUIRED" not in report["blocker_codes"]
     assert report["phase_13_ready"] is False
-    assert set(report["blocker_codes"]) == {
-        "INSUFFICIENT_QUALIFIED_TASKS",
-        "INSUFFICIENT_PROJECT_DIVERSITY",
-        "PILOT_SELECTION_NOT_READY",
-        "TASK_LIST_NOT_FROZEN",
-        "LICENSES_UNVERIFIED",
-        "ARCHITECTURE_ANALYSIS_INCOMPLETE",
-        "PROFILE_REVIEW_REQUIRED",
-        "PROTOCOL_REVIEW_REQUIRED",
-        "PROVIDER_NOT_CONFIGURED",
-    }
+    assert report["phase_12_complete"] is True
+    assert report["phase_13_scientifically_ready"] is True
+    assert report["blocker_codes"] == ["PROVIDER_NOT_CONFIGURED"]
 
 
 def test_profile_is_amended_protocol_pending_and_import_is_source_free(
@@ -326,9 +318,9 @@ def test_profile_is_amended_protocol_pending_and_import_is_source_free(
         (repository_root / "research/reviews/pysnooper-profile-amend-decision.json").read_text()
     )
     assert historical["decision"] == "AMEND"
-    assert protocol["decision"] == "PENDING"
-    assert protocol["reviewer_name"] == ""
-    assert protocol["review_timestamp"] == ""
+    assert protocol["decision"] == "APPROVE"
+    assert protocol["reviewer_name"] == "Majid Feiz"
+    assert protocol["review_timestamp"]
 
     evidence_root = repository_root / "research/evidence"
     assert not list(evidence_root.glob("*.zip"))

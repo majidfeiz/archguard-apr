@@ -1,18 +1,1 @@
-{
-  "schema": "archguard.human-decision/v1",
-  "subject_kind": "confirmatory_protocol",
-  "reviewed_fingerprint": "921a3ffa97e866b9ce7aa3431463ab6e8efbf41814a223ffe040e978a44dd0d9",
-  "reviewer_name": "",
-  "review_timestamp": "",
-  "decision": "PENDING",
-  "checklist": {
-    "population_and_conditions_reviewed": false,
-    "endpoints_and_pairing_reviewed": false,
-    "missingness_and_exclusions_reviewed": false,
-    "tests_effect_sizes_and_multiplicity_reviewed": false,
-    "seeds_budgets_stopping_and_retries_reviewed": false,
-    "environment_provider_and_cost_decision_reviewed": false,
-    "no_optional_stopping_or_retrospective_changes": false
-  },
-  "comments": ""
-}
+{"approval_binding":{"population_fingerprint":"421f3129ef6bee5883c41d05f087d6faff5b2a3de3b2ea543b4d27ade1488886","protocol_definition_fingerprint":"7d43e50dca1be8b2e776bed8d2714000e92e69127bd6c2c46c4a1005bad4f3c1"},"checklist":{"claims_and_limitations_reviewed":true,"conditions_and_outcomes_reviewed":true,"missingness_and_analysis_reviewed":true,"population_and_attrition_reviewed":true,"provider_absence_acknowledged":true,"resources_seeds_retries_and_stopping_reviewed":true},"comments":"The three-task, two-project exploratory feasibility protocol is approved, and the experimental population may now be frozen.","decision":"APPROVE","designation":"Exploratory Multi-Project Feasibility Protocol","fingerprint":"2ff4adc5be719608860845d68be15c07205bf563423099a30c617e3d29170d7d","previous_decision_sha256":"bc19d920338354298eee6f7582e597a7e17929a93067b5a9c603b4edc00621a7","purpose":"Feasibility, not confirmatory statistical evaluation.","review_timestamp":"2026-10-12T00:00:00Z","reviewed_fingerprint":"7d43e50dca1be8b2e776bed8d2714000e92e69127bd6c2c46c4a1005bad4f3c1","reviewer_name":"Majid Feiz","schema":"archguard.human-decision/v4","subject_kind":"exploratory_feasibility_protocol"}

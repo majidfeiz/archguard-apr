@@ -1,11 +1,11 @@
 # Phase 13 readiness
 
-Status: `REVIEW_REQUIRED`, not final-evaluation ready.
+Status: scientifically ready under the exploratory protocol; operationally blocked.
 
-Phase 12.8 formalizes machine-readable blocker aggregation. The Phase 12.7 ZIP has not yet been locally
-validated, the deterministic selected list has zero tasks, the PySnooper profile decision and protocol
-decision remain `PENDING`, and provider/model/pricing remain `PROVIDER_NOT_CONFIGURED`. The readiness
-gate therefore remains false; neither prose nor a manual override can change it.
+Phase 12 is complete with a human-approved, frozen population of PySnooper-2, PySnooper-3, and
+black-4. Evidence, profile applicability, population, and exploratory protocol bindings are validated
+locally. Provider/model/pricing and monetary approval remain `PROVIDER_NOT_CONFIGURED`, so the
+operational gate remains false; neither prose nor a manual override can change it.
 
 Phase 12.5 verified official framework metadata revisions for BugsInPy and SWE-bench and the official
 SWE-bench Verified dataset revision without acquiring its payload. It added evidence-derived readiness,
@@ -16,7 +16,6 @@ details; dated provider pricing/cost ceilings; infrastructure pilot; and verifie
 Current Darwin ARM64 observations cannot satisfy the platform gate. No final split is frozen and no
 final scientific claim exists.
 
-Phase 12.6 adds one stable evaluator-qualified BugsInPy task and one review-required profile draft.
-This is useful infrastructure evidence but is insufficient for Phase 13: the profile is partial and
-unreviewed, SWE-bench was not executed, protocol decisions remain proposed, benchmark-family coverage
-is inadequate, and native Linux x86_64 execution remains unverified.
+Historical Phase 12.5/12.6 limitations remain part of the audit record, but later native Linux x86_64
+evidence resolved the scientific preparation gates for the frozen feasibility population. This does
+not authorize confirmatory, population-wide, or broad comparative claims.
