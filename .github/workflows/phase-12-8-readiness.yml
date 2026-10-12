@@ -30,25 +30,30 @@ jobs:
       - run: uv run pytest
       - run: uv run archguard architecture profile compile configs/external-profiles/pysnooper-micro-pilot.yaml --output "$RUNNER_TEMP/profile-1.json"
       - run: uv run archguard architecture profile compile configs/external-profiles/pysnooper-micro-pilot.yaml --output "$RUNNER_TEMP/profile-2.json" && cmp "$RUNNER_TEMP/profile-1.json" "$RUNNER_TEMP/profile-2.json"
-      - name: Validate profile approval and global gate consistency
+      - name: Validate Phase 12 closure and split readiness consistency
         shell: bash
         run: |
           set -euo pipefail
-          test "$(jq -r .decision research/reviews/protocol-decision.json)" = PENDING
+          test "$(jq -r .decision research/reviews/protocol-decision.json)" = APPROVE
           test "$(jq -r .decision research/reviews/pysnooper-profile-decision.json)" = APPROVE
           test "$(jq -r .pysnooper_amended_profile_status research/readiness-facts.json)" = FROZEN
           test "$(jq -r .pysnooper_architecture_analysis_complete research/readiness-facts.json)" = true
           test "$(jq -r .pysnooper_profile_approved research/readiness-facts.json)" = true
           test "$(jq -r .pysnooper_profile_frozen research/readiness-facts.json)" = true
-          test "$(jq -r .architecture_analysis_complete research/readiness-facts.json)" = false
-          test "$(jq -r .profiles_frozen research/readiness-facts.json)" = false
+          test "$(jq -r .architecture_analysis_complete research/readiness-facts.json)" = true
+          test "$(jq -r .profiles_frozen research/readiness-facts.json)" = true
+          test "$(jq -r .protocol_frozen research/readiness-facts.json)" = true
           set +e
           uv run archguard readiness gate --facts research/readiness-facts.json > "$RUNNER_TEMP/gate.json"
           status=$?
           set -e
           test "$status" -eq 4
           test "$(jq -r .phase_13_ready "$RUNNER_TEMP/gate.json")" = false
-          echo "REVIEW_REQUIRED: this workflow does not establish Phase 13 readiness."
+          test "$(jq -r .phase_12_complete "$RUNNER_TEMP/gate.json")" = true
+          test "$(jq -r .phase_13_scientifically_ready "$RUNNER_TEMP/gate.json")" = true
+          test "$(jq -r .phase_13_operationally_ready "$RUNNER_TEMP/gate.json")" = false
+          test "$(jq -r '.blocker_codes == ["PROVIDER_NOT_CONFIGURED"]' "$RUNNER_TEMP/gate.json")" = true
+          echo "PHASE_12_COMPLETE: Phase 13 awaits provider/model/cost configuration."
       - name: Source/gold/secret policy scan
         run: |
           ! rg -n '(BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|sk-[A-Za-z0-9]{20,})' research docs/phase-12.8-verification.md

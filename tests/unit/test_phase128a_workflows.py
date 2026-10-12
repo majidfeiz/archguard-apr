@@ -18,6 +18,15 @@ def test_phase128a_workflows_parse_and_avoid_runner_context_in_env(repository_ro
         assert "${{ runner.temp }}" not in source
 
 
+def test_phase13_gate_accepts_v2_split_readiness(repository_root: Path) -> None:
+    path = repository_root / ".github/workflows/phase-13-readiness-gate.yml"
+    source = path.read_text(encoding="utf-8")
+    assert "archguard.phase-13-readiness/v2" in source
+    assert ".phase_12_complete == true" in source
+    assert ".phase_13_scientifically_ready == true" in source
+    assert ".phase_13_ready == .phase_13_operationally_ready" in source
+
+
 def test_external_workspace_is_initialized_at_runtime_before_use(repository_root: Path) -> None:
     path = repository_root / ".github" / "workflows" / WORKFLOWS[0]
     source = path.read_text(encoding="utf-8")

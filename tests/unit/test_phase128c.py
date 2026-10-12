@@ -88,15 +88,17 @@ def test_workflow_has_runtime_temp_exact_artifact_and_limits(repository_root: Pa
     assert "timeout-minutes: 30" in raw and "timeout 15m" in raw
 
 
-def test_readiness_workflow_preserves_global_blockers_after_approval(
+def test_readiness_workflow_validates_scientific_closure_and_provider_blocker(
     repository_root: Path,
 ) -> None:
     raw = (repository_root / ".github/workflows/phase-12-8-readiness.yml").read_text()
     assert 'pysnooper-profile-decision.json)" = APPROVE' in raw
-    assert 'protocol-decision.json)" = PENDING' in raw
+    assert 'protocol-decision.json)" = APPROVE' in raw
     assert 'pysnooper_amended_profile_status research/readiness-facts.json)" = FROZEN' in raw
-    assert 'architecture_analysis_complete research/readiness-facts.json)" = false' in raw
-    assert 'profiles_frozen research/readiness-facts.json)" = false' in raw
+    assert 'architecture_analysis_complete research/readiness-facts.json)" = true' in raw
+    assert 'profiles_frozen research/readiness-facts.json)" = true' in raw
+    assert ".phase_13_scientifically_ready" in raw
+    assert "PROVIDER_NOT_CONFIGURED" in raw
 
 
 @pytest.mark.parametrize("unsafe", ["../manifest.json", "nested/manifest.json"])
