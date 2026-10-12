@@ -18,6 +18,8 @@ def _selected(selection: str) -> tuple[str, ...]:
         return BATCH_A
     if selection == "batch-b":
         return BATCH_B
+    if selection == "final-black":
+        return BATCH_B
     if selection == "all":
         return BATCH_A + BATCH_B
     return (selection,)
@@ -26,7 +28,7 @@ def _selected(selection: str) -> tuple[str, ...]:
 def render(selection: str, results: list[dict[str, Any]], security: str) -> str:
     reached = {item["task_id"] for item in results}
     lines = [
-        "## Phase 12.8F Remaining Evaluator Qualification",
+        "## Phase 12 Final Black Qualification",
         "",
         "| Task | tmpfs created | Writable probe | Fixture acquired | Fixture verified | "
         "Source mounted | Evaluator mounted | Project import | Evaluator loaded by pytest | "

@@ -333,6 +333,9 @@ def prior_evidence_status(task_id: str, new: Classification) -> str:
     prior = {
         "PySnooper-1": Classification.NOT_REPRODUCIBLE,
         "PySnooper-2": Classification.STABLE,
+        "PySnooper-3": Classification.STABLE,
+        "black-1": Classification.EVALUATOR_ENVIRONMENT_INVALID,
+        "cookiecutter-4": Classification.EVALUATOR_ENVIRONMENT_INVALID,
     }
     if task_id not in prior:
         return "NO_PRIOR_EVIDENCE"

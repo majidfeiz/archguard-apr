@@ -94,6 +94,9 @@ def _adapter(
             "PySnooper-1": "7a3d64cd702fdfa1eba8c08ac3c8934948a3ef0178f141c1f5599307c1fe59f3",
             "PySnooper-3": "852e76799d5a97d2e8e87d0db6b5e6fd7884fbff6fbe2049734c268bd8c7c753",
             "black-1": "3a690fb9c66f3d85b89594f4577e3632ec069389e3af669becb3b899ded59373",
+            "black-2": "a903d77e94a0bc7d2944f1d7a27531c6305048a7617441791bb706449150d01c",
+            "black-3": "bfe05145b8c4361ae744ccb71ab8780dd392ac712596c77075c779f6749fbc15",
+            "black-4": "156be8f87263e7378daa2d5533334e1d9ff1a4ab291b82ecd3e3c3f3039538f2",
             "cookiecutter-4": "c74875f38e1948d6b5bb1e8ea04d165df54d188d04be14e79439b907ca266d0f",
         }.get(task_id)
         if reviewed
@@ -213,11 +216,15 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
                 "regex==2020.2.20",
                 "toml==0.10.0",
                 "typed-ast==1.4.0",
+                "typing-extensions==3.7.4.2",
+                "mypy-extensions==0.4.3",
             ),
             ("python", "-m", "unittest", "-q"),
             "tests.test_black.BlackTestCase.test_fmtonoff4",
             "MIT",
             black_license,
+            reviewed=True,
+            evaluator_fixture_path="tests/test_black.py",
         ),
         _adapter(
             "black-3",
@@ -235,11 +242,15 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
                 "regex==2020.2.20",
                 "toml==0.10.0",
                 "typed-ast==1.4.0",
+                "typing-extensions==3.7.4.2",
+                "mypy-extensions==0.4.3",
             ),
             ("python", "-m", "unittest", "-q"),
             "tests.test_black.BlackTestCase.test_invalid_config_return_code",
             "MIT",
             black_license,
+            reviewed=True,
+            evaluator_fixture_path="tests/test_black.py",
         ),
         _adapter(
             "black-4",
@@ -262,6 +273,8 @@ def adapters() -> tuple[EvaluatorAdapter, ...]:
             "tests.test_black.BlackTestCase.test_beginning_backslash",
             "MIT",
             black_license,
+            reviewed=True,
+            evaluator_fixture_path="tests/test_black.py",
         ),
     )
 

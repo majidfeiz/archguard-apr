@@ -1,4 +1,4 @@
-name: Phase 12.8F Remaining Evaluator Qualification
+name: Phase 12 Final Black Qualification
 
 on:
   workflow_dispatch: {}
@@ -33,7 +33,7 @@ jobs:
           echo "RESULTS_PATH=${results_path}" >> "${GITHUB_ENV}"
           echo "VALIDATION_ZIP=${validation_zip}" >> "${GITHUB_ENV}"
           echo "SECURITY_SCAN_PATH=${security_scan_path}" >> "${GITHUB_ENV}"
-          echo "ARTIFACT_NAME=archguard-phase-12-8f-remaining-qualification-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
+          echo "ARTIFACT_NAME=archguard-phase-12-final-black-qualification-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
           echo "TRANSFER_START=$(cat /sys/class/net/eth0/statistics/rx_bytes)" >> "${GITHUB_ENV}"
           test "$(uname -s)" = Linux
           test "$(uname -m)" = x86_64
@@ -62,7 +62,7 @@ jobs:
           python3 scripts/phase128f_registry.py --output "${RUNNER_TEMP}/adapters-regenerated.json"
           cmp "${RUNNER_TEMP}/adapters-regenerated.json" research/evaluators/adapter-registry-v2.json
           test "$(jq -r .candidate_registry_fingerprint research/evaluators/adapter-registry-v2.json)" = d1068112a12c63e24ee780ad9b31b05c04f9b1417efa50ffa04a1b8b4aac1903
-          test "$(jq -r .fingerprint research/evaluators/adapter-registry-v2.json)" = e880ea9bce587bf66eab42e3c928800850c8515e7531d880b3cbdb94191d9d28
+          test "$(jq -r .fingerprint research/evaluators/adapter-registry-v2.json)" = 61a6b1035efcaeb955c0062d208ff53a762e9584e9ba0294b3dab91c7e984266
           test "$(jq -r .selection_policy_fingerprint research/evaluators/adapter-registry-v2.json)" = 0987d60ff9b5c2071f0c1dd82a91c680a6aafa885a37b12003bc34dc4add7e01
           test "$(jq -c .selected_identifiers research/candidates/candidate-pool-v1.json)" = '["PySnooper-1","black-1","cookiecutter-4","PySnooper-2","black-2","PySnooper-3","black-3","black-4"]'
           check_adapter() {
@@ -73,9 +73,9 @@ jobs:
             test "$(jq -r .evaluator_fixture_sha256 <<<"${adapter}")" = "$5"
             test "$(jq -r .test_selectors[0] <<<"${adapter}")" = "$6"
           }
-          check_adapter PySnooper-3 6e3d797be3fa0a746fb5b1b7c7fea78eb926c208 15555ed760000b049aff8fecc79d29339c1224c3 735cd3b2e75d89388b39c3815cee6fc1cb96ccb8938a4d86247ebfda0748f8ad 852e76799d5a97d2e8e87d0db6b5e6fd7884fbff6fbe2049734c268bd8c7c753 tests/test_pysnooper.py::test_file_output
-          check_adapter black-1 26c9465a22c732ab1e17b0dec578fa3432e9b558 c0a7582e3d4cc8bec3b7f5a6c52b36880dcb57d7 69fe3ca5092ee79cfdf090a594c1fc275b9ca785fe6404e640b187c3ea3e9ecb 3a690fb9c66f3d85b89594f4577e3632ec069389e3af669becb3b899ded59373 tests.test_black.BlackTestCase.test_works_in_mono_process_only_environment
-          check_adapter cookiecutter-4 9568ab6ecd2d6836646006c59473c4a4ac0dee04 457a1a4e862aab4102b644ff1d2b2e2b5a766b3c e21d53d7942cbb7fb15175005a620b178b2f46db6022061509ce58b64ca62a26 c74875f38e1948d6b5bb1e8ea04d165df54d188d04be14e79439b907ca266d0f tests/test_hooks.py::TestExternalHooks::test_run_failing_hook
+          check_adapter black-2 c8ca6b2b9ff3510bee12129824cebfc2fc51e5b2 892eddacd215d685e136686b7f629ade70adca83 a1c3c11f95c66b76261052b9f30440e54a564ee91cc77093455868aee006a185 a903d77e94a0bc7d2944f1d7a27531c6305048a7617441791bb706449150d01c tests.test_black.BlackTestCase.test_fmtonoff4
+          check_adapter black-3 8126b4f6a9342290de4655e6a8a78cd288ce7daa 7a14a37981862ef418f3cdb4a7e2375856f97529 5c021ca1913d2a4457dafb42e2f78b722dc775dd70c74b362dd71bc9636f1bf5 bfe05145b8c4361ae744ccb71ab8780dd392ac712596c77075c779f6749fbc15 tests.test_black.BlackTestCase.test_invalid_config_return_code
+          check_adapter black-4 65ea568e3301951f26e0e3b98f6d5dc80132e917 c7495b9aa098ef7a358fc74556359d21c6a4ba11 e4719238881c6b073855e708bb22bc2d604297b9fb88ddc86d22d01045ea1e46 156be8f87263e7378daa2d5533334e1d9ff1a4ab291b82ecd3e3c3f3039538f2 tests.test_black.BlackTestCase.test_beginning_backslash
       - name: Execute selected adapters serially in hardened containers
         shell: bash
         env:
@@ -84,10 +84,10 @@ jobs:
           set -euo pipefail
           timeout 350m python3 scripts/phase128f_runner.py \
             --adapters research/evaluators/adapter-registry-v2.json \
-            --selection remaining \
+            --selection final-black \
             --external-root "${EXTERNAL_ROOT}" \
             --output "${RESULTS_PATH}"
-          jq -e 'map(.task_id) == ["PySnooper-3", "black-1", "cookiecutter-4"] and
+          jq -e 'map(.task_id) == ["black-2", "black-3", "black-4"] and
             all(.[]; .runtime_state_machine.schema == "archguard.evaluator-runtime-state-machine/v3")' \
             "${RESULTS_PATH}" >/dev/null
       - name: Enforce transfer, disk, leakage, and cleanup gates
@@ -167,7 +167,7 @@ jobs:
           test -z "$(docker ps -aq --filter label=archguard.phase=12.8f)"
           test -z "$(docker images -q --filter label=archguard.phase=12.8f)"
           python3 scripts/phase128f_job_summary.py \
-            --selection remaining \
+            --selection final-black \
             --results "${RESULTS_PATH:-${RUNNER_TEMP}/archguard-phase-12-8f-results.json}" \
             --security-scan "${SECURITY_SCAN_PATH:-${RUNNER_TEMP}/archguard-phase-12-8f-security-scan.json}" \
             --output "${GITHUB_STEP_SUMMARY}"

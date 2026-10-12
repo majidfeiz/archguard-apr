@@ -24,7 +24,7 @@ from archguard.infrastructure.json_codec import unique_object
 
 CANDIDATE_FINGERPRINT = "d1068112a12c63e24ee780ad9b31b05c04f9b1417efa50ffa04a1b8b4aac1903"
 POLICY_FINGERPRINT = "0987d60ff9b5c2071f0c1dd82a91c680a6aafa885a37b12003bc34dc4add7e01"
-ADAPTER_REGISTRY_FINGERPRINT = "e880ea9bce587bf66eab42e3c928800850c8515e7531d880b3cbdb94191d9d28"
+ADAPTER_REGISTRY_FINGERPRINT = "61a6b1035efcaeb955c0062d208ff53a762e9584e9ba0294b3dab91c7e984266"
 ADAPTER_IDENTITIES = {
     "PySnooper-1": (
         "d3a4938e74e6287056a21ab937a167e18c3c8c0e274a719f713068f28e96db10",
@@ -47,17 +47,17 @@ ADAPTER_IDENTITIES = {
         "457a1a4e862aab4102b644ff1d2b2e2b5a766b3c",
     ),
     "black-2": (
-        "f59d4429f66d9b91f8a2b6d0e9eb09f5ca217cd86fdbd7587d76af972662bf48",
+        "a1c3c11f95c66b76261052b9f30440e54a564ee91cc77093455868aee006a185",
         "c8ca6b2b9ff3510bee12129824cebfc2fc51e5b2",
         "892eddacd215d685e136686b7f629ade70adca83",
     ),
     "black-3": (
-        "0fce6a06fbe89ec9b88bda5c14fbd430b3a864b68bcc8736a636a5c5caeb515f",
+        "5c021ca1913d2a4457dafb42e2f78b722dc775dd70c74b362dd71bc9636f1bf5",
         "8126b4f6a9342290de4655e6a8a78cd288ce7daa",
         "7a14a37981862ef418f3cdb4a7e2375856f97529",
     ),
     "black-4": (
-        "fa77421323136ea9b6ee3fef805e9b1e9d2f1eeef5e09a6c4cb512e19dab1fa5",
+        "e4719238881c6b073855e708bb22bc2d604297b9fb88ddc86d22d01045ea1e46",
         "65ea568e3301951f26e0e3b98f6d5dc80132e917",
         "c7495b9aa098ef7a358fc74556359d21c6a4ba11",
     ),

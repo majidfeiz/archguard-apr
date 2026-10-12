@@ -63,13 +63,22 @@ def test_adapter_registry_is_deterministic_complete_and_immutable(repository_roo
     values = adapters()
     assert len(values) == 7
     assert registry()["fingerprint"] == (
-        "e880ea9bce587bf66eab42e3c928800850c8515e7531d880b3cbdb94191d9d28"
+        "61a6b1035efcaeb955c0062d208ff53a762e9584e9ba0294b3dab91c7e984266"
     )
     assert len({item.fingerprint for item in values}) == 7
     assert all(len(item.buggy_revision) == len(item.fixed_revision) == 40 for item in values)
     assert all(item.availability == "AVAILABLE" for item in values)
     assert all(item.evaluator_argv[0] == "python" for item in values)
     assert all(item.constraint_set_fingerprint for item in values)
+    assert {item.task_id for item in values if item.review_status == "REVIEWED"} == {
+        "PySnooper-1",
+        "PySnooper-3",
+        "black-1",
+        "black-2",
+        "black-3",
+        "black-4",
+        "cookiecutter-4",
+    }
     empty = [item for item in values if item.upstream_requirements_empty]
     assert {item.task_id for item in empty} == {"PySnooper-1", "PySnooper-3"}
     assert all(item.dependency_constraints for item in empty)
@@ -82,6 +91,27 @@ def test_adapter_registry_is_deterministic_complete_and_immutable(repository_roo
             candidate["buggy_revision"],
             candidate["fixed_revision"],
         )
+
+
+def test_final_black_adapters_replace_legacy_identity_fields() -> None:
+    reviewed = next(adapter for adapter in adapters() if adapter.task_id == "black-2")
+    legacy = dataclasses.replace(
+        reviewed,
+        schema="archguard.evaluator-adapter/v2",
+        buggy_test_selectors=(),
+        fixed_test_selectors=(),
+        evaluator_source_type="PROJECT_REVISION",
+        evaluator_provenance="",
+        installation_plan=(),
+        expected_framework="",
+        quarantine_policy="NONE",
+        review_status="LEGACY",
+        evaluator_fixture_path=None,
+        evaluator_fixture_sha256=None,
+        fingerprint="",
+    )
+    assert legacy.schema == "archguard.evaluator-adapter/v2"
+    assert legacy.fingerprint != reviewed.fingerprint
 
 
 def test_authoritative_phase128e_preflight_binding(repository_root: Path) -> None:
@@ -148,6 +178,7 @@ def test_three_repetitions_and_stable_signature_classification() -> None:
         ),
         ((attempt(Outcome.ENVIRONMENT_FAILURE),) * 3, False, Classification.ENVIRONMENT_SENSITIVE),
         ((attempt(Outcome.TIMEOUT),) * 3, False, Classification.SKIPPED_RESOURCE_LIMIT),
+        ((attempt(Outcome.RESOURCE_LIMIT),) * 3, False, Classification.SKIPPED_RESOURCE_LIMIT),
         (
             (attempt(Outcome.INFRASTRUCTURE_FAILURE),) * 3,
             False,
@@ -179,7 +210,10 @@ def test_unavailable_unsupported_and_failed_fixed_control() -> None:
     ("failure_class", "expected"),
     [
         ("SELECTOR_NOT_FOUND", Classification.EVALUATOR_ADAPTER_INVALID),
+        ("COLLECTION_ERROR", Classification.EVALUATOR_ADAPTER_INVALID),
         ("IMPORT_ERROR", Classification.EVALUATOR_ENVIRONMENT_INVALID),
+        ("PROJECT_INSTALLATION_ERROR", Classification.EVALUATOR_ENVIRONMENT_INVALID),
+        ("PERMISSION_ERROR", Classification.EVALUATOR_ENVIRONMENT_INVALID),
         ("TEST_PROCESS_ERROR", Classification.EVALUATOR_ENVIRONMENT_INVALID),
     ],
 )
@@ -196,15 +230,35 @@ def test_prior_evidence_is_preserved_and_conflicts_require_review(repository_roo
     prior = json.loads(
         (repository_root / "research/evidence/qualification-prior-v1.json").read_text()
     )
+    from archguard.domain.orchestration import fingerprint
+
+    assert prior["fingerprint"] == fingerprint(
+        {key: value for key, value in prior.items() if key != "fingerprint"}
+    )
     assert [(item["task_id"], item["classification"]) for item in prior["records"]] == [
         ("PySnooper-1", "NOT_REPRODUCIBLE"),
         ("PySnooper-2", "STABLE"),
+        ("PySnooper-3", "STABLE"),
+        ("black-1", "EVALUATOR_ENVIRONMENT_INVALID"),
+        ("cookiecutter-4", "EVALUATOR_ENVIRONMENT_INVALID"),
     ]
     assert prior_evidence_status("PySnooper-1", Classification.NOT_REPRODUCIBLE) == "CONSISTENT"
     assert prior_evidence_status("PySnooper-1", Classification.STABLE) == (
         "EVIDENCE_CONFLICT_REVIEW_REQUIRED"
     )
-    assert prior_evidence_status("black-1", Classification.STABLE) == "NO_PRIOR_EVIDENCE"
+    assert prior_evidence_status("black-1", Classification.STABLE) == (
+        "EVIDENCE_CONFLICT_REVIEW_REQUIRED"
+    )
+    assert prior_evidence_status("PySnooper-3", Classification.STABLE) == "CONSISTENT"
+    assert (
+        prior_evidence_status("black-1", Classification.EVALUATOR_ENVIRONMENT_INVALID)
+        == "CONSISTENT"
+    )
+    assert (
+        prior_evidence_status("cookiecutter-4", Classification.EVALUATOR_ENVIRONMENT_INVALID)
+        == "CONSISTENT"
+    )
+    assert prior_evidence_status("black-2", Classification.STABLE) == "NO_PRIOR_EVIDENCE"
 
 
 def result(task_id: str = "black-1") -> dict[str, Any]:

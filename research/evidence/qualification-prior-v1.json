@@ -1,1 +1,57 @@
-{"fingerprint":"8ff49582607a89964591ed9bda77439663baeae568e32bd2f4a42e42502fc1e1","phase_13_ready":false,"preservation_policy":"APPEND_ONLY_CONFLICT_REVIEW","records":[{"buggy_revision":"e21a31162f4c54be693d8ca8260e42393b39abd3","classification":"NOT_REPRODUCIBLE","evidence_kind":"LOCAL_RECORDED_CONSISTENCY_BASELINE","fixed_revision":"56f22f8ffe1c6b2be4d2cf3ad1987fdb66113da2","provenance":"docs/phase-12.6-verification.md","qualification_decision":"NOT_QUALIFIED","task_id":"PySnooper-1"},{"buggy_revision":"e21a31162f4c54be693d8ca8260e42393b39abd3","classification":"STABLE","evidence_fingerprint":"a3a361aecb2c6c3eb3a1bcf570e148da1c98e49f1260f0f96fdf9f6e9f51ccf9","evidence_kind":"IMPORTED_LINUX_X86_QUALIFICATION","fixed_revision":"814abc34a098c1b98cb327105ac396f985d2413e","provenance":"research/evidence/phase-12.7-x86.json","qualification_decision":"QUALIFIED","task_id":"PySnooper-2"}],"schema":"archguard.qualification-prior-evidence/v1"}
+{
+  "fingerprint": "34d160d2744d3a23c84a56ecaa0f48114812011ca75a19ccd8539d3160656c1d",
+  "phase_13_ready": false,
+  "preservation_policy": "APPEND_ONLY_CONFLICT_REVIEW",
+  "records": [
+    {
+      "buggy_revision": "e21a31162f4c54be693d8ca8260e42393b39abd3",
+      "classification": "NOT_REPRODUCIBLE",
+      "evidence_kind": "LOCAL_RECORDED_CONSISTENCY_BASELINE",
+      "fixed_revision": "56f22f8ffe1c6b2be4d2cf3ad1987fdb66113da2",
+      "provenance": "docs/phase-12.6-verification.md",
+      "qualification_decision": "NOT_QUALIFIED",
+      "task_id": "PySnooper-1"
+    },
+    {
+      "buggy_revision": "e21a31162f4c54be693d8ca8260e42393b39abd3",
+      "classification": "STABLE",
+      "evidence_fingerprint": "a3a361aecb2c6c3eb3a1bcf570e148da1c98e49f1260f0f96fdf9f6e9f51ccf9",
+      "evidence_kind": "IMPORTED_LINUX_X86_QUALIFICATION",
+      "fixed_revision": "814abc34a098c1b98cb327105ac396f985d2413e",
+      "provenance": "research/evidence/phase-12.7-x86.json",
+      "qualification_decision": "QUALIFIED",
+      "task_id": "PySnooper-2"
+    },
+    {
+      "buggy_revision": "6e3d797be3fa0a746fb5b1b7c7fea78eb926c208",
+      "classification": "STABLE",
+      "evidence_fingerprint": "f975e236f0394bcf0138073919119c2df4f2f3d9961abdc781c18d6b2721f7c1",
+      "evidence_kind": "IMPORTED_LINUX_X86_QUALIFICATION",
+      "fixed_revision": "15555ed760000b049aff8fecc79d29339c1224c3",
+      "provenance": "research/evidence/phase-12.8f-remaining-qualification.json",
+      "qualification_decision": "QUALIFIED",
+      "task_id": "PySnooper-3"
+    },
+    {
+      "buggy_revision": "26c9465a22c732ab1e17b0dec578fa3432e9b558",
+      "classification": "EVALUATOR_ENVIRONMENT_INVALID",
+      "evidence_fingerprint": "f975e236f0394bcf0138073919119c2df4f2f3d9961abdc781c18d6b2721f7c1",
+      "evidence_kind": "IMPORTED_LINUX_X86_DIAGNOSTIC",
+      "fixed_revision": "c0a7582e3d4cc8bec3b7f5a6c52b36880dcb57d7",
+      "provenance": "research/evidence/phase-12.8f-remaining-qualification.json",
+      "qualification_decision": "NOT_QUALIFIED",
+      "task_id": "black-1"
+    },
+    {
+      "buggy_revision": "9568ab6ecd2d6836646006c59473c4a4ac0dee04",
+      "classification": "EVALUATOR_ENVIRONMENT_INVALID",
+      "evidence_fingerprint": "f975e236f0394bcf0138073919119c2df4f2f3d9961abdc781c18d6b2721f7c1",
+      "evidence_kind": "IMPORTED_LINUX_X86_DIAGNOSTIC",
+      "fixed_revision": "457a1a4e862aab4102b644ff1d2b2e2b5a766b3c",
+      "provenance": "research/evidence/phase-12.8f-remaining-qualification.json",
+      "qualification_decision": "NOT_QUALIFIED",
+      "task_id": "cookiecutter-4"
+    }
+  ],
+  "schema": "archguard.qualification-prior-evidence/v1"
+}
