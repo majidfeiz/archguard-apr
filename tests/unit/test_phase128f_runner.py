@@ -717,19 +717,20 @@ def test_cookiecutter_uses_direct_offline_pytest_selector(tmp_path: Path) -> Non
     )
 
 
-def test_batch_b_is_unavailable() -> None:
-    with pytest.raises(ValueError, match="Batch B"):
-        runner._tasks("batch-b")
+def test_final_black_tasks_are_exact_and_serial() -> None:
+    expected = ("black-2", "black-3", "black-4")
+    assert runner._tasks("final-black") == expected
+    assert runner._tasks("batch-b") == expected
 
 
 def test_remaining_tasks_are_exact_and_exclude_imported_pysnooper_one() -> None:
     assert runner._tasks("remaining") == ("PySnooper-3", "black-1", "cookiecutter-4")
 
 
-def test_one_task_failure_does_not_stop_remaining_tasks(
+def test_one_black_task_failure_does_not_stop_final_tasks(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    selected = runner._tasks("remaining")
+    selected = runner._tasks("final-black")
     adapter_map = {adapter.task_id: adapter for adapter in adapters()}
     calls: list[str] = []
 
@@ -965,10 +966,23 @@ def test_remaining_source_layouts_have_explicit_offline_import_plans() -> None:
     }
     black = by_task["black-1"]
     assert "GENERATED_VERSION_MODULE_SHIM" in black.installation_plan
-    assert runner._project_pythonpath(black) == "/evaluator/project-support:/workspace"
+    assert runner._project_pythonpath(black) == "/evaluator/project-support:/evaluator:/workspace"
     assert {"typing-extensions==3.7.4.2", "mypy-extensions==0.4.3"} <= set(
         black.dependency_constraints
     )
+    final_black = [by_task[task] for task in ("black-2", "black-3", "black-4")]
+    assert all(adapter.review_status == "REVIEWED" for adapter in final_black)
+    assert all(adapter.evaluator_fixture_path == "tests/test_black.py" for adapter in final_black)
+    assert runner.EVALUATOR_SUPPORT_FILES["black-2"] == {
+        "tests/data/fmtonoff4.py": (
+            "5c68a12bf43fb632b30e71fb0b231395f842f61df7b4e082f8927449f30178e3"
+        )
+    }
+    assert runner.EVALUATOR_SUPPORT_FILES["black-4"] == {
+        "tests/data/beginning_backslash.py": (
+            "cccd4c67d6584721723ebe59c7532dca56ced95511e2b6aebfcdf3123e25cded"
+        )
+    }
 
 
 def test_project_module_origin_must_be_below_workspace() -> None:
@@ -1125,8 +1139,8 @@ def test_runtime_never_executes_probe_and_relocates_python_and_pytest_writes(
 def test_canary_rejects_batch_a_and_batch_b() -> None:
     with pytest.raises(ValueError, match="only PySnooper-1"):
         runner._validate_runtime_canary_selection(BATCH_A)
-    with pytest.raises(ValueError, match="Batch B"):
-        runner._tasks("batch-b")
+    with pytest.raises(ValueError, match="only PySnooper-1"):
+        runner._validate_runtime_canary_selection(runner._tasks("final-black"))
 
 
 def test_mount_probe_failure_always_cleans_container(
