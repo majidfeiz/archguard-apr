@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from archguard.domain.canonical import canonical_json
-from archguard.domain.phase13 import PROVIDER_FINGERPRINT, ExecutionResult
+from archguard.domain.phase13 import (
+    PROVIDER_FINGERPRINT,
+    ExecutionResult,
+    PreProviderDiagnostic,
+)
 from archguard.infrastructure.artifact_io import atomic_write
 
 ALLOWLIST = frozenset(
@@ -15,6 +19,7 @@ ALLOWLIST = frozenset(
         "cleanup.json",
         "cost-state.json",
         "manifest.json",
+        "pre-provider-failure.json",
         *(f"execution-{index}.json" for index in range(1, 7)),
     }
 )
@@ -69,6 +74,9 @@ class SourceFreeArtifacts:
 
     def write_cleanup(self, value: object) -> None:
         self._write("cleanup.json", value)
+
+    def write_pre_provider_diagnostic(self, value: PreProviderDiagnostic) -> None:
+        self._write("pre-provider-failure.json", value)
 
     def _write(self, name: str, value: object) -> None:
         if name not in ALLOWLIST:

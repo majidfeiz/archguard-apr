@@ -7,6 +7,7 @@ from typing import Any
 from archguard.application.ports.phase13 import (
     FrozenExecutionPort,
     Phase13ArtifactPort,
+    PreProviderFailure,
     ProviderAttemptError,
     TreatmentRequest,
 )
@@ -109,6 +110,13 @@ def run_frozen_experiment(
             artifacts.write_cost_state(asdict(state))
             try:
                 result = executor.execute(request)
+            except PreProviderFailure as error:
+                state = replace(
+                    state, reserved_usd=Decimal("0"), stop_reason="pre_provider_failure"
+                )
+                artifacts.write_pre_provider_diagnostic(error.diagnostic)
+                artifacts.write_cost_state(asdict(state))
+                break
             except ProviderAttemptError as error:
                 state = _register_call(
                     state, request.provider_call_id, completed=False, usage=False
@@ -140,6 +148,13 @@ def run_frozen_experiment(
                 )
                 try:
                     result = executor.execute(request, retry=True)
+                except PreProviderFailure as error:
+                    state = replace(
+                        state, reserved_usd=Decimal("0"), stop_reason="pre_provider_failure"
+                    )
+                    artifacts.write_pre_provider_diagnostic(error.diagnostic)
+                    artifacts.write_cost_state(asdict(state))
+                    break
                 except ProviderAttemptError as retry_error:
                     state = _register_call(
                         state, request.provider_call_id, completed=False, usage=False

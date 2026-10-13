@@ -3,7 +3,12 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from archguard.domain.phase13 import ExecutionIdentity, ExecutionResult, ProviderUsage
+from archguard.domain.phase13 import (
+    ExecutionIdentity,
+    ExecutionResult,
+    PreProviderDiagnostic,
+    ProviderUsage,
+)
 
 
 @dataclass(frozen=True)
@@ -28,6 +33,12 @@ class ProviderAttemptError(RuntimeError):
         self.category = category
 
 
+class PreProviderFailure(RuntimeError):
+    def __init__(self, diagnostic: PreProviderDiagnostic) -> None:
+        super().__init__(diagnostic.exception_category.value)
+        self.diagnostic = diagnostic
+
+
 class FrozenExecutionPort(Protocol):
     """Own acquisition, provider invocation, patch validation, evaluation and cleanup."""
 
@@ -46,3 +57,5 @@ class Phase13ArtifactPort(Protocol):
     def write_manifest(self, value: object) -> None: ...
 
     def write_cleanup(self, value: object) -> None: ...
+
+    def write_pre_provider_diagnostic(self, value: PreProviderDiagnostic) -> None: ...
