@@ -27,6 +27,10 @@ class TerminalClassification(StrEnum):
     PROVIDER_FAILURE = "provider_failure"
     EVALUATOR_FAILURE = "evaluator_failure"
     COST_STOP = "cost_stop"
+    PATCH_APPLICATION_FAILED = "patch_application_failed"
+    ARCHITECTURE_VIOLATION = "architecture_violation"
+    TESTS_FAILED = "tests_failed"
+    REPAIR_UNSUCCESSFUL = "repair_unsuccessful"
 
 
 @dataclass(frozen=True, order=True)
@@ -72,14 +76,30 @@ class CostState:
     reserved_usd: Decimal = Decimal("0")
     completed_primary: int = 0
     attempted_retries: int = 0
-    calls_started: int = 0
+    provider_calls_started: int = 0
+    provider_calls_completed: int = 0
+    provider_calls_with_usage: int = 0
+    call_ids: tuple[str, ...] = ()
     stop_reason: str = "not_started"
 
     def __post_init__(self) -> None:
         check(self.observed_usd >= 0 and self.reserved_usd >= 0, "negative cost")
         check(0 <= self.completed_primary <= 6, "invalid primary count")
         check(0 <= self.attempted_retries <= 6, "invalid retry count")
-        check(0 <= self.calls_started <= 12, "invalid call count")
+        check(
+            0 <= self.provider_calls_with_usage <= self.provider_calls_completed,
+            "invalid usage call count",
+        )
+        check(
+            self.provider_calls_completed <= self.provider_calls_started <= 12, "invalid call count"
+        )
+        check(len(self.call_ids) == self.provider_calls_started, "call ledger mismatch")
+        check(len(set(self.call_ids)) == len(self.call_ids), "duplicate provider call identity")
+
+    @property
+    def calls_started(self) -> int:
+        """Compatibility accessor for the original counter name."""
+        return self.provider_calls_started
 
 
 @dataclass(frozen=True)
@@ -112,6 +132,7 @@ class ExecutionResult:
     attempt_count: int
     duration_bucket: str
     cleanup_status: str
+    provider_call_id: str = ""
 
     def __post_init__(self) -> None:
         for value in (
@@ -126,6 +147,8 @@ class ExecutionResult:
         check(self.architecture_status in {"passed", "partial", "skipped"}, "bad status")
         check(self.attempt_count in {1, 2}, "invalid attempt count")
         check(self.cleanup_status == "complete", "cleanup incomplete")
+        if self.provider_call_id:
+            digest(self.provider_call_id)
 
     def source_free_record(self) -> dict[str, Any]:
         return {
@@ -150,6 +173,7 @@ class ExecutionResult:
                     "immutable_buggy_revision",
                     "protocol_fingerprint",
                 }
+                and (key != "provider_call_id" or bool(value))
             },
         }
 

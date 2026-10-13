@@ -29,6 +29,7 @@ jobs:
       PHASE13_CONFIG: configs/experiments/phase13-provider.json
       PHASE13_POPULATION: research/population/exploratory-feasibility-v1.json
       PHASE13_PROTOCOL: research/protocol/exploratory-feasibility-v2.json
+      PHASE13_CHECKPOINT: research/evidence/phase-13-checkpoint-run-38452767198.json
       PHASE13_COST_STATE: /tmp/archguard-phase13-cost-state.json
       PHASE13_OUTPUT: /tmp/archguard-phase13-evidence
     steps:
@@ -55,6 +56,13 @@ jobs:
             and .provider.maximum_calls == 12 and .provider.status == "CONFIGURED"' "$PHASE13_PROTOCOL" >/dev/null
       - name: Offline provider preflight
         run: uv run archguard experiment provider-preflight --config "$PHASE13_CONFIG" --output-directory "$PHASE13_OUTPUT" --allow-missing-secret > "$RUNNER_TEMP/provider-preflight.json"
+      - name: Validate source-free continuation checkpoint
+        run: |
+          uv run archguard experiment validate-checkpoint --checkpoint "$PHASE13_CHECKPOINT" > "$RUNNER_TEMP/checkpoint.json"
+          jq -e '.network_request == false and .completed_ordinals == [1]
+            and .next_ordinal == 2 and .remaining_executions == 5
+            and .carried_observed_usd == "0.025945"
+            and .carried_provider_calls == 1' "$RUNNER_TEMP/checkpoint.json" >/dev/null
       - name: Enforce frozen provider ceilings
         run: |
           jq -e '.maximum_provider_calls == 12
@@ -86,6 +94,7 @@ jobs:
           --protocol "$PHASE13_PROTOCOL"
           --provider-config "$PHASE13_CONFIG"
           --output "$PHASE13_OUTPUT"
+          --resume-checkpoint "$PHASE13_CHECKPOINT"
           --acknowledge-provider-cost
           --acknowledge-source-processing
       - name: Report source-free cost state
@@ -111,8 +120,12 @@ jobs:
               echo "## Phase 13 source-free aggregate"
               echo
               echo "- Completed executions: $(jq -r .completed_executions "$PHASE13_OUTPUT/manifest.json")"
+              echo "- Carried executions: $(jq -r .carried_executions "$PHASE13_OUTPUT/manifest.json")"
+              echo "- Newly completed executions: $(jq -r .newly_completed_executions "$PHASE13_OUTPUT/manifest.json")"
+              echo "- Carried provider calls: $(jq -r .carried_provider_calls "$PHASE13_OUTPUT/manifest.json")"
+              echo "- New provider calls: $(jq -r .new_provider_calls "$PHASE13_OUTPUT/manifest.json")"
               echo "- Attrition: $(jq -r .attrition "$PHASE13_OUTPUT/manifest.json")"
-              echo "- Total calls: $(jq -r .total_calls "$PHASE13_OUTPUT/manifest.json")"
+              echo "- Remaining budget: USD $(jq -r '.remaining_internal_budget_usd' "$PHASE13_OUTPUT/cost-state.json")"
               echo "- Total observed cost: USD $(jq -r .total_cost_usd "$PHASE13_OUTPUT/manifest.json")"
               echo "- Stop reason: $(jq -r .stop_reason "$PHASE13_OUTPUT/manifest.json")"
             } >> "$GITHUB_STEP_SUMMARY"
@@ -124,6 +137,7 @@ jobs:
           name: phase-13-provider-preflight
           path: |
             ${{ runner.temp }}/provider-preflight.json
+            ${{ runner.temp }}/checkpoint.json
             /tmp/archguard-phase13-cost-state.json
             /tmp/archguard-phase13-evidence/cost-state.json
             /tmp/archguard-phase13-evidence/execution-*.json

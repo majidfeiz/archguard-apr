@@ -220,7 +220,9 @@ def test_retry_policy_allows_one_network_retry(
     assert executor.attempts == 7
     state = json.loads((tmp_path / "evidence/cost-state.json").read_text())
     assert state["attempted_retries"] == 1
-    assert state["calls_started"] == 7
+    assert state["provider_calls_started"] == 7
+    assert state["provider_calls_completed"] == 6
+    assert state["provider_calls_with_usage"] == 6
 
 
 @pytest.mark.parametrize(
@@ -320,6 +322,46 @@ def test_unexpected_execution_failure_is_recorded(repository_root: Path, tmp_pat
     assert results == ()
     state = json.loads((tmp_path / "evidence/cost-state.json").read_text())
     assert state["stop_reason"] == "execution_failure"
+    assert state["provider_calls_started"] == 0
+
+
+@pytest.mark.parametrize(
+    "classification",
+    [
+        TerminalClassification.INVALID_PATCH,
+        TerminalClassification.UNSAFE_PATCH,
+        TerminalClassification.PATCH_APPLICATION_FAILED,
+        TerminalClassification.ARCHITECTURE_VIOLATION,
+        TerminalClassification.EVALUATOR_FAILURE,
+        TerminalClassification.TESTS_FAILED,
+        TerminalClassification.REPAIR_UNSUCCESSFUL,
+        TerminalClassification.SUCCESS,
+    ],
+)
+def test_terminal_scientific_outcomes_continue_to_next_ordinal(
+    repository_root: Path,
+    tmp_path: Path,
+    classification: TerminalClassification,
+) -> None:
+    protocol = _protocol(repository_root)
+    configuration = load_phase13_provider_configuration(
+        repository_root / "configs/experiments/phase13-provider.json"
+    )
+
+    class ScientificOutcomeExecutor(FakeExecutor):
+        def execute(self, request: TreatmentRequest, *, retry: bool = False) -> ExecutionResult:
+            result = super().execute(request, retry=retry)
+            return replace(result, terminal_classification=classification)
+
+    executor = ScientificOutcomeExecutor(protocol["fingerprint"])
+    results = run_frozen_experiment(
+        protocol_fingerprint=protocol["fingerprint"],
+        configuration=configuration,
+        executor=executor,
+        artifacts=SourceFreeArtifacts(tmp_path / "evidence"),
+    )
+    assert len(results) == 6
+    assert [request.identity.ordinal for request in executor.requests] == [1, 2, 3, 4, 5, 6]
 
 
 def test_retry_unexpected_failure_is_recorded(repository_root: Path, tmp_path: Path) -> None:
