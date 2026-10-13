@@ -7,6 +7,9 @@ black-4. Evidence, profile applicability, population, and exploratory protocol b
 locally. Phase 13A froze the OpenAI provider, snapshot-pinned model, dated official pricing, monetary
 ceilings, retry policy, and provider-configuration fingerprint. The operational gate is now true;
 actual execution still requires the explicit workflow confirmation, secret, and scientific-run input.
+Before any scientific execution, the prospective budget amendment reduced the application ceiling to
+USD 4.50, set the emergency threshold to USD 4.00, and reserved USD 0.50 of the fixed USD 5.00
+prepaid credit. Model, population, protocol, conditions, and evaluation criteria remain unchanged.
 
 Phase 12.5 verified official framework metadata revisions for BugsInPy and SWE-bench and the official
 SWE-bench Verified dataset revision without acquiring its payload. It added evidence-derived readiness,

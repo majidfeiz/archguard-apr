@@ -26,6 +26,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
+      PHASE13_CONFIG: configs/experiments/phase13-provider.json
+      PHASE13_COST_STATE: /tmp/archguard-phase13-cost-state.json
       PHASE13_OUTPUT: /tmp/archguard-phase13-evidence
     steps:
       - uses: actions/checkout@v6
@@ -46,21 +48,56 @@ jobs:
       - name: Offline provider preflight
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: uv run archguard experiment provider-preflight --config configs/experiments/phase13-provider.json --output-directory "$PHASE13_OUTPUT" > "$RUNNER_TEMP/provider-preflight.json"
+        run: uv run archguard experiment provider-preflight --config "$PHASE13_CONFIG" --output-directory "$PHASE13_OUTPUT" > "$RUNNER_TEMP/provider-preflight.json"
       - name: Enforce frozen provider ceilings
         run: |
-          jq -e '.maximum_provider_calls == 12 and .warning_cost_usd == "15" and .hard_cost_usd == "20"' configs/experiments/phase13-provider.json >/dev/null
+          jq -e '.maximum_provider_calls == 12
+            and .planned_primary_executions == 6
+            and .available_credit_usd == "5.00"
+            and .warning_cost_usd == "4.00"
+            and .hard_cost_usd == "4.50"
+            and .reserved_safety_margin_usd == "0.50"
+            and .provider_configuration_fingerprint == "f5dc6fb5b8bf54c7cf1b58b990fa3db44073500df9903e3a7d93cbeb1ad92c2d"' "$PHASE13_CONFIG" >/dev/null
+      - name: Initialize persistent source-free cost state
+        run: |
+          jq -n --arg fingerprint "$(jq -r .provider_configuration_fingerprint "$PHASE13_CONFIG")" '{
+            schema: "archguard.phase-13-cost-state/v1",
+            completed_primary_executions: 0,
+            attempted_retries: 0,
+            observed_provider_cost_usd: "0",
+            reserved_in_flight_cost_usd: "0",
+            remaining_internal_budget_usd: "4.50",
+            stop_reason: "not_started",
+            provider_configuration_fingerprint: $fingerprint
+          }' > "$PHASE13_COST_STATE"
       - name: Scientific execution gate
         if: inputs.execute_scientific_run
         run: |
           echo "Scientific execution remains intentionally unavailable in Phase 13A."
           exit 5
+      - name: Report source-free cost state
+        if: always()
+        run: |
+          test -f "$PHASE13_COST_STATE" || exit 0
+          {
+            echo "## Phase 13 cost state"
+            echo
+            echo "- Completed primary executions: $(jq -r .completed_primary_executions "$PHASE13_COST_STATE")"
+            echo "- Attempted retries: $(jq -r .attempted_retries "$PHASE13_COST_STATE")"
+            echo "- Observed provider cost: USD $(jq -r .observed_provider_cost_usd "$PHASE13_COST_STATE")"
+            echo "- Reserved/in-flight cost: USD $(jq -r .reserved_in_flight_cost_usd "$PHASE13_COST_STATE")"
+            echo "- Remaining internal budget: USD $(jq -r .remaining_internal_budget_usd "$PHASE13_COST_STATE")"
+            echo "- Stop reason: $(jq -r .stop_reason "$PHASE13_COST_STATE")"
+            echo "- Provider configuration fingerprint: $(jq -r .provider_configuration_fingerprint "$PHASE13_COST_STATE")"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload source-free preflight evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: phase-13-provider-preflight
-          path: ${{ runner.temp }}/provider-preflight.json
+          path: |
+            ${{ runner.temp }}/provider-preflight.json
+            /tmp/archguard-phase13-cost-state.json
           if-no-files-found: warn
           retention-days: 30
       - name: Cleanup

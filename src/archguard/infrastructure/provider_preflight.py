@@ -29,6 +29,8 @@ def load_phase13_provider_configuration(path: Path) -> ProviderExperimentConfigu
     raw["temperature"] = Decimal(str(raw["temperature"]))
     raw["warning_cost_usd"] = Decimal(str(raw["warning_cost_usd"]))
     raw["hard_cost_usd"] = Decimal(str(raw["hard_cost_usd"]))
+    raw["available_credit_usd"] = Decimal(str(raw["available_credit_usd"]))
+    raw["reserved_safety_margin_usd"] = Decimal(str(raw["reserved_safety_margin_usd"]))
     raw["retryable_error_classes"] = tuple(raw["retryable_error_classes"])
     return ProviderExperimentConfiguration(**raw)
 
@@ -107,6 +109,8 @@ def _configuration_keys() -> set[str]:
         "retryable_error_classes",
         "maximum_provider_calls",
         "planned_primary_executions",
+        "available_credit_usd",
+        "reserved_safety_margin_usd",
         "warning_cost_usd",
         "hard_cost_usd",
         "prices",

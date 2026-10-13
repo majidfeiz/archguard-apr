@@ -40,6 +40,15 @@ def test_phase13_experiment_validates_evidence_without_git_history(
     assert "421f3129ef6bee5883c41d05f087d6faff5b2a3de3b2ea543b4d27ade1488886" in source
     assert "93494690f402d17e511d9cad1fdc92907d408ae3a923139d30537894f9ab8ce7" in source
     assert "2ff4adc5be719608860845d68be15c07205bf563423099a30c617e3d29170d7d" in source
+    assert "default: false" in source
+    assert "if: inputs.execute_scientific_run" in source
+    assert 'available_credit_usd == "5.00"' in source
+    assert 'warning_cost_usd == "4.00"' in source
+    assert 'hard_cost_usd == "4.50"' in source
+    assert 'reserved_safety_margin_usd == "0.50"' in source
+    assert "completed_primary_executions" in source
+    assert "attempted_retries" in source
+    assert "reserved_in_flight_cost_usd" in source
 
 
 def test_external_workspace_is_initialized_at_runtime_before_use(repository_root: Path) -> None:

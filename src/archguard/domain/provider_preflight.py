@@ -53,6 +53,8 @@ class ProviderExperimentConfiguration:
     retryable_error_classes: tuple[str, ...]
     maximum_provider_calls: int
     planned_primary_executions: int
+    available_credit_usd: Decimal
+    reserved_safety_margin_usd: Decimal
     warning_cost_usd: Decimal
     hard_cost_usd: Decimal
     prices: TokenPrices
@@ -88,8 +90,16 @@ class ProviderExperimentConfiguration:
         check(self.maximum_provider_calls == 12, "invalid provider call ceiling")
         check(Decimal("0") < self.warning_cost_usd < self.hard_cost_usd, "invalid cost thresholds")
         check(
-            self.warning_cost_usd == Decimal("15") and self.hard_cost_usd == Decimal("20"),
+            self.available_credit_usd == Decimal("5.00")
+            and self.reserved_safety_margin_usd == Decimal("0.50")
+            and self.warning_cost_usd == Decimal("4.00")
+            and self.hard_cost_usd == Decimal("4.50")
+            and self.available_credit_usd - self.hard_cost_usd == self.reserved_safety_margin_usd,
             "cost policy mismatch",
+        )
+        check(
+            self.maximum_call_cost() * self.planned_primary_executions < self.warning_cost_usd,
+            "primary execution budget is infeasible",
         )
         digest(self.population_fingerprint)
         digest(self.protocol_fingerprint)
@@ -121,11 +131,19 @@ class ProviderUsageRecord:
     input_tokens: int
     cached_input_tokens: int
     output_tokens: int
+    reasoning_tokens: int = 0
+    attempt_kind: str = "primary"
+    request_succeeded: bool = True
 
     def __post_init__(self) -> None:
         check(self.schema == USAGE_SCHEMA, "unsupported usage schema")
         check(self.model == "gpt-5.4-2026-03-05", "unknown model identity")
-        values = (self.input_tokens, self.cached_input_tokens, self.output_tokens)
+        values = (
+            self.input_tokens,
+            self.cached_input_tokens,
+            self.output_tokens,
+            self.reasoning_tokens,
+        )
         check(
             all(
                 isinstance(value, int) and not isinstance(value, bool) and value >= 0
@@ -134,25 +152,55 @@ class ProviderUsageRecord:
             "invalid usage",
         )
         check(self.cached_input_tokens <= self.input_tokens, "cached input exceeds input")
+        check(self.reasoning_tokens <= self.output_tokens, "reasoning exceeds billed output")
+        check(self.attempt_kind in {"primary", "retry"}, "invalid attempt kind")
 
 
 @dataclass(frozen=True)
 class CostGuard:
     configuration: ProviderExperimentConfiguration
 
-    def authorize(self, observed_cost_usd: Decimal, calls_started: int) -> Decimal:
+    def projected_total(
+        self, observed_cost_usd: Decimal, reserved_in_flight_cost_usd: Decimal
+    ) -> Decimal:
         check(observed_cost_usd >= 0, "invalid observed cost")
+        check(reserved_in_flight_cost_usd >= 0, "invalid in-flight reservation")
+        return (
+            observed_cost_usd + reserved_in_flight_cost_usd + self.configuration.maximum_call_cost()
+        )
+
+    def hard_ceiling_allows(
+        self, observed_cost_usd: Decimal, reserved_in_flight_cost_usd: Decimal
+    ) -> bool:
+        return (
+            self.projected_total(observed_cost_usd, reserved_in_flight_cost_usd)
+            <= self.configuration.hard_cost_usd
+        )
+
+    def authorize(
+        self,
+        observed_cost_usd: Decimal,
+        reserved_in_flight_cost_usd: Decimal,
+        calls_started: int,
+    ) -> Decimal:
+        check(observed_cost_usd >= 0, "invalid observed cost")
+        check(reserved_in_flight_cost_usd >= 0, "invalid in-flight reservation")
+        check(
+            reserved_in_flight_cost_usd in {Decimal("0"), self.configuration.maximum_call_cost()},
+            "concurrency-one reservation violated",
+        )
         check(
             0 <= calls_started < self.configuration.maximum_provider_calls,
             "provider call ceiling reached",
         )
         check(
-            observed_cost_usd < self.configuration.warning_cost_usd,
+            observed_cost_usd + reserved_in_flight_cost_usd < self.configuration.warning_cost_usd,
             "emergency cost threshold reached",
         )
         estimate = self.configuration.maximum_call_cost()
+        projected_total = self.projected_total(observed_cost_usd, reserved_in_flight_cost_usd)
         check(
-            observed_cost_usd + estimate <= self.configuration.hard_cost_usd,
+            projected_total <= self.configuration.hard_cost_usd,
             "hard cost ceiling would be exceeded",
         )
         return estimate
@@ -165,6 +213,78 @@ class CostGuard:
             + Decimal(usage.cached_input_tokens) * self.configuration.prices.cached_input
             + Decimal(usage.output_tokens) * self.configuration.prices.output
         ) / Decimal(self.configuration.prices.unit_tokens)
+
+
+@dataclass(frozen=True)
+class CostGuardState:
+    observed_cost_usd: Decimal = Decimal("0")
+    reserved_in_flight_cost_usd: Decimal = Decimal("0")
+    completed_primary_executions: int = 0
+    attempted_retries: int = 0
+    calls_started: int = 0
+    stop_reason: str | None = None
+
+    def __post_init__(self) -> None:
+        money = (self.observed_cost_usd, self.reserved_in_flight_cost_usd)
+        check(all(value >= 0 for value in money), "invalid cost state")
+        counts = (
+            self.completed_primary_executions,
+            self.attempted_retries,
+            self.calls_started,
+        )
+        check(all(isinstance(value, int) and value >= 0 for value in counts), "invalid counters")
+        check(self.completed_primary_executions <= 6, "too many primary executions")
+        check(self.attempted_retries <= 6, "too many retries")
+        accounted = self.completed_primary_executions + self.attempted_retries
+        check(accounted <= self.calls_started <= accounted + 1, "inconsistent call accounting")
+
+    def reserve(self, guard: CostGuard, *, retry: bool = False) -> "CostGuardState":
+        check(self.stop_reason is None, "cost guard is stopped")
+        check(self.reserved_in_flight_cost_usd == 0, "call already in flight")
+        amount = guard.authorize(
+            self.observed_cost_usd,
+            self.reserved_in_flight_cost_usd,
+            self.calls_started,
+        )
+        return CostGuardState(
+            self.observed_cost_usd,
+            amount,
+            self.completed_primary_executions,
+            self.attempted_retries + int(retry),
+            self.calls_started + 1,
+        )
+
+    def record(self, guard: CostGuard, usage: ProviderUsageRecord) -> "CostGuardState":
+        check(self.reserved_in_flight_cost_usd > 0, "no call is reserved")
+        cost = guard.observed_cost(usage)
+        return CostGuardState(
+            self.observed_cost_usd + cost,
+            Decimal("0"),
+            self.completed_primary_executions + int(usage.attempt_kind == "primary"),
+            self.attempted_retries,
+            self.calls_started,
+        )
+
+    def stop(self, reason: str) -> "CostGuardState":
+        check(
+            reason
+            in {
+                "billing_failure",
+                "cost_guard_rejection",
+                "fingerprint_failure",
+                "quota_failure",
+                "usage_schema_failure",
+            },
+            "invalid stop reason",
+        )
+        return CostGuardState(
+            self.observed_cost_usd,
+            Decimal("0"),
+            self.completed_primary_executions,
+            self.attempted_retries,
+            self.calls_started,
+            reason,
+        )
 
 
 def _decimal_strings(value: Any) -> Any:
