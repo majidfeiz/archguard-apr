@@ -3,6 +3,7 @@ import io
 import json
 import zipfile
 from collections.abc import Callable
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -10,13 +11,19 @@ import pytest
 from typer.testing import CliRunner
 
 from archguard.application.services.phase13 import (
+    ControlledStop,
     _checkpoint_results,
     _register_call,
     run_frozen_experiment,
 )
 from archguard.domain.canonical import canonical_json
 from archguard.domain.orchestration import fingerprint
-from archguard.domain.phase13 import CostState
+from archguard.domain.phase13 import (
+    CostState,
+    ResumeStopClassification,
+    ResumeStopReason,
+    classify_resume_stop,
+)
 from archguard.entrypoints.cli.app import app
 from archguard.infrastructure.phase13_artifacts import SourceFreeArtifacts
 from archguard.infrastructure.phase13_checkpoint import (
@@ -39,6 +46,9 @@ def test_committed_checkpoint_is_canonical_and_exact(repository_root: Path) -> N
     assert value["remaining_ordinals"] == [2, 3, 4, 5, 6]
     assert value["carried_observed_usd"] == "0.025945"
     assert value["carried_provider_calls"] == 1
+    assert value["historical_stop_reason"] == "execution_failure"
+    assert value["active_stop_reason"] is None
+    assert value["resume_allowed"] is True
 
 
 def test_archive_import_is_deterministic_and_idempotent(repository_root: Path) -> None:
@@ -145,30 +155,58 @@ def test_resume_starts_at_two_and_preserves_carried_evidence(
     repository_root: Path, tmp_path: Path
 ) -> None:
     checkpoint = load_checkpoint(repository_root / CHECKPOINT)
+    carried_evidence = canonical_json(checkpoint["completed_executions"][0])
     configuration = load_phase13_provider_configuration(
         repository_root / "configs/experiments/phase13-provider.json"
     )
     executor = FakeExecutor(PROTOCOL)
     output = tmp_path / "evidence"
+
+    class RecordingArtifacts(SourceFreeArtifacts):
+        states: list[dict[str, Any]] = []
+
+        def write_cost_state(self, value: object) -> None:
+            assert isinstance(value, dict)
+            self.states.append(value.copy())
+            super().write_cost_state(value)
+
+    artifacts = RecordingArtifacts(output)
     results = run_frozen_experiment(
         protocol_fingerprint=PROTOCOL,
         configuration=configuration,
         executor=executor,
-        artifacts=SourceFreeArtifacts(output),
+        artifacts=artifacts,
         checkpoint=checkpoint,
     )
+    assert artifacts.states[0] == {
+        "observed_usd": Decimal("0.025945"),
+        "reserved_usd": Decimal("0"),
+        "completed_primary": 1,
+        "attempted_retries": 0,
+        "provider_calls_started": 1,
+        "provider_calls_completed": 1,
+        "provider_calls_with_usage": 1,
+        "call_ids": (checkpoint["call_ledger"][0]["call_id"],),
+        "stop_reason": None,
+    }
     assert [request.identity.ordinal for request in executor.requests] == [2, 3, 4, 5, 6]
     assert [result.identity.ordinal for result in results] == [1, 2, 3, 4, 5, 6]
     imported = json.loads((output / "execution-1.json").read_text())
     assert imported == checkpoint["completed_executions"][0]
+    assert canonical_json(imported) == carried_evidence
     state = json.loads((output / "cost-state.json").read_text())
     assert state["provider_calls_started"] == 6
+    assert state["provider_calls_completed"] == 6
+    assert state["provider_calls_with_usage"] == 6
     assert state["observed_usd"] == "0.026945"
     manifest = json.loads((output / "manifest.json").read_text())
     assert manifest["carried_executions"] == 1
     assert manifest["newly_completed_executions"] == 5
     assert manifest["carried_provider_calls"] == 1
     assert manifest["new_provider_calls"] == 5
+    assert manifest["historical_stop_reason"] == "execution_failure"
+    assert manifest["active_stop_reason"] == "complete"
+    assert manifest["resume_allowed"] is True
 
 
 @pytest.mark.parametrize(
@@ -236,6 +274,58 @@ def test_dry_run_checkpoint_validation_has_no_provider_call(repository_root: Pat
     assert value["network_request"] is False
     assert value["next_ordinal"] == 2
     assert value["carried_provider_calls"] == 1
+    assert value["historical_stop_reason"] == "execution_failure"
+    assert value["active_stop_reason"] is None
+    assert value["resume_allowed"] is True
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        ResumeStopReason.AUTHENTICATION_FAILURE,
+        ResumeStopReason.BILLING_FAILURE,
+        ResumeStopReason.QUOTA_FAILURE,
+        ResumeStopReason.BUDGET_CEILING,
+        ResumeStopReason.IDENTITY_MISMATCH,
+        ResumeStopReason.LEAKAGE_OR_SECURITY_FAILURE,
+        ResumeStopReason.CORRUPT_CHECKPOINT,
+        ResumeStopReason.INCOMPLETE_CLEANUP,
+    ],
+)
+def test_fatal_resume_stop_reasons_remain_active(reason: ResumeStopReason) -> None:
+    policy = classify_resume_stop(reason, ResumeStopClassification.FATAL)
+    assert policy.resume_allowed is False
+    assert policy.historical_stop_reason is reason
+    assert policy.active_stop_reason is reason
+
+
+def test_execution_failure_is_not_arbitrarily_cleared() -> None:
+    policy = classify_resume_stop(
+        ResumeStopReason.EXECUTION_FAILURE, ResumeStopClassification.FATAL
+    )
+    assert policy.resume_allowed is False
+    assert policy.active_stop_reason is ResumeStopReason.EXECUTION_FAILURE
+
+
+def test_fatal_checkpoint_stops_before_executor(repository_root: Path, tmp_path: Path) -> None:
+    checkpoint = load_checkpoint(repository_root / CHECKPOINT)
+    checkpoint["historical_stop_reason"] = "authentication_failure"
+    checkpoint["historical_stop_classification"] = "fatal"
+    checkpoint["active_stop_reason"] = "authentication_failure"
+    checkpoint["resume_allowed"] = False
+    configuration = load_phase13_provider_configuration(
+        repository_root / "configs/experiments/phase13-provider.json"
+    )
+    executor = FakeExecutor(PROTOCOL)
+    with pytest.raises(ControlledStop):
+        run_frozen_experiment(
+            protocol_fingerprint=PROTOCOL,
+            configuration=configuration,
+            executor=executor,
+            artifacts=SourceFreeArtifacts(tmp_path / "evidence"),
+            checkpoint=checkpoint,
+        )
+    assert executor.requests == []
 
 
 def test_resume_helpers_reject_duplicate_calls_and_non_prefixes(repository_root: Path) -> None:

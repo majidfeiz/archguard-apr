@@ -17,7 +17,10 @@ from archguard.domain.phase13 import (
     PROVIDER_FINGERPRINT,
     CostState,
     ExecutionResult,
+    ResumeStopClassification,
+    ResumeStopReason,
     TerminalClassification,
+    classify_resume_stop,
     experiment_id,
     validate_frozen_executions,
 )
@@ -51,6 +54,16 @@ def run_frozen_experiment(
     carried_call_ids = (
         tuple(str(item["call_id"]) for item in checkpoint["call_ledger"]) if checkpoint else ()
     )
+    resume_policy = (
+        classify_resume_stop(
+            ResumeStopReason(checkpoint["historical_stop_reason"]),
+            ResumeStopClassification(checkpoint["historical_stop_classification"]),
+        )
+        if checkpoint
+        else None
+    )
+    if resume_policy is not None and not resume_policy.resume_allowed:
+        raise ControlledStop(str(resume_policy.active_stop_reason))
     state = CostState(
         observed_usd=carried_cost,
         completed_primary=len(carried),
@@ -58,6 +71,11 @@ def run_frozen_experiment(
         provider_calls_completed=carried_calls,
         provider_calls_with_usage=carried_calls,
         call_ids=carried_call_ids,
+        stop_reason=(
+            resume_policy.active_stop_reason.value
+            if resume_policy and resume_policy.active_stop_reason
+            else None
+        ),
     )
     artifacts.write_cost_state(asdict(state))
     completed: list[ExecutionResult] = list(carried)
@@ -196,6 +214,11 @@ def run_frozen_experiment(
             "call_ledger": list(state.call_ids),
             "total_cost_usd": str(state.observed_usd),
             "stop_reason": state.stop_reason,
+            "historical_stop_reason": (
+                resume_policy.historical_stop_reason.value if resume_policy else None
+            ),
+            "active_stop_reason": state.stop_reason,
+            "resume_allowed": resume_policy.resume_allowed if resume_policy else None,
             "result_fingerprints": [fingerprint(item.source_free_record()) for item in completed],
         }
     )

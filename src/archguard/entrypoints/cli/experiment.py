@@ -225,6 +225,9 @@ def validate_phase13_checkpoint(
             "remaining_executions": len(value["remaining_ordinals"]),
             "carried_observed_usd": value["carried_observed_usd"],
             "carried_provider_calls": value["carried_provider_calls"],
+            "historical_stop_reason": value["historical_stop_reason"],
+            "active_stop_reason": value["active_stop_reason"],
+            "resume_allowed": value["resume_allowed"],
             "network_request": False,
         }
     )

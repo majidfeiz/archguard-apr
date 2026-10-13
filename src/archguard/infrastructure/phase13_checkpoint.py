@@ -15,6 +15,9 @@ from archguard.domain.phase13 import (
     POPULATION_FINGERPRINT,
     PROVIDER_FINGERPRINT,
     RESULT_SCHEMA,
+    ResumeStopClassification,
+    ResumeStopReason,
+    classify_resume_stop,
     experiment_id,
 )
 
@@ -81,6 +84,12 @@ def import_checkpoint(archive: Path, incident_fingerprint: str) -> dict[str, Any
         "carried_observed_usd": "0.025945",
         "carried_provider_calls": 1,
         "attempted_retries": 0,
+        "historical_stop_reason": ResumeStopReason.EXECUTION_FAILURE.value,
+        "historical_stop_classification": (
+            ResumeStopClassification.CORRECTED_TERMINAL_OUTCOME_BUG.value
+        ),
+        "active_stop_reason": None,
+        "resume_allowed": True,
         "call_ledger": [
             {
                 "call_id": call_id,
@@ -106,6 +115,13 @@ def load_checkpoint(path: Path) -> dict[str, Any]:
     )
     if recorded != actual:
         raise ValueError("checkpoint fingerprint mismatch")
+    try:
+        policy = classify_resume_stop(
+            ResumeStopReason(value["historical_stop_reason"]),
+            ResumeStopClassification(value["historical_stop_classification"]),
+        )
+    except (KeyError, ValueError) as error:
+        raise ValueError("invalid checkpoint resume policy") from error
     if (
         value.get("schema") != CHECKPOINT_SCHEMA
         or value.get("archive_sha256") != ARCHIVE_SHA256
@@ -120,6 +136,9 @@ def load_checkpoint(path: Path) -> dict[str, Any]:
         or value.get("carried_observed_usd") != "0.025945"
         or value.get("carried_provider_calls") != 1
         or value.get("attempted_retries") != 0
+        or value.get("active_stop_reason") is not None
+        or value.get("resume_allowed") is not policy.resume_allowed
+        or not policy.resume_allowed
     ):
         raise ValueError("checkpoint invariant mismatch")
     executions = value.get("completed_executions")
