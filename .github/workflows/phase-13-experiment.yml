@@ -1,0 +1,72 @@
+name: Phase 13 Frozen Experiment
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_phase_13:
+        description: Type RUN_FROZEN_PHASE_13 to authorize the job
+        required: true
+        type: string
+      execute_scientific_run:
+        description: Execute the frozen six-run experiment after preflight
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-13-frozen-experiment
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: inputs.confirm_phase_13 == 'RUN_FROZEN_PHASE_13'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PHASE13_OUTPUT: ${{ runner.temp }}/archguard-phase13-evidence
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - run: uv python install 3.12 && uv sync --frozen
+      - name: Verify frozen Phase 12 state
+        shell: bash
+        run: |
+          git merge-base --is-ancestor 4805d60fe57560424b585ce8fb486d66a3255ccc HEAD
+          uv run archguard readiness gate --facts research/readiness-facts.json > "$RUNNER_TEMP/readiness.json"
+          jq -e '.phase_12_complete == true and .phase_13_scientifically_ready == true
+            and .phase_13_operationally_ready == true and .phase_13_ready == true
+            and .blocker_codes == []' "$RUNNER_TEMP/readiness.json" >/dev/null
+          jq -e '.population_fingerprint == "421f3129ef6bee5883c41d05f087d6faff5b2a3de3b2ea543b4d27ade1488886"
+            and .protocol_fingerprint == "93494690f402d17e511d9cad1fdc92907d408ae3a923139d30537894f9ab8ce7"
+            and .decision_fingerprint == "2ff4adc5be719608860845d68be15c07205bf563423099a30c617e3d29170d7d"' research/readiness-facts.json >/dev/null
+      - name: Offline provider preflight
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: uv run archguard experiment provider-preflight --config configs/experiments/phase13-provider.json --output-directory "$PHASE13_OUTPUT" > "$RUNNER_TEMP/provider-preflight.json"
+      - name: Enforce frozen provider ceilings
+        run: |
+          jq -e '.maximum_provider_calls == 12 and .warning_cost_usd == "15" and .hard_cost_usd == "20"' configs/experiments/phase13-provider.json >/dev/null
+      - name: Scientific execution gate
+        if: inputs.execute_scientific_run
+        run: |
+          echo "Scientific execution remains intentionally unavailable in Phase 13A."
+          exit 5
+      - name: Upload source-free preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-13-provider-preflight
+          path: ${{ runner.temp }}/provider-preflight.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: |
+          docker ps -aq --filter label=org.archguard.phase=13 | xargs --no-run-if-empty docker rm -f
+          find "$RUNNER_TEMP" -maxdepth 1 -type d -name 'archguard-phase13-*' -exec rm -rf -- {} +

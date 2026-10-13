@@ -25,17 +25,18 @@ def test_protocol_decision_reports_approved(repository_root: Path) -> None:
     assert json.loads(result.stdout)["approved"] is True
 
 
-def test_phase13_gate_reports_all_current_blockers(repository_root: Path) -> None:
+def test_phase13_gate_reports_operational_readiness(repository_root: Path) -> None:
     result = runner.invoke(
         app,
         ["readiness", "gate", "--facts", str(repository_root / "research/readiness-facts.json")],
     )
-    assert result.exit_code == 4
+    assert result.exit_code == 0
     output = json.loads(result.stdout)
-    assert output["phase_13_ready"] is False
+    assert output["phase_13_ready"] is True
     assert output["phase_12_complete"] is True
     assert output["phase_13_scientifically_ready"] is True
-    assert output["blocker_codes"] == ["PROVIDER_NOT_CONFIGURED"]
+    assert output["phase_13_operationally_ready"] is True
+    assert output["blocker_codes"] == []
 
 
 def test_phase128a_artifacts_validate(repository_root: Path) -> None:

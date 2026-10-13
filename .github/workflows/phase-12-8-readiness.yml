@@ -43,17 +43,13 @@ jobs:
           test "$(jq -r .architecture_analysis_complete research/readiness-facts.json)" = true
           test "$(jq -r .profiles_frozen research/readiness-facts.json)" = true
           test "$(jq -r .protocol_frozen research/readiness-facts.json)" = true
-          set +e
           uv run archguard readiness gate --facts research/readiness-facts.json > "$RUNNER_TEMP/gate.json"
-          status=$?
-          set -e
-          test "$status" -eq 4
-          test "$(jq -r .phase_13_ready "$RUNNER_TEMP/gate.json")" = false
+          test "$(jq -r .phase_13_ready "$RUNNER_TEMP/gate.json")" = true
           test "$(jq -r .phase_12_complete "$RUNNER_TEMP/gate.json")" = true
           test "$(jq -r .phase_13_scientifically_ready "$RUNNER_TEMP/gate.json")" = true
-          test "$(jq -r .phase_13_operationally_ready "$RUNNER_TEMP/gate.json")" = false
-          test "$(jq -r '.blocker_codes == ["PROVIDER_NOT_CONFIGURED"]' "$RUNNER_TEMP/gate.json")" = true
-          echo "PHASE_12_COMPLETE: Phase 13 awaits provider/model/cost configuration."
+          test "$(jq -r .phase_13_operationally_ready "$RUNNER_TEMP/gate.json")" = true
+          test "$(jq -r '.blocker_codes == []' "$RUNNER_TEMP/gate.json")" = true
+          echo "PHASE_13_READY: scientific and provider-configuration gates passed."
       - name: Source/gold/secret policy scan
         run: |
           ! rg -n '(BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|sk-[A-Za-z0-9]{20,})' research docs/phase-12.8-verification.md

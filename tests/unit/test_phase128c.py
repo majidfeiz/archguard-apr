@@ -88,7 +88,7 @@ def test_workflow_has_runtime_temp_exact_artifact_and_limits(repository_root: Pa
     assert "timeout-minutes: 30" in raw and "timeout 15m" in raw
 
 
-def test_readiness_workflow_validates_scientific_closure_and_provider_blocker(
+def test_readiness_workflow_validates_scientific_and_operational_readiness(
     repository_root: Path,
 ) -> None:
     raw = (repository_root / ".github/workflows/phase-12-8-readiness.yml").read_text()
@@ -98,7 +98,8 @@ def test_readiness_workflow_validates_scientific_closure_and_provider_blocker(
     assert 'architecture_analysis_complete research/readiness-facts.json)" = true' in raw
     assert 'profiles_frozen research/readiness-facts.json)" = true' in raw
     assert ".phase_13_scientifically_ready" in raw
-    assert "PROVIDER_NOT_CONFIGURED" in raw
+    assert '.phase_13_operationally_ready "$RUNNER_TEMP/gate.json")" = true' in raw
+    assert ".blocker_codes == []" in raw
 
 
 @pytest.mark.parametrize("unsafe", ["../manifest.json", "nested/manifest.json"])

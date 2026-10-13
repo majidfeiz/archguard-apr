@@ -140,12 +140,12 @@ def test_population_protocol_and_decision_reject_bound_drift(
         )
 
 
-def test_exploratory_readiness_separates_scientific_and_operational(
+def test_exploratory_readiness_reports_phase13a_operational_state(
     repository_root: Path,
 ) -> None:
     facts = json.loads((repository_root / "research/readiness-facts.json").read_text())
     report = readiness_report(facts)
     assert report["phase_12_complete"] is True
     assert report["phase_13_scientifically_ready"] is True
-    assert report["phase_13_operationally_ready"] is False
-    assert report["blocker_codes"] == ["PROVIDER_NOT_CONFIGURED"]
+    assert report["phase_13_operationally_ready"] is True
+    assert report["blocker_codes"] == []

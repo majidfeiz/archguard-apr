@@ -18,6 +18,10 @@ from archguard.infrastructure.experiment_artifacts import (
     load_experiment_artifact,
     write_experiment_artifact,
 )
+from archguard.infrastructure.provider_preflight import (
+    load_phase13_provider_configuration,
+    provider_preflight,
+)
 
 app = typer.Typer(no_args_is_help=True)
 plan_app = typer.Typer(no_args_is_help=True)
@@ -28,6 +32,35 @@ app.add_typer(plan_app, name="plan")
 app.add_typer(compare_app, name="compare")
 app.add_typer(schedule_app, name="schedule")
 app.add_typer(ledger_app, name="ledger")
+
+
+@app.command("provider-preflight")
+def provider_preflight_command(
+    config: Annotated[Path, typer.Option("--config")],
+    output_directory: Annotated[Path, typer.Option("--output-directory")] = Path(
+        "../archguard-phase13-output"
+    ),
+    analyzed_root: Annotated[list[Path] | None, typer.Option("--analyzed-root")] = None,
+    live: Annotated[bool, typer.Option("--live")] = False,
+    acknowledge_cost: Annotated[bool, typer.Option("--acknowledge-cost")] = False,
+) -> None:
+    """Validate the frozen provider policy; offline unless both live flags are supplied."""
+    if live != acknowledge_cost:
+        fail(5, "live_preflight_requires_both_acknowledgements")
+    if live and acknowledge_cost:
+        fail(5, "live_preflight_not_available_in_phase_13a_implementation")
+    try:
+        value = load_phase13_provider_configuration(config)
+        report = provider_preflight(
+            value,
+            output_directory=output_directory,
+            analyzed_roots=tuple(analyzed_root or (Path.cwd(),)),
+        )
+    except (OSError, ValueError, TypeError):
+        fail(2, "invalid_provider_preflight_configuration")
+    emit(report)
+    if report["status"] != "ready":
+        raise typer.Exit(4)
 
 
 def emit(value: object) -> None:

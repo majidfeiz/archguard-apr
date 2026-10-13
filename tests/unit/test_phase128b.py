@@ -291,17 +291,17 @@ def test_tracked_import_identity_and_partial_status(repository_root: Path) -> No
     assert licenses["benchmark_task_redistribution"] == "UNRESOLVED"
 
 
-def test_imported_evidence_and_later_candidate_pool_preserve_other_blockers(
+def test_imported_evidence_and_provider_configuration_clear_blockers(
     repository_root: Path,
 ) -> None:
     facts = json.loads((repository_root / "research/readiness-facts.json").read_text())
     report = readiness_report(facts)
 
     assert "GRAPH_EVIDENCE_EXTERNAL_EXECUTION_REQUIRED" not in report["blocker_codes"]
-    assert report["phase_13_ready"] is False
+    assert report["phase_13_ready"] is True
     assert report["phase_12_complete"] is True
     assert report["phase_13_scientifically_ready"] is True
-    assert report["blocker_codes"] == ["PROVIDER_NOT_CONFIGURED"]
+    assert report["blocker_codes"] == []
 
 
 def test_profile_is_amended_protocol_pending_and_import_is_source_free(
