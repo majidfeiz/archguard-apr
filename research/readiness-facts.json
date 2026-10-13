@@ -54,6 +54,8 @@
   "provider_decision_recorded": true,
   "provider_configuration": "configs/experiments/phase13-provider.json",
   "provider_configuration_fingerprint": "f5dc6fb5b8bf54c7cf1b58b990fa3db44073500df9903e3a7d93cbeb1ad92c2d",
+  "phase_13_protocol_fingerprint": "eae1920ce71c025d2d94096798daf8b14df098249743631efe9a0aa7a541fbe8",
+  "phase_13_protocol_amendment_fingerprint": "c2e40ab75500db061269f51f781bca06125e4f2a5d80fed3a90e5300fccbab38",
   "study_designation": "Exploratory Multi-Project Feasibility Protocol",
   "qualification_registry_fingerprint": "4b47b4c4b3042a572ff5e91969defbc25c3decd22b7a3fec0b0aae873586a1b3",
   "population_fingerprint": "421f3129ef6bee5883c41d05f087d6faff5b2a3de3b2ea543b4d27ade1488886",

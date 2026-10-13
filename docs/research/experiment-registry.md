@@ -94,3 +94,9 @@ environment diagnostics. Together with qualified PySnooper-2, the approved explo
 frozen at three tasks across two projects. Five negative outcomes remain in the canonical registry;
 no outcome-based replacement occurred. Phase 13 has not executed and remains operationally blocked
 only by prospective provider/model/cost approval.
+
+The prospective Phase 13B decision amends the historical 18-run protocol to exactly six ordered
+task-condition executions before any provider call, observed cost, or scientific outcome. The old
+protocol remains immutable. The new protocol is bound to the unchanged population and frozen OpenAI
+configuration. This entry registers implementation readiness only: zero Phase 13 calls, USD 0
+observed cost, and no scientific result.

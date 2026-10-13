@@ -2,6 +2,9 @@
 
 ## 0.12.8
 
+- Add the prospective one-repetition Phase 13 protocol amendment and deterministic six-run live
+  orchestrator with strict cost, retry, leakage, patch, evaluator, cleanup and artifact boundaries.
+- No provider request or Phase 13 scientific execution occurred during implementation.
 - Close Phase 12 with a hash-bound three-task, two-project exploratory feasibility population while
   preserving all qualification attrition and separating scientific readiness from provider readiness.
 - Prepare Phase 12.8A source-free license, graph, candidate, pilot, and power-analysis contracts and
