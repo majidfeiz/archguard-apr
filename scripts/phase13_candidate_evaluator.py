@@ -1,6 +1,8 @@
 """Trusted candidate evaluator composed from the reviewed Phase 12 sandbox."""
 
+import argparse
 import hashlib
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -9,6 +11,7 @@ from typing import Any
 from archguard.domain.phase13 import TerminalClassification
 from archguard.domain.phase128f import EvaluatorAdapter, Outcome
 from scripts import phase128f_runner as qualified
+from scripts.phase128f_registry import adapters
 
 
 def evaluate_candidate(
@@ -17,7 +20,6 @@ def evaluate_candidate(
     candidate: Path,
     root: Path,
     repository_root: Path,
-    available: tuple[EvaluatorAdapter, ...],
     architecture_treatment: bool,
 ) -> dict[str, Any]:
     root.mkdir(parents=True, mode=0o700)
@@ -25,7 +27,7 @@ def evaluate_candidate(
         if task_id == "PySnooper-2":
             buggy_attempt, attempt = _evaluate_pysnooper_2(buggy, candidate, root)
         else:
-            adapter = next(item for item in available if item.task_id == task_id)
+            adapter = next(item for item in adapters() if item.task_id == task_id)
             buggy_attempt, attempt = _evaluate_reviewed(adapter, buggy, candidate, root)
         passed = attempt.outcome is Outcome.PASS
         reproduced = buggy_attempt.outcome is Outcome.EXPECTED_FAILURE
@@ -266,3 +268,27 @@ def _architecture(
         severities[severity] = severities.get(severity, 0) + 1
     passed = not severities.get("error", 0)
     return ("passed" if passed else "partial"), tuple(sorted(severities.items()))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task-id", required=True)
+    parser.add_argument("--buggy", required=True, type=Path)
+    parser.add_argument("--candidate", required=True, type=Path)
+    parser.add_argument("--root", required=True, type=Path)
+    parser.add_argument("--repository-root", required=True, type=Path)
+    parser.add_argument("--architecture-treatment", action="store_true")
+    arguments = parser.parse_args()
+    result = evaluate_candidate(
+        arguments.task_id,
+        arguments.buggy,
+        arguments.candidate,
+        arguments.root,
+        arguments.repository_root,
+        arguments.architecture_treatment,
+    )
+    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+    main()

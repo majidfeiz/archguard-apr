@@ -446,19 +446,41 @@ class Phase13LiveExecutor:
         )
 
     def _evaluate(self, request: TreatmentRequest, buggy: Path, candidate: Path) -> dict[str, Any]:
-        # The reviewed Phase 12 evaluator runner is the sole command authority.
-        from scripts.phase13_candidate_evaluator import evaluate_candidate
-        from scripts.phase128f_registry import adapters
-
-        return evaluate_candidate(
+        # Keep the reviewed tooling behind an explicit process boundary: infrastructure
+        # must not depend on the repository's scripts/test component.
+        command = [
+            "uv",
+            "run",
+            "python",
+            str(self.repository_root / "scripts/phase13_candidate_evaluator.py"),
+            "--task-id",
             request.identity.task_id,
-            buggy,
-            candidate,
-            self.root / f"evaluator-{request.identity.ordinal}",
-            self.repository_root,
-            adapters(),
-            request.architecture_treatment,
+            "--buggy",
+            str(buggy),
+            "--candidate",
+            str(candidate),
+            "--root",
+            str(self.root / f"evaluator-{request.identity.ordinal}"),
+            "--repository-root",
+            str(self.repository_root),
+        ]
+        if request.architecture_treatment:
+            command.append("--architecture-treatment")
+        process = subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=3600,
         )
+        value = json.loads(process.stdout)
+        if not isinstance(value, dict):
+            raise ValueError("invalid evaluator result")
+        value["architecture_violations"] = tuple(
+            (str(severity), int(count)) for severity, count in value["architecture_violations"]
+        )
+        value["classification"] = TerminalClassification(value["classification"])
+        return value
 
     def _cost(self, usage: ProviderUsage) -> Decimal:
         prices = self.configuration.prices

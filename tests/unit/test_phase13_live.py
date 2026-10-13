@@ -318,6 +318,35 @@ def test_cost_uses_frozen_prices(repository_root: Path, tmp_path: Path) -> None:
     assert executor._cost(ProviderUsage(10, 2, 5, 1)) > 0
 
 
+def test_evaluator_runs_behind_process_boundary(
+    repository_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executor = _executor(repository_root, tmp_path)
+    commands: list[list[str]] = []
+    payload = {
+        "architecture_status": "passed",
+        "architecture_violations": [["error", 0]],
+        "evaluator_executed": True,
+        "buggy_failure_reproduced": True,
+        "candidate_test_outcome": "passed",
+        "tests_fixed": 1,
+        "regressions": 0,
+        "repair_success": True,
+        "classification": "success",
+    }
+
+    def fake_run(command: list[str], **kwargs: Any) -> SimpleNamespace:
+        commands.append(command)
+        return SimpleNamespace(stdout=json.dumps(payload), returncode=0)
+
+    monkeypatch.setattr("archguard.infrastructure.phase13_live.subprocess.run", fake_run)
+    result = executor._evaluate(_request(2), tmp_path / "buggy", tmp_path / "candidate")
+    assert result["classification"] is TerminalClassification.SUCCESS
+    assert result["architecture_violations"] == (("error", 0),)
+    assert "--architecture-treatment" in commands[0]
+    assert "scripts/phase13_candidate_evaluator.py" in commands[0][3]
+
+
 def test_execute_returns_source_free_success(
     repository_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
