@@ -62,7 +62,10 @@ jobs:
           jq -e '.network_request == false and .completed_ordinals == [1]
             and .next_ordinal == 2 and .remaining_executions == 5
             and .carried_observed_usd == "0.025945"
-            and .carried_provider_calls == 1' "$RUNNER_TEMP/checkpoint.json" >/dev/null
+            and .carried_provider_calls == 1
+            and .historical_stop_reason == "execution_failure"
+            and .active_stop_reason == null
+            and .resume_allowed == true' "$RUNNER_TEMP/checkpoint.json" >/dev/null
       - name: Enforce frozen provider ceilings
         run: |
           jq -e '.maximum_provider_calls == 12
@@ -100,20 +103,29 @@ jobs:
       - name: Report source-free cost state
         if: always()
         run: |
-          REPORT_COST_STATE="$PHASE13_COST_STATE"
           if test -f "$PHASE13_OUTPUT/cost-state.json"; then
-            REPORT_COST_STATE="$PHASE13_OUTPUT/cost-state.json"
+            {
+              echo "## Phase 13 cost state"
+              echo
+              echo "- Completed primary executions: $(jq -r .completed_primary "$PHASE13_OUTPUT/cost-state.json")"
+              echo "- Attempted retries: $(jq -r .attempted_retries "$PHASE13_OUTPUT/cost-state.json")"
+              echo "- Observed provider cost: USD $(jq -r .observed_usd "$PHASE13_OUTPUT/cost-state.json")"
+              echo "- Reserved/in-flight cost: USD $(jq -r .reserved_usd "$PHASE13_OUTPUT/cost-state.json")"
+              echo "- Active stop reason: $(jq -r .stop_reason "$PHASE13_OUTPUT/cost-state.json")"
+            } >> "$GITHUB_STEP_SUMMARY"
+          elif test -f "$RUNNER_TEMP/checkpoint.json"; then
+            {
+              echo "## Phase 13 carried resume state"
+              echo
+              echo "- Completed ordinals: $(jq -c .completed_ordinals "$RUNNER_TEMP/checkpoint.json")"
+              echo "- Next ordinal: $(jq -r .next_ordinal "$RUNNER_TEMP/checkpoint.json")"
+              echo "- Carried provider calls: $(jq -r .carried_provider_calls "$RUNNER_TEMP/checkpoint.json")"
+              echo "- Carried observed cost: USD $(jq -r .carried_observed_usd "$RUNNER_TEMP/checkpoint.json")"
+              echo "- Historical stop reason: $(jq -r .historical_stop_reason "$RUNNER_TEMP/checkpoint.json")"
+              echo "- Active stop reason: $(jq -r .active_stop_reason "$RUNNER_TEMP/checkpoint.json")"
+              echo "- Resume allowed: $(jq -r .resume_allowed "$RUNNER_TEMP/checkpoint.json")"
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
-          test -f "$REPORT_COST_STATE" || exit 0
-          {
-            echo "## Phase 13 cost state"
-            echo
-            echo "- Completed primary executions: $(jq -r '.completed_primary // .completed_primary_executions' "$REPORT_COST_STATE")"
-            echo "- Attempted retries: $(jq -r .attempted_retries "$REPORT_COST_STATE")"
-            echo "- Observed provider cost: USD $(jq -r '.observed_usd // .observed_provider_cost_usd' "$REPORT_COST_STATE")"
-            echo "- Reserved/in-flight cost: USD $(jq -r '.reserved_usd // .reserved_in_flight_cost_usd' "$REPORT_COST_STATE")"
-            echo "- Stop reason: $(jq -r .stop_reason "$REPORT_COST_STATE")"
-          } >> "$GITHUB_STEP_SUMMARY"
           if test -f "$PHASE13_OUTPUT/manifest.json"; then
             {
               echo

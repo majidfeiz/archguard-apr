@@ -33,6 +33,46 @@ class TerminalClassification(StrEnum):
     REPAIR_UNSUCCESSFUL = "repair_unsuccessful"
 
 
+class ResumeStopReason(StrEnum):
+    """Checkpoint stop reasons with an explicit continuation policy."""
+
+    EXECUTION_FAILURE = "execution_failure"
+    AUTHENTICATION_FAILURE = "authentication_failure"
+    BILLING_FAILURE = "billing_failure"
+    QUOTA_FAILURE = "quota_failure"
+    BUDGET_CEILING = "budget_ceiling"
+    IDENTITY_MISMATCH = "fingerprint_protocol_population_provider_mismatch"
+    LEAKAGE_OR_SECURITY_FAILURE = "leakage_security_failure"
+    CORRUPT_CHECKPOINT = "corrupt_checkpoint"
+    INCOMPLETE_CLEANUP = "incomplete_cleanup"
+
+
+class ResumeStopClassification(StrEnum):
+    """Auditable classification assigned to a historical stop."""
+
+    CORRECTED_TERMINAL_OUTCOME_BUG = "corrected_terminal_outcome_bug"
+    FATAL = "fatal"
+
+
+@dataclass(frozen=True)
+class ResumePolicy:
+    historical_stop_reason: ResumeStopReason
+    active_stop_reason: ResumeStopReason | None
+    resume_allowed: bool
+
+
+def classify_resume_stop(
+    reason: ResumeStopReason, classification: ResumeStopClassification
+) -> ResumePolicy:
+    """Clear only the reviewed historical stop caused by the corrected runner bug."""
+    if (
+        reason is ResumeStopReason.EXECUTION_FAILURE
+        and classification is ResumeStopClassification.CORRECTED_TERMINAL_OUTCOME_BUG
+    ):
+        return ResumePolicy(reason, None, True)
+    return ResumePolicy(reason, reason, False)
+
+
 @dataclass(frozen=True, order=True)
 class ExecutionIdentity:
     ordinal: int
@@ -80,7 +120,7 @@ class CostState:
     provider_calls_completed: int = 0
     provider_calls_with_usage: int = 0
     call_ids: tuple[str, ...] = ()
-    stop_reason: str = "not_started"
+    stop_reason: str | None = "not_started"
 
     def __post_init__(self) -> None:
         check(self.observed_usd >= 0 and self.reserved_usd >= 0, "negative cost")
