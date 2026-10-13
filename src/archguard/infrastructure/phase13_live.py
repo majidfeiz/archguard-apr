@@ -16,10 +16,17 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
-from archguard.application.ports.phase13 import ProviderAttemptError, TreatmentRequest
+from archguard.application.ports.phase13 import (
+    PreProviderFailure,
+    ProviderAttemptError,
+    TreatmentRequest,
+)
 from archguard.domain.phase13 import (
     MODEL,
     ExecutionResult,
+    PreProviderDiagnostic,
+    PreProviderExceptionCategory,
+    PreProviderStage,
     ProviderUsage,
     TerminalClassification,
     experiment_id,
@@ -45,6 +52,7 @@ _TASKS = {
     "black-4": "Repair the defect exercised by the frozen Black beginning-backslash task.",
 }
 _RETRYABLE = frozenset({408, 429, 500, 502, 503, 504})
+_PRE_PROVIDER_EXCEPTIONS = (OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError)
 
 
 class Evaluation(TypedDict):
@@ -75,9 +83,22 @@ class Phase13LiveExecutor:
         started = time.monotonic()
         workspace = self.root / f"run-{request.identity.ordinal}"
         source = workspace / "source"
-        workspace.mkdir(mode=0o700)
-        self._checkout(request, source)
-        context, context_fingerprint = self._context(request, source)
+        try:
+            workspace.mkdir(mode=0o700)
+        except _PRE_PROVIDER_EXCEPTIONS as error:
+            self._raise_pre_provider(request, PreProviderStage.WORKSPACE_PREPARATION, error)
+        try:
+            self._checkout(request, source)
+        except PreProviderFailure:
+            raise
+        except _PRE_PROVIDER_EXCEPTIONS as error:
+            self._raise_pre_provider(request, PreProviderStage.CHECKOUT, error)
+        try:
+            context, context_fingerprint = self._context(request, source)
+        except PreProviderFailure:
+            raise
+        except _PRE_PROVIDER_EXCEPTIONS as error:
+            self._raise_pre_provider(request, PreProviderStage.CONTEXT_SELECTION, error)
         if context_fingerprint != request.context_manifest_fingerprint:
             # The request fingerprint represents policy; bind the actual selection separately.
             context_fingerprint = hashlib.sha256(context.encode()).hexdigest()
@@ -284,30 +305,38 @@ class Phase13LiveExecutor:
         snapshot = root / "snapshot.json"
         graph = root / "graph.json"
         commands = (
-            [
-                "uv",
-                "run",
-                "archguard",
-                "repository",
-                "analyze",
-                str(source),
-                "--output",
-                str(snapshot),
-            ],
-            [
-                "uv",
-                "run",
-                "archguard",
-                "graph",
-                "build",
-                "--snapshot",
-                str(snapshot),
-                "--output",
-                str(graph),
-            ],
+            (
+                PreProviderStage.ARCHITECTURE_SNAPSHOT,
+                [
+                    "uv",
+                    "run",
+                    "archguard",
+                    "repository",
+                    "analyze",
+                    str(source),
+                    "--output",
+                    str(snapshot),
+                ],
+            ),
+            (
+                PreProviderStage.ARCHITECTURE_GRAPH,
+                [
+                    "uv",
+                    "run",
+                    "archguard",
+                    "graph",
+                    "build",
+                    str(snapshot),
+                    "--output",
+                    str(graph),
+                ],
+            ),
         )
-        for command in commands:
-            subprocess.run(command, check=True, capture_output=True, timeout=300)
+        for stage, command in commands:
+            try:
+                subprocess.run(command, check=True, capture_output=True, timeout=300)
+            except _PRE_PROVIDER_EXCEPTIONS as error:
+                self._raise_pre_provider(request, stage, error)
         graph_value = json.loads(graph.read_text(encoding="utf-8"))
         treatment: dict[str, Any] = {
             "graph_fingerprint": graph_value.get("graph_fingerprint"),
@@ -316,29 +345,55 @@ class Phase13LiveExecutor:
         }
         if request.identity.project == "PySnooper":
             profile = root / "profile.json"
-            subprocess.run(
-                [
-                    "uv",
-                    "run",
-                    "archguard",
-                    "architecture",
-                    "profile",
-                    "compile",
-                    str(
-                        self.repository_root
-                        / "configs/external-profiles/pysnooper-micro-pilot-amended-v2.yaml"
-                    ),
-                    "--output",
-                    str(profile),
-                ],
-                check=True,
-                capture_output=True,
-                timeout=300,
-            )
+            try:
+                subprocess.run(
+                    [
+                        "uv",
+                        "run",
+                        "archguard",
+                        "architecture",
+                        "profile",
+                        "compile",
+                        str(
+                            self.repository_root
+                            / "configs/external-profiles/pysnooper-micro-pilot-amended-v2.yaml"
+                        ),
+                        "--output",
+                        str(profile),
+                    ],
+                    check=True,
+                    capture_output=True,
+                    timeout=300,
+                )
+            except _PRE_PROVIDER_EXCEPTIONS as error:
+                self._raise_pre_provider(request, PreProviderStage.ARCHITECTURE_PROFILE, error)
             treatment["profile"] = json.loads(profile.read_text(encoding="utf-8"))
         else:
             treatment["profile"] = {"applicability": "no_frozen_project_profile"}
         return json.dumps(treatment, sort_keys=True, separators=(",", ":"))[:30_000]
+
+    @staticmethod
+    def _raise_pre_provider(
+        request: TreatmentRequest, stage: PreProviderStage, error: Exception
+    ) -> None:
+        category = (
+            PreProviderExceptionCategory.PROCESS_FAILURE
+            if isinstance(error, subprocess.SubprocessError)
+            else PreProviderExceptionCategory.FILESYSTEM_FAILURE
+            if isinstance(error, OSError)
+            else PreProviderExceptionCategory.VALIDATION_FAILURE
+            if isinstance(error, (TypeError, ValueError))
+            else PreProviderExceptionCategory.PREPARATION_FAILURE
+        )
+        raise PreProviderFailure(
+            PreProviderDiagnostic(
+                request.identity.ordinal,
+                request.identity.task_id,
+                request.identity.condition,
+                stage,
+                category,
+            )
+        ) from None
 
     def _invoke(self, request: TreatmentRequest, context: str) -> tuple[str, str, ProviderUsage]:
         from openai import OpenAI

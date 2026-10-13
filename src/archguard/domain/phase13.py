@@ -54,6 +54,47 @@ class ResumeStopClassification(StrEnum):
     FATAL = "fatal"
 
 
+class PreProviderStage(StrEnum):
+    WORKSPACE_PREPARATION = "workspace_preparation"
+    CHECKOUT = "checkout"
+    CONTEXT_SELECTION = "context_selection"
+    ARCHITECTURE_SNAPSHOT = "architecture_snapshot"
+    ARCHITECTURE_GRAPH = "architecture_graph"
+    ARCHITECTURE_PROFILE = "architecture_profile"
+
+
+class PreProviderExceptionCategory(StrEnum):
+    FILESYSTEM_FAILURE = "filesystem_failure"
+    PROCESS_FAILURE = "process_failure"
+    VALIDATION_FAILURE = "validation_failure"
+    PREPARATION_FAILURE = "preparation_failure"
+
+
+@dataclass(frozen=True)
+class PreProviderDiagnostic:
+    run_ordinal: int
+    task_id: str
+    condition: Condition
+    stage: PreProviderStage
+    exception_category: PreProviderExceptionCategory
+    diagnostic_fingerprint: str = ""
+
+    def __post_init__(self) -> None:
+        payload = {
+            "run_ordinal": self.run_ordinal,
+            "task_id": self.task_id,
+            "condition": self.condition.value,
+            "stage": self.stage.value,
+            "exception_category": self.exception_category.value,
+        }
+        expected = fingerprint(payload)
+        check(
+            not self.diagnostic_fingerprint or self.diagnostic_fingerprint == expected,
+            "pre-provider diagnostic fingerprint mismatch",
+        )
+        object.__setattr__(self, "diagnostic_fingerprint", expected)
+
+
 @dataclass(frozen=True)
 class ResumePolicy:
     historical_stop_reason: ResumeStopReason

@@ -154,6 +154,7 @@ jobs:
             /tmp/archguard-phase13-evidence/cost-state.json
             /tmp/archguard-phase13-evidence/execution-*.json
             /tmp/archguard-phase13-evidence/manifest.json
+            /tmp/archguard-phase13-evidence/pre-provider-failure.json
             /tmp/archguard-phase13-evidence/cleanup.json
           if-no-files-found: warn
           retention-days: 30

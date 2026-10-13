@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -6,10 +7,16 @@ from typing import Any
 
 import pytest
 
-from archguard.application.ports.phase13 import ProviderAttemptError, TreatmentRequest
+from archguard.application.ports.phase13 import (
+    PreProviderFailure,
+    ProviderAttemptError,
+    TreatmentRequest,
+)
 from archguard.domain.phase13 import (
     FROZEN_EXECUTIONS,
     MODEL,
+    PreProviderExceptionCategory,
+    PreProviderStage,
     ProviderUsage,
     TerminalClassification,
 )
@@ -106,8 +113,10 @@ def test_architecture_context_uses_source_free_outputs(
     executor = _executor(repository_root, tmp_path)
     source = tmp_path / "source"
     source.mkdir()
+    commands: list[list[str]] = []
 
     def fake_run(command: list[str], **kwargs: Any) -> SimpleNamespace:
+        commands.append(command)
         if "analyze" in command:
             Path(command[-1]).write_text("{}")
         elif "build" in command:
@@ -126,6 +135,35 @@ def test_architecture_context_uses_source_free_outputs(
     assert pysnooper["profile"] == {"profile": "p"}
     assert black["profile"] == {"applicability": "no_frozen_project_profile"}
     assert pysnooper["nodes"] == ["n"]
+    graph_command = next(command for command in commands if "graph" in command)
+    assert graph_command[5].endswith("snapshot.json")
+    assert "--snapshot" not in graph_command
+
+
+def test_architecture_graph_failure_is_safely_classified(
+    repository_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executor = _executor(repository_root, tmp_path)
+    source = tmp_path / "source"
+    source.mkdir()
+    calls = 0
+
+    def fake_run(command: list[str], **kwargs: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            Path(command[-1]).write_text("{}")
+            return SimpleNamespace(stdout="", returncode=0)
+        raise subprocess.CalledProcessError(2, command, stderr="sensitive path")
+
+    monkeypatch.setattr("archguard.infrastructure.phase13_live.subprocess.run", fake_run)
+    with pytest.raises(PreProviderFailure) as caught:
+        executor._architecture_context(_request(2), source)
+    diagnostic = caught.value.diagnostic
+    assert diagnostic.stage is PreProviderStage.ARCHITECTURE_GRAPH
+    assert diagnostic.exception_category is PreProviderExceptionCategory.PROCESS_FAILURE
+    assert len(diagnostic.diagnostic_fingerprint) == 64
+    assert "sensitive" not in repr(diagnostic)
 
 
 def test_checkout_validates_revision_and_tree(
