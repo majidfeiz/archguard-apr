@@ -166,6 +166,7 @@ class Phase13LiveExecutor:
             2 if retry else 1,
             _duration_bucket(time.monotonic() - started),
             "complete",
+            request.provider_call_id,
         )
 
     def cleanup(self) -> bool:

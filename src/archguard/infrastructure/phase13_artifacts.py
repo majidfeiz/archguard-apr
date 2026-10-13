@@ -61,6 +61,9 @@ class SourceFreeArtifacts:
     def write_result(self, result: ExecutionResult) -> None:
         self._write(f"execution-{result.identity.ordinal}.json", result.source_free_record())
 
+    def write_imported_result(self, ordinal: int, value: object) -> None:
+        self._write(f"execution-{ordinal}.json", value)
+
     def write_manifest(self, value: object) -> None:
         self._write("manifest.json", value)
 

@@ -20,6 +20,7 @@ from archguard.infrastructure.experiment_artifacts import (
     write_experiment_artifact,
 )
 from archguard.infrastructure.phase13_artifacts import SourceFreeArtifacts
+from archguard.infrastructure.phase13_checkpoint import load_checkpoint
 from archguard.infrastructure.phase13_live import Phase13LiveExecutor
 from archguard.infrastructure.phase13_protocol import load_phase13_protocol, validate_amendment
 from archguard.infrastructure.provider_preflight import (
@@ -166,6 +167,7 @@ def run_frozen(
     protocol: Annotated[Path, typer.Option("--protocol")],
     provider_config: Annotated[Path, typer.Option("--provider-config")],
     output: Annotated[Path, typer.Option("--output")],
+    resume_checkpoint: Annotated[Path | None, typer.Option("--resume-checkpoint")] = None,
     acknowledge_provider_cost: Annotated[bool, typer.Option("--acknowledge-provider-cost")] = False,
     acknowledge_source_processing: Annotated[
         bool, typer.Option("--acknowledge-source-processing")
@@ -177,6 +179,7 @@ def run_frozen(
     if output.exists():
         fail(4, "immutable_output_exists")
     try:
+        checkpoint = load_checkpoint(resume_checkpoint) if resume_checkpoint else None
         population_value = json.loads(population.read_text(encoding="utf-8"))
         protocol_value = load_phase13_protocol(protocol)
         validate_amendment(
@@ -192,6 +195,7 @@ def run_frozen(
             configuration=configuration,
             executor=executor,
             artifacts=SourceFreeArtifacts(output),
+            checkpoint=checkpoint,
         )
     except (OSError, ValueError, TypeError, RuntimeError):
         fail(2, "frozen_experiment_failed_closed")
@@ -199,7 +203,29 @@ def run_frozen(
         {
             "status": "complete" if len(results) == 6 else "partial",
             "completed_primary_executions": len(results),
-            "provider_calls_executed": sum(item.attempt_count for item in results),
+            "provider_calls_executed": sum(bool(item.provider_call_id) for item in results),
+        }
+    )
+
+
+@app.command("validate-checkpoint")
+def validate_phase13_checkpoint(
+    checkpoint: Annotated[Path, typer.Option("--checkpoint")],
+) -> None:
+    """Validate a source-free continuation checkpoint without external effects."""
+    try:
+        value = load_checkpoint(checkpoint)
+    except (OSError, ValueError, TypeError):
+        fail(2, "invalid_phase13_checkpoint")
+    emit(
+        {
+            "status": "valid",
+            "completed_ordinals": value["completed_ordinals"],
+            "next_ordinal": value["next_ordinal"],
+            "remaining_executions": len(value["remaining_ordinals"]),
+            "carried_observed_usd": value["carried_observed_usd"],
+            "carried_provider_calls": value["carried_provider_calls"],
+            "network_request": False,
         }
     )
 

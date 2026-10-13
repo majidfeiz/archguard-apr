@@ -12,6 +12,7 @@ class TreatmentRequest:
     request_fingerprint: str
     context_manifest_fingerprint: str
     architecture_treatment: bool
+    provider_call_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,8 @@ class Phase13ArtifactPort(Protocol):
     def write_cost_state(self, value: object) -> None: ...
 
     def write_result(self, result: ExecutionResult) -> None: ...
+
+    def write_imported_result(self, ordinal: int, value: object) -> None: ...
 
     def write_manifest(self, value: object) -> None: ...
 
