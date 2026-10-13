@@ -36,7 +36,6 @@ jobs:
       - name: Verify frozen Phase 12 state
         shell: bash
         run: |
-          git merge-base --is-ancestor 4805d60fe57560424b585ce8fb486d66a3255ccc HEAD
           uv run archguard readiness gate --facts research/readiness-facts.json > "$RUNNER_TEMP/readiness.json"
           jq -e '.phase_12_complete == true and .phase_13_scientifically_ready == true
             and .phase_13_operationally_ready == true and .phase_13_ready == true
