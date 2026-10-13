@@ -106,8 +106,29 @@ class OpenAIResponsesAdapter:
         except Exception as error:
             raise self._map_error(error) from None
         self.last_model = str(value(response, "model", ""))
+        if not self.last_model or self.last_model != self.settings.model:
+            raise ProviderInvocationError(
+                ProviderFailure(
+                    ProviderErrorCategory.UNSUPPORTED_MODEL,
+                    False,
+                    "Provider returned an unexpected model identity.",
+                    "openai",
+                    "response",
+                )
+            )
         self.last_request_id = str(value(response, "id", "")) or None
         usage = value(response, "usage")
+        if usage is None:
+            raise ProviderInvocationError(
+                ProviderFailure(
+                    ProviderErrorCategory.INCOMPLETE,
+                    False,
+                    "Provider usage metadata was missing.",
+                    "openai",
+                    "response",
+                    request_id=self.last_request_id,
+                )
+            )
         self.last_usage = ProviderUsage(
             int(value(usage, "input_tokens", 0)),
             int(value(usage, "output_tokens", 0)),

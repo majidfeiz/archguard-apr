@@ -1,11 +1,12 @@
 # Phase 13 readiness
 
-Status: scientifically ready under the exploratory protocol; operationally blocked.
+Status: scientifically and operationally ready under the exploratory protocol.
 
 Phase 12 is complete with a human-approved, frozen population of PySnooper-2, PySnooper-3, and
 black-4. Evidence, profile applicability, population, and exploratory protocol bindings are validated
-locally. Provider/model/pricing and monetary approval remain `PROVIDER_NOT_CONFIGURED`, so the
-operational gate remains false; neither prose nor a manual override can change it.
+locally. Phase 13A froze the OpenAI provider, snapshot-pinned model, dated official pricing, monetary
+ceilings, retry policy, and provider-configuration fingerprint. The operational gate is now true;
+actual execution still requires the explicit workflow confirmation, secret, and scientific-run input.
 
 Phase 12.5 verified official framework metadata revisions for BugsInPy and SWE-bench and the official
 SWE-bench Verified dataset revision without acquiring its payload. It added evidence-derived readiness,

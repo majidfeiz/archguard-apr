@@ -99,7 +99,7 @@ def openai_result(payload: object | None = None, **changes: object) -> SimpleNam
     )
     values: dict[str, object] = dict(
         id="resp_safe",
-        model="returned-model",
+        model="test-model",
         status="completed",
         incomplete_details=None,
         output=[SimpleNamespace(type="message", content=content)],
@@ -159,6 +159,8 @@ def test_openai_valid_response_and_safe_request() -> None:
     ("result", "category"),
     [
         (openai_result(None), ProviderErrorCategory.INCOMPLETE),
+        (openai_result(response_payload(), model="alias"), ProviderErrorCategory.UNSUPPORTED_MODEL),
+        (openai_result(response_payload(), usage=None), ProviderErrorCategory.INCOMPLETE),
         (
             openai_result(None, status="incomplete", incomplete_details={"reason": "max_tokens"}),
             ProviderErrorCategory.OUTPUT_LIMIT,
@@ -298,6 +300,9 @@ def test_credentials_redaction_and_identifier_hash(monkeypatch: pytest.MonkeyPat
     credential = credential_for("openai")
     assert credential.configured and credential.reveal_for_client() == secret
     assert secret not in repr(credential)
+    assert not hasattr(credential, "__dict__")
+    with pytest.raises(TypeError):
+        json.dumps(credential)
     assert secret not in redact_provider_message(f"authorization: Bearer {secret}")
     assert request_id_hash("req_123") == request_id_hash("req_123")
     assert request_id_hash("invalid id with spaces") is None
