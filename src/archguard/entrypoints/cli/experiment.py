@@ -12,12 +12,16 @@ from archguard.application.services.experiments import (
     create_schedule,
     validate_comparison,
 )
+from archguard.application.services.phase13 import run_frozen_experiment
 from archguard.domain.benchmark import ExperimentPlan
 from archguard.domain.experiments import ComparisonContract, ExperimentLedger, ExperimentSchedule
 from archguard.infrastructure.experiment_artifacts import (
     load_experiment_artifact,
     write_experiment_artifact,
 )
+from archguard.infrastructure.phase13_artifacts import SourceFreeArtifacts
+from archguard.infrastructure.phase13_live import Phase13LiveExecutor
+from archguard.infrastructure.phase13_protocol import load_phase13_protocol, validate_amendment
 from archguard.infrastructure.provider_preflight import (
     load_phase13_provider_configuration,
     provider_preflight,
@@ -43,6 +47,7 @@ def provider_preflight_command(
     analyzed_root: Annotated[list[Path] | None, typer.Option("--analyzed-root")] = None,
     live: Annotated[bool, typer.Option("--live")] = False,
     acknowledge_cost: Annotated[bool, typer.Option("--acknowledge-cost")] = False,
+    require_secret: Annotated[bool, typer.Option("--require-secret/--allow-missing-secret")] = True,
 ) -> None:
     """Validate the frozen provider policy; offline unless both live flags are supplied."""
     if live != acknowledge_cost:
@@ -55,6 +60,7 @@ def provider_preflight_command(
             value,
             output_directory=output_directory,
             analyzed_roots=tuple(analyzed_root or (Path.cwd(),)),
+            require_secret=require_secret,
         )
     except (OSError, ValueError, TypeError):
         fail(2, "invalid_provider_preflight_configuration")
@@ -150,6 +156,50 @@ def run_experiment(
             "mode": mode,
             "planned_runs": len(value.runs),
             "provider_calls_executed": 0,
+        }
+    )
+
+
+@app.command("run-frozen")
+def run_frozen(
+    population: Annotated[Path, typer.Option("--population")],
+    protocol: Annotated[Path, typer.Option("--protocol")],
+    provider_config: Annotated[Path, typer.Option("--provider-config")],
+    output: Annotated[Path, typer.Option("--output")],
+    acknowledge_provider_cost: Annotated[bool, typer.Option("--acknowledge-provider-cost")] = False,
+    acknowledge_source_processing: Annotated[
+        bool, typer.Option("--acknowledge-source-processing")
+    ] = False,
+) -> None:
+    """Run the immutable six-execution protocol; fail closed without both acknowledgements."""
+    if not (acknowledge_provider_cost and acknowledge_source_processing):
+        fail(5, "frozen_experiment_requires_both_acknowledgements")
+    if output.exists():
+        fail(4, "immutable_output_exists")
+    try:
+        population_value = json.loads(population.read_text(encoding="utf-8"))
+        protocol_value = load_phase13_protocol(protocol)
+        validate_amendment(
+            protocol.parent.parent / "reviews/phase-13-six-run-protocol-amendment.json",
+            protocol_value,
+        )
+        if population_value.get("fingerprint") != protocol_value["population_fingerprint"]:
+            raise ValueError("population/protocol drift")
+        configuration = load_phase13_provider_configuration(provider_config)
+        executor = Phase13LiveExecutor(Path.cwd(), provider_config, protocol_value["fingerprint"])
+        results = run_frozen_experiment(
+            protocol_fingerprint=protocol_value["fingerprint"],
+            configuration=configuration,
+            executor=executor,
+            artifacts=SourceFreeArtifacts(output),
+        )
+    except (OSError, ValueError, TypeError, RuntimeError):
+        fail(2, "frozen_experiment_failed_closed")
+    emit(
+        {
+            "status": "complete" if len(results) == 6 else "partial",
+            "completed_primary_executions": len(results),
+            "provider_calls_executed": sum(item.attempt_count for item in results),
         }
     )
 

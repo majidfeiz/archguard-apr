@@ -286,7 +286,11 @@ def readiness_report(facts: dict[str, Any]) -> dict[str, Any]:
         }
         scientific_blockers = [code for code, passed in scientific_checks.items() if not passed]
         operational_checks = {
-            "PROVIDER_NOT_CONFIGURED": bool(facts.get("provider_decision_recorded"))
+            "PROVIDER_NOT_CONFIGURED": bool(facts.get("provider_decision_recorded")),
+            "PHASE_13_PROTOCOL_NOT_AMENDED": facts.get("phase_13_protocol_fingerprint")
+            == "eae1920ce71c025d2d94096798daf8b14df098249743631efe9a0aa7a541fbe8"
+            and facts.get("phase_13_protocol_amendment_fingerprint")
+            == "c2e40ab75500db061269f51f781bca06125e4f2a5d80fed3a90e5300fccbab38",
         }
         operational_blockers = [code for code, passed in operational_checks.items() if not passed]
         phase_12_complete = not scientific_blockers

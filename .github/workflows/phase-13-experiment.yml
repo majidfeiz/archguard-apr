@@ -24,9 +24,11 @@ jobs:
   preflight:
     if: inputs.confirm_phase_13 == 'RUN_FROZEN_PHASE_13'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 180
     env:
       PHASE13_CONFIG: configs/experiments/phase13-provider.json
+      PHASE13_POPULATION: research/population/exploratory-feasibility-v1.json
+      PHASE13_PROTOCOL: research/protocol/exploratory-feasibility-v2.json
       PHASE13_COST_STATE: /tmp/archguard-phase13-cost-state.json
       PHASE13_OUTPUT: /tmp/archguard-phase13-evidence
     steps:
@@ -42,13 +44,17 @@ jobs:
           jq -e '.phase_12_complete == true and .phase_13_scientifically_ready == true
             and .phase_13_operationally_ready == true and .phase_13_ready == true
             and .blocker_codes == []' "$RUNNER_TEMP/readiness.json" >/dev/null
+          jq -e '.phase_13_protocol_fingerprint == "eae1920ce71c025d2d94096798daf8b14df098249743631efe9a0aa7a541fbe8"
+            and .phase_13_protocol_amendment_fingerprint == "c2e40ab75500db061269f51f781bca06125e4f2a5d80fed3a90e5300fccbab38"' research/readiness-facts.json >/dev/null
           jq -e '.population_fingerprint == "421f3129ef6bee5883c41d05f087d6faff5b2a3de3b2ea543b4d27ade1488886"
             and .protocol_fingerprint == "93494690f402d17e511d9cad1fdc92907d408ae3a923139d30537894f9ab8ce7"
             and .decision_fingerprint == "2ff4adc5be719608860845d68be15c07205bf563423099a30c617e3d29170d7d"' research/readiness-facts.json >/dev/null
+          jq -e '.fingerprint == "eae1920ce71c025d2d94096798daf8b14df098249743631efe9a0aa7a541fbe8"
+            and .amends_protocol_fingerprint == "93494690f402d17e511d9cad1fdc92907d408ae3a923139d30537894f9ab8ce7"
+            and .primary_executions == 6 and .repetitions_per_task_condition == 1
+            and .provider.maximum_calls == 12 and .provider.status == "CONFIGURED"' "$PHASE13_PROTOCOL" >/dev/null
       - name: Offline provider preflight
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: uv run archguard experiment provider-preflight --config "$PHASE13_CONFIG" --output-directory "$PHASE13_OUTPUT" > "$RUNNER_TEMP/provider-preflight.json"
+        run: uv run archguard experiment provider-preflight --config "$PHASE13_CONFIG" --output-directory "$PHASE13_OUTPUT" --allow-missing-secret > "$RUNNER_TEMP/provider-preflight.json"
       - name: Enforce frozen provider ceilings
         run: |
           jq -e '.maximum_provider_calls == 12
@@ -70,26 +76,47 @@ jobs:
             stop_reason: "not_started",
             provider_configuration_fingerprint: $fingerprint
           }' > "$PHASE13_COST_STATE"
-      - name: Scientific execution gate
+      - name: Execute frozen six-run experiment
         if: inputs.execute_scientific_run
-        run: |
-          echo "Scientific execution remains intentionally unavailable in Phase 13A."
-          exit 5
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: >-
+          uv run archguard experiment run-frozen
+          --population "$PHASE13_POPULATION"
+          --protocol "$PHASE13_PROTOCOL"
+          --provider-config "$PHASE13_CONFIG"
+          --output "$PHASE13_OUTPUT"
+          --acknowledge-provider-cost
+          --acknowledge-source-processing
       - name: Report source-free cost state
         if: always()
         run: |
-          test -f "$PHASE13_COST_STATE" || exit 0
+          REPORT_COST_STATE="$PHASE13_COST_STATE"
+          if test -f "$PHASE13_OUTPUT/cost-state.json"; then
+            REPORT_COST_STATE="$PHASE13_OUTPUT/cost-state.json"
+          fi
+          test -f "$REPORT_COST_STATE" || exit 0
           {
             echo "## Phase 13 cost state"
             echo
-            echo "- Completed primary executions: $(jq -r .completed_primary_executions "$PHASE13_COST_STATE")"
-            echo "- Attempted retries: $(jq -r .attempted_retries "$PHASE13_COST_STATE")"
-            echo "- Observed provider cost: USD $(jq -r .observed_provider_cost_usd "$PHASE13_COST_STATE")"
-            echo "- Reserved/in-flight cost: USD $(jq -r .reserved_in_flight_cost_usd "$PHASE13_COST_STATE")"
-            echo "- Remaining internal budget: USD $(jq -r .remaining_internal_budget_usd "$PHASE13_COST_STATE")"
-            echo "- Stop reason: $(jq -r .stop_reason "$PHASE13_COST_STATE")"
-            echo "- Provider configuration fingerprint: $(jq -r .provider_configuration_fingerprint "$PHASE13_COST_STATE")"
+            echo "- Completed primary executions: $(jq -r '.completed_primary // .completed_primary_executions' "$REPORT_COST_STATE")"
+            echo "- Attempted retries: $(jq -r .attempted_retries "$REPORT_COST_STATE")"
+            echo "- Observed provider cost: USD $(jq -r '.observed_usd // .observed_provider_cost_usd' "$REPORT_COST_STATE")"
+            echo "- Reserved/in-flight cost: USD $(jq -r '.reserved_usd // .reserved_in_flight_cost_usd' "$REPORT_COST_STATE")"
+            echo "- Stop reason: $(jq -r .stop_reason "$REPORT_COST_STATE")"
           } >> "$GITHUB_STEP_SUMMARY"
+          if test -f "$PHASE13_OUTPUT/manifest.json"; then
+            {
+              echo
+              echo "## Phase 13 source-free aggregate"
+              echo
+              echo "- Completed executions: $(jq -r .completed_executions "$PHASE13_OUTPUT/manifest.json")"
+              echo "- Attrition: $(jq -r .attrition "$PHASE13_OUTPUT/manifest.json")"
+              echo "- Total calls: $(jq -r .total_calls "$PHASE13_OUTPUT/manifest.json")"
+              echo "- Total observed cost: USD $(jq -r .total_cost_usd "$PHASE13_OUTPUT/manifest.json")"
+              echo "- Stop reason: $(jq -r .stop_reason "$PHASE13_OUTPUT/manifest.json")"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Upload source-free preflight evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -98,6 +125,10 @@ jobs:
           path: |
             ${{ runner.temp }}/provider-preflight.json
             /tmp/archguard-phase13-cost-state.json
+            /tmp/archguard-phase13-evidence/cost-state.json
+            /tmp/archguard-phase13-evidence/execution-*.json
+            /tmp/archguard-phase13-evidence/manifest.json
+            /tmp/archguard-phase13-evidence/cleanup.json
           if-no-files-found: warn
           retention-days: 30
       - name: Cleanup

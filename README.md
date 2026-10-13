@@ -10,7 +10,8 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 Version 0.12.8 closes Phase 12 with fail-closed evidence ingestion, a human-approved exploratory
 three-task/two-project population, protocol-freeze contracts, and a factual Phase 13 readiness gate.
-Scientific preparation is complete; provider/model/cost approval remains the sole operational blocker.
+Phase 13B implements the prospectively amended, explicitly authorized six-execution runner with
+sequential cost guards and source-free evidence. No Phase 13 provider call or experiment has run.
 Phase 12.8A additionally prepared separately scoped license evidence, revision/profile-bound graph
 evidence, outcome-blind selection, and prospective power scenarios. No Phase 13 experiment has run.
 Version 0.12.6 added a strict
@@ -175,10 +176,11 @@ benchmark checkouts out of Git and never expose gold patches to repair context.
 8. Completed: provider-neutral multi-agent orchestration and deterministic replay.
 9. Completed: secure API provider adapters.
 10. Completed: iterative candidate/refinement control and deterministic evidence selection.
-11. Current: reproducible benchmark metadata, dataset policy, and gold-patch quarantine. External
-    acquisition and final scientific experiments remain future work.
-12. Current: controlled baselines, ablations, deterministic offline pilots and a prospective Phase 13
-    protocol. External/live pilots require explicit authorization and final evaluation remains untouched.
+11. Completed: reproducible benchmark metadata, dataset policy, gold-patch quarantine, and qualified
+    immutable task acquisition.
+12. Completed: controlled baselines, deterministic offline pilots, frozen population and prospective
+    exploratory protocol.
+13. Implemented but not executed: explicit-acknowledgement six-run workflow and source-free evidence.
 
 See [protocol](docs/research/research-protocol.md), [questions](docs/research/research-questions.md)
 and [registry](docs/research/experiment-registry.md). Smoke configuration is metadata only.
