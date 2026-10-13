@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      PHASE13_OUTPUT: ${{ runner.temp }}/archguard-phase13-evidence
+      PHASE13_OUTPUT: /tmp/archguard-phase13-evidence
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v6
