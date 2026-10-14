@@ -109,3 +109,7 @@ are pre-provider checkout infrastructure attrition, not model outcomes or repair
 valid PySnooper pairs show 0/2 successes in each condition and no observed effectiveness difference.
 This underpowered exploratory feasibility result supports no inferential, generalization, or
 superiority claim.
+
+Phase 14A is documentation and research synthesis only. It derives publication tables and descriptive
+figures from the frozen Phase 13 artifacts, registers no new execution or outcome, and requires human
+approval for literature synthesis, novelty, venue, authorship, and interpretation.

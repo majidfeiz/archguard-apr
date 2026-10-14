@@ -27,6 +27,7 @@ components:
       - {type: module_prefix, value: tests}
       - {type: path_prefix, value: scripts}
       - {type: path_prefix, value: examples}
+      - {type: path_prefix, value: paper}
 rules:
   - id: domain-only-domain
     type: allow_only_dependencies

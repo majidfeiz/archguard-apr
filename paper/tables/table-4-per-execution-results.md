@@ -1,0 +1,10 @@
+# Table 4 — Per-execution Phase 13 results
+
+| ordinal | task_id | project | condition | execution_status | terminal_classification | repair_success | input_tokens | output_tokens | observed_usd | result_fingerprint |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | PySnooper-2 | PySnooper | baseline | SCIENTIFIC_RESULT | invalid_patch | False | 5200 | 863 | 0.025945 | fbd7a508ceddffb09a78417b3035cc9ebff18e9cacc4c7d776032a31974b7a8d |
+| 2 | PySnooper-2 | PySnooper | archguard | SCIENTIFIC_RESULT | invalid_patch | False | 15108 | 1550 | 0.06102 | f0a125e74d5d1d25556f76f68b0b70cbe2d02a622406acd86b442eb74506ca4b |
+| 3 | PySnooper-3 | PySnooper | baseline | SCIENTIFIC_RESULT | invalid_patch | False | 2621 | 174 | 0.0091625 | e9e30433f6d1187c08501e4b9fa5b10eea3067a86563462e573ea4378bfc18bb |
+| 4 | PySnooper-3 | PySnooper | archguard | SCIENTIFIC_RESULT | invalid_patch | False | 12502 | 150 | 0.033505 | 4c90bab0ecaf7288fb463ceceb0d92c924193ddaf6bb8cd737a88f2c03032ce0 |
+| 5 | black-4 | black | baseline | INFRASTRUCTURE_ATTRITION | not_observed |  | 0 | 0 | 0 |  |
+| 6 | black-4 | black | archguard | INFRASTRUCTURE_ATTRITION | not_observed |  | 0 | 0 | 0 |  |

@@ -1,0 +1,8 @@
+flowchart TD
+  A[Validated repository snapshot] --> B[Graph and context retrieval]
+  B --> C[Architecture constraints]
+  C --> D[Provider request under budget gate]
+  D --> E[Patch parsing and security policy]
+  E -->|valid| F[Sandboxed evaluator]
+  E -->|invalid| G[Terminal invalid-patch record]
+  F --> H[Source-free execution result]

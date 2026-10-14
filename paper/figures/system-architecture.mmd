@@ -1,0 +1,10 @@
+flowchart LR
+  CLI[Entrypoints] --> APP[Application services]
+  APP --> DOMAIN[Vendor-neutral domain]
+  APP --> SNAP[Validated snapshots]
+  SNAP --> GRAPH[Immutable repository graph]
+  GRAPH --> PROFILE[Architecture profile evaluation]
+  APP --> PATCH[Secure patch validation]
+  PATCH --> EXEC[Sandboxed execution feedback]
+  APP --> PROVIDER[Provider abstraction and cost guards]
+  APP --> ART[Canonical source-free artifacts]
