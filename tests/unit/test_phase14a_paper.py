@@ -4,6 +4,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
+
+def test_paper_build_scripts_are_assigned_to_architecture_support(
+    repository_root: Path,
+) -> None:
+    profile = yaml.safe_load((repository_root / ".archguard/architecture.yaml").read_text())
+    tests = next(component for component in profile["components"] if component["id"] == "tests")
+    assert {"type": "path_prefix", "value": "paper"} in tests["selectors"]
+
 
 def test_paper_data_preserves_phase13_source_results(repository_root: Path) -> None:
     canonical = list(
