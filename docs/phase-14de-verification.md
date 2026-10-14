@@ -11,10 +11,21 @@ or unreadable outputs. DOCX is generated with controlled metadata and A4 section
 exported through Microsoft Word; PDF byte identity is not claimed because the exporter may include
 variable metadata.
 
+The focused equivalence repair adds a deterministic 49-row English–Persian section matrix in CSV and
+Markdown. The publication counters report 6,606 English and 6,247 Persian words. All 49 headings,
+23 references, 10 unique tables, seven figures, frozen facts, and required scientific topics are
+represented in both editions; no matrix row remains compressed or missing.
+
 Visual QA rendered every page of both PDFs. The PDF pages are also the independent visual rendering
 of the corresponding DOCX export path. The review checked shaping, bidi behavior, margins, headers,
 footers, page numbers, section continuity, citations, references, diagrams, tables, hashes, and blank
 pages. Derived page images remain in temporary storage and are not committed.
+
+The rebuilt English editions contain 29 A4 pages each and the Persian editions contain 20 A4 pages
+each. Arial was selected for Persian as the trusted installed fallback because Vazirmatn, Noto Naskh
+Arabic, and Noto Sans Arabic were unavailable. No font was downloaded. All 20 Persian pages were
+inspected for shaping, RTL flow, punctuation, citations, Latin identifiers, email/ORCID, widths,
+captions, page breaks, references, omissions, blank pages, clipping, and overlap.
 
 Scientific evidence did not change. No experiment, benchmark, repair agent, Docker workload, network
 request, provider request, or GitHub Actions workflow ran.

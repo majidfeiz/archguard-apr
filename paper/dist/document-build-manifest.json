@@ -1,30 +1,31 @@
 {
   "author": "Majid Feiz Deilami",
-  "build_notes": "DOCX created by macOS textutil and normalized OOXML; PDF exported by Microsoft Word. PDF byte identity is not claimed because the exporter may embed variable metadata.",
+  "build_notes": "DOCX created by macOS textutil and normalized OOXML; PDF exported by Microsoft Word. Persian layout uses RTL paragraph direction and the trusted installed Arial fallback. PDF byte identity is not claimed because the exporter may embed variable metadata.",
   "fonts": {
     "english": "Times New Roman",
-    "persian": "Arial"
+    "persian": "Arial",
+    "persian_selection_reason": "Arial fallback: Vazirmatn, Noto Naskh Arabic, and Noto Sans Arabic were not installed; no font was downloaded."
   },
   "outputs": {
     "ArchGuard-APR-English.docx": {
-      "bytes": 26664,
+      "bytes": 26534,
       "pages": 29,
-      "sha256": "fcd1c40b5e63c3502a77aaad3018a192069893b6d935079364c5898ff084e5d0"
+      "sha256": "64bc254302f48818e7988d1923a113496888d6ab668ccf87958fec7dfe5a3e67"
     },
     "ArchGuard-APR-English.pdf": {
-      "bytes": 352204,
+      "bytes": 350770,
       "pages": 29,
-      "sha256": "886f8f7ef9fab199a2ba52707d4e2d9628a65adef9a31de3b1a5e4bd5b45a29e"
+      "sha256": "3897a5a08fbe2d911659285cfbd03c92828fa6a10f4ddcdb21ec8de6d080bc45"
     },
     "ArchGuard-APR-Persian.docx": {
-      "bytes": 15050,
-      "pages": 11,
-      "sha256": "6a2f65b6671bc3bd27f0580dc8784de12cfa3922e343e3ca44d94f062dbe47a4"
+      "bytes": 24136,
+      "pages": 20,
+      "sha256": "b1108a80e5f13324fcf0b5044aa84873a92fcf056377717b9dcdf72b6ac1032f"
     },
     "ArchGuard-APR-Persian.pdf": {
-      "bytes": 209515,
-      "pages": 11,
-      "sha256": "b6d7e8187ba9a1e95b5005d1b19a9f2a942fda6848100848f68b0f1513a508e7"
+      "bytes": 353561,
+      "pages": 20,
+      "sha256": "74991960ebc71abbd0b1728e4d3b0e8a0fa6c785e2e373a1f41e1d6661a67158"
     }
   },
   "phase13_modified": false,
@@ -33,14 +34,14 @@
   "sources": {
     "archguard-apr-en.bib": "686327f17f3022079f445c8366e88bd8e4e4a0763cf48bca91a3b4db0e540897",
     "archguard-apr-en.md": "ad50887cdd156527c5bb2006c6026b4ca79464ecfa5a97451ad29f581bf68578",
-    "archguard-apr-fa.md": "076a8e7be57bb1ad037ea393691529cba13b8288ce243bbd532894262444f5d1"
+    "archguard-apr-fa.md": "6eb826db5616736e6baf1183697b106533a32830c1e645036cda978c15e43fe2"
   },
   "status": "Author manuscript — not peer reviewed",
   "validation": {
     "citation_keys": 23,
     "english_words": 6606,
     "figures": 7,
-    "persian_words": 2767,
+    "persian_words": 6247,
     "tables": 10,
     "verified_references": 23
   }
