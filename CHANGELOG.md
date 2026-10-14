@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Record the verified Zenodo concept and version DOIs for the English Version 1.0.0 preprint and
+  the distinct v0.12.8 software DOI without regenerating the manuscript or changing Phase 13 evidence.
 - Prepare a fail-closed public-release audit, professional README, scoped licensing, citation and
   governance guidance, GitHub metadata recommendations, and source-free release drafts.
 - Remove a non-public contact field from the current tree while documenting that the value remains

@@ -17,7 +17,9 @@
     "reproducible research"
   ],
   "license": "Apache-2.0; separate author-owned documentation/manuscript content is CC BY 4.0",
-  "notes": "DRAFT ONLY: verify scoped licensing and replace the version placeholder before deposit. No DOI has been assigned.",
+  "doi": "10.5281/zenodo.23377882",
+  "notes": "VERIFIED PUBLISHED SOFTWARE METADATA: this file describes the v0.12.8 software record, not the separately published English preprint. Future deposits require a fresh review.",
+  "publication_date": "2026-10-14",
   "publication_type": "software",
   "related_identifiers": [
     {
@@ -29,5 +31,5 @@
   "repository_url": "https://github.com/majidfeiz/archguard-apr",
   "title": "ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair with Repository Graphs and Execution Feedback",
   "upload_type": "software",
-  "version": "REPLACE_WITH_APPROVED_RELEASE_VERSION"
+  "version": "v0.12.8"
 }

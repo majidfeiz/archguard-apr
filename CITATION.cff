@@ -9,7 +9,22 @@ authors:
     affiliation: "Lahijan Branch, Islamic Azad University"
     email: "majid.feiz@iau.ir"
 version: 0.12.8
+doi: "10.5281/zenodo.23377882"
+date-released: "2026-10-14"
 license: Apache-2.0
 repository-code: "https://github.com/majidfeiz/archguard-apr"
-# After an archival Zenodo release, verify the DOI and then add it here and reassess
-# preferred-citation. Do not add an unassigned or draft DOI.
+preferred-citation:
+  type: article
+  title: "ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair Using Repository Graphs and Execution Feedback"
+  authors:
+    - family-names: Feiz Deilami
+      given-names: Majid
+      orcid: "https://orcid.org/0009-0006-8439-1839"
+      affiliation: "Department of Computer Engineering, Lahijan Branch, Islamic Azad University, Lahijan, Iran"
+  doi: "10.5281/zenodo.23377965"
+  date-published: "2026-10-14"
+  status: preprint
+  year: 2026
+  version: 1.0.0
+  publisher:
+    name: Zenodo

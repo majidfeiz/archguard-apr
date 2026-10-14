@@ -1,12 +1,21 @@
 {
   "schema": "archguard.publication-registry/v1",
-  "phase": "14D-14E",
-  "status": "READY_FOR_HUMAN_REVIEW",
-  "author_manuscript_status": "not peer reviewed",
+  "phase": "POST_PUBLICATION_METADATA",
+  "status": "ENGLISH_PREPRINT_PUBLISHED",
+  "author_manuscript_status": "English preprint published; Persian author manuscript unpublished; neither peer reviewed",
+  "english_preprint": {
+    "concept_doi": "10.5281/zenodo.23377964",
+    "license": "CC-BY-4.0",
+    "publication_date": "2026-10-14",
+    "peer_reviewed": false,
+    "version": "1.0.0",
+    "version_doi": "10.5281/zenodo.23377965"
+  },
   "languages": ["English", "Persian"],
   "verified_reference_count": 23,
   "phase_13_result_fingerprint": "761d9853f6ecfb4dafdaad81de781c4d49108b8b82912aeec509e173c7d56c70",
   "phase_13_evidence_modified": false,
   "provider_calls": 0,
+  "software_version_doi": "10.5281/zenodo.23377882",
   "inventory": "paper/dist/document-build-manifest.json"
 }
