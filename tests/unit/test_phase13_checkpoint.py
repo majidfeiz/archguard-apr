@@ -35,30 +35,104 @@ from archguard.infrastructure.phase13_checkpoint import (
 from archguard.infrastructure.provider_preflight import load_phase13_provider_configuration
 from tests.unit.test_phase13_runner import FakeExecutor
 
-CHECKPOINT = Path("research/evidence/phase-13-checkpoint-run-38452767198.json")
+CHECKPOINT = Path("research/evidence/phase-13-checkpoint-four-executions.json")
 PROTOCOL = "eae1920ce71c025d2d94096798daf8b14df098249743631efe9a0aa7a541fbe8"
 
 
 def test_committed_checkpoint_is_canonical_and_exact(repository_root: Path) -> None:
     value = load_checkpoint(repository_root / CHECKPOINT)
-    assert value["completed_ordinals"] == [1]
-    assert value["next_ordinal"] == 2
-    assert value["remaining_ordinals"] == [2, 3, 4, 5, 6]
-    assert value["carried_observed_usd"] == "0.025945"
-    assert value["carried_provider_calls"] == 1
-    assert value["historical_stop_reason"] == "execution_failure"
+    assert value["completed_ordinals"] == [1, 2, 3, 4]
+    assert value["next_ordinal"] == 5
+    assert value["remaining_ordinals"] == [5, 6]
+    assert value["carried_observed_usd"] == "0.1296325"
+    assert value["carried_provider_calls"] == 4
+    assert value["historical_stop_reason"] == "pre_provider_failure"
     assert value["active_stop_reason"] is None
     assert value["resume_allowed"] is True
 
 
 def test_archive_import_is_deterministic_and_idempotent(repository_root: Path) -> None:
-    archive = Path("/tmp/phase-13-provider-preflight-11840547579.zip")
+    archive = Path("/tmp/phase-13-provider-preflight-four-executions.zip")
     if not archive.exists():
         pytest.skip("reviewed incident archive is not present")
     first = import_checkpoint(archive, INCIDENT_FINGERPRINT)
     second = import_checkpoint(archive, INCIDENT_FINGERPRINT)
     assert first == second == load_checkpoint(repository_root / CHECKPOINT)
     assert hashlib.sha256(archive.read_bytes()).hexdigest() == ARCHIVE_SHA256
+
+
+def test_four_execution_archive_import_matches_committed_checkpoint(
+    repository_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkpoint = load_checkpoint(repository_root / CHECKPOINT)
+    call_ids = [item["call_id"] for item in checkpoint["call_ledger"]]
+    result_fingerprints = [
+        hashlib.sha256(canonical_json(item)).hexdigest()
+        for item in checkpoint["completed_executions"]
+    ]
+    members: dict[str, object] = {
+        "home/runner/work/_temp/provider-preflight.json": {
+            "schema": "archguard.provider-preflight/v1",
+            "network_request": False,
+        },
+        "home/runner/work/_temp/checkpoint.json": {},
+        "tmp/archguard-phase13-cost-state.json": {
+            "completed_primary_executions": 0,
+            "observed_provider_cost_usd": "0",
+        },
+        "tmp/archguard-phase13-evidence/cleanup.json": {
+            "complete": True,
+            "schema": "archguard.phase-13-cleanup/v1",
+        },
+        "tmp/archguard-phase13-evidence/cost-state.json": {
+            "schema": "archguard.phase-13-cost-state/v1",
+            "completed_primary": 4,
+            "provider_calls_started": 4,
+            "provider_calls_completed": 4,
+            "provider_calls_with_usage": 4,
+            "observed_usd": "0.1296325",
+            "call_ids": call_ids,
+        },
+        "tmp/archguard-phase13-evidence/manifest.json": {
+            "schema": "archguard.phase-13-manifest/v1",
+            "completed_executions": 4,
+            "provider_calls_completed": 4,
+            "total_cost_usd": "0.1296325",
+            "result_fingerprints": result_fingerprints,
+        },
+        "tmp/archguard-phase13-evidence/pre-provider-failure.json": checkpoint[
+            "historical_pre_provider_failure"
+        ],
+    }
+    for ordinal, execution in enumerate(checkpoint["completed_executions"], start=1):
+        members[f"tmp/archguard-phase13-evidence/execution-{ordinal}.json"] = execution
+    archive = tmp_path / "reviewed.zip"
+
+    def write_archive() -> None:
+        with zipfile.ZipFile(archive, "w") as bundle:
+            for name, value in members.items():
+                bundle.writestr(name, canonical_json(value))
+
+    write_archive()
+    monkeypatch.setattr(
+        "archguard.infrastructure.phase13_checkpoint.ARCHIVE_SHA256",
+        hashlib.sha256(archive.read_bytes()).hexdigest(),
+    )
+    imported = import_checkpoint(archive, INCIDENT_FINGERPRINT)
+    imported["archive_sha256"] = checkpoint["archive_sha256"]
+    imported["checkpoint_fingerprint"] = checkpoint["checkpoint_fingerprint"]
+    assert imported == checkpoint
+    members["home/runner/work/_temp/provider-preflight.json"] = {
+        "schema": "archguard.provider-preflight/v1",
+        "network_request": True,
+    }
+    write_archive()
+    monkeypatch.setattr(
+        "archguard.infrastructure.phase13_checkpoint.ARCHIVE_SHA256",
+        hashlib.sha256(archive.read_bytes()).hexdigest(),
+    )
+    with pytest.raises(ValueError, match="preflight"):
+        import_checkpoint(archive, INCIDENT_FINGERPRINT)
 
 
 def test_archive_hash_mismatch_fails_before_parsing(tmp_path: Path) -> None:
@@ -151,11 +225,11 @@ def test_duplicate_archive_members_are_rejected(
         import_checkpoint(archive, INCIDENT_FINGERPRINT)
 
 
-def test_resume_starts_at_two_and_preserves_carried_evidence(
+def test_resume_starts_at_five_and_preserves_carried_evidence(
     repository_root: Path, tmp_path: Path
 ) -> None:
     checkpoint = load_checkpoint(repository_root / CHECKPOINT)
-    carried_evidence = canonical_json(checkpoint["completed_executions"][0])
+    carried_evidence = [canonical_json(item) for item in checkpoint["completed_executions"]]
     configuration = load_phase13_provider_configuration(
         repository_root / "configs/experiments/phase13-provider.json"
     )
@@ -179,32 +253,32 @@ def test_resume_starts_at_two_and_preserves_carried_evidence(
         checkpoint=checkpoint,
     )
     assert artifacts.states[0] == {
-        "observed_usd": Decimal("0.025945"),
+        "observed_usd": Decimal("0.1296325"),
         "reserved_usd": Decimal("0"),
-        "completed_primary": 1,
+        "completed_primary": 4,
         "attempted_retries": 0,
-        "provider_calls_started": 1,
-        "provider_calls_completed": 1,
-        "provider_calls_with_usage": 1,
-        "call_ids": (checkpoint["call_ledger"][0]["call_id"],),
+        "provider_calls_started": 4,
+        "provider_calls_completed": 4,
+        "provider_calls_with_usage": 4,
+        "call_ids": tuple(item["call_id"] for item in checkpoint["call_ledger"]),
         "stop_reason": None,
     }
-    assert [request.identity.ordinal for request in executor.requests] == [2, 3, 4, 5, 6]
+    assert [request.identity.ordinal for request in executor.requests] == [5, 6]
     assert [result.identity.ordinal for result in results] == [1, 2, 3, 4, 5, 6]
-    imported = json.loads((output / "execution-1.json").read_text())
-    assert imported == checkpoint["completed_executions"][0]
-    assert canonical_json(imported) == carried_evidence
+    imported = [json.loads((output / f"execution-{n}.json").read_text()) for n in range(1, 5)]
+    assert imported == checkpoint["completed_executions"]
+    assert [canonical_json(item) for item in imported] == carried_evidence
     state = json.loads((output / "cost-state.json").read_text())
     assert state["provider_calls_started"] == 6
     assert state["provider_calls_completed"] == 6
     assert state["provider_calls_with_usage"] == 6
-    assert state["observed_usd"] == "0.026945"
+    assert state["observed_usd"] == "0.1300325"
     manifest = json.loads((output / "manifest.json").read_text())
-    assert manifest["carried_executions"] == 1
-    assert manifest["newly_completed_executions"] == 5
-    assert manifest["carried_provider_calls"] == 1
-    assert manifest["new_provider_calls"] == 5
-    assert manifest["historical_stop_reason"] == "execution_failure"
+    assert manifest["carried_executions"] == 4
+    assert manifest["newly_completed_executions"] == 2
+    assert manifest["carried_provider_calls"] == 4
+    assert manifest["new_provider_calls"] == 2
+    assert manifest["historical_stop_reason"] == "pre_provider_failure"
     assert manifest["active_stop_reason"] == "complete"
     assert manifest["resume_allowed"] is True
 
@@ -234,7 +308,7 @@ def test_corrupted_checkpoint_fails_closed(
         (lambda value: value.update(schema="wrong"), "invariant"),
         (lambda value: value.update(completed_executions=[]), "executions"),
         (lambda value: value.update(call_ledger=[]), "call ledger"),
-        (lambda value: value.update(call_ledger=[{"ordinal": 1}]), "call identity"),
+        (lambda value: value.update(call_ledger=[{"ordinal": 1}]), "call ledger"),
         (lambda value: value.update(completed_executions=["bad"]), "execution"),
         (
             lambda value: value["completed_executions"][0].update(task_id="substitute"),
@@ -272,11 +346,56 @@ def test_dry_run_checkpoint_validation_has_no_provider_call(repository_root: Pat
     assert result.exit_code == 0
     value = json.loads(result.stdout)
     assert value["network_request"] is False
-    assert value["next_ordinal"] == 2
-    assert value["carried_provider_calls"] == 1
-    assert value["historical_stop_reason"] == "execution_failure"
+    assert value["next_ordinal"] == 5
+    assert value["carried_provider_calls"] == 4
+    assert value["historical_stop_reason"] == "pre_provider_failure"
     assert value["active_stop_reason"] is None
     assert value["resume_allowed"] is True
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (lambda value: value.update(historical_stop_reason="unknown"), "resume policy"),
+        (lambda value: value.update(call_ledger=[value["call_ledger"][0]] * 4), "call identity"),
+        (lambda value: value["completed_executions"].__setitem__(0, None), "execution"),
+        (
+            lambda value: value["completed_executions"][0].update(observed_usd="0.025946"),
+            "execution mismatch",
+        ),
+    ],
+)
+def test_additional_checkpoint_fail_closed_paths(
+    repository_root: Path,
+    tmp_path: Path,
+    mutation: Callable[[dict[str, Any]], None],
+    message: str,
+) -> None:
+    value = load_checkpoint(repository_root / CHECKPOINT)
+    mutation(value)
+    value["checkpoint_fingerprint"] = fingerprint(
+        {key: item for key, item in value.items() if key != "checkpoint_fingerprint"}
+    )
+    target = tmp_path / "invalid.json"
+    target.write_bytes(canonical_json(value))
+    with pytest.raises(ValueError, match=message):
+        load_checkpoint(target)
+
+
+def test_noncanonical_and_unfingerprinted_checkpoints_fail_closed(
+    repository_root: Path, tmp_path: Path
+) -> None:
+    canonical = (repository_root / CHECKPOINT).read_bytes()
+    noncanonical = tmp_path / "noncanonical.json"
+    noncanonical.write_bytes(canonical + b"\n")
+    with pytest.raises(ValueError, match="non-canonical"):
+        load_checkpoint(noncanonical)
+    value = json.loads(canonical)
+    value["checkpoint_fingerprint"] = "0" * 64
+    unfingerprinted = tmp_path / "unfingerprinted.json"
+    unfingerprinted.write_bytes(canonical_json(value))
+    with pytest.raises(ValueError, match="fingerprint mismatch"):
+        load_checkpoint(unfingerprinted)
 
 
 @pytest.mark.parametrize(
@@ -341,5 +460,6 @@ def test_resume_helpers_reject_duplicate_calls_and_non_prefixes(repository_root:
         provider_calls_with_usage=1,
         call_ids=("a" * 64,),
     )
+    assert state.calls_started == 1
     with pytest.raises(ValueError, match="duplicate"):
         _register_call(state, "a" * 64, completed=True, usage=True)

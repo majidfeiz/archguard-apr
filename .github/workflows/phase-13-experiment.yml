@@ -29,7 +29,7 @@ jobs:
       PHASE13_CONFIG: configs/experiments/phase13-provider.json
       PHASE13_POPULATION: research/population/exploratory-feasibility-v1.json
       PHASE13_PROTOCOL: research/protocol/exploratory-feasibility-v2.json
-      PHASE13_CHECKPOINT: research/evidence/phase-13-checkpoint-run-38452767198.json
+      PHASE13_CHECKPOINT: research/evidence/phase-13-checkpoint-four-executions.json
       PHASE13_COST_STATE: /tmp/archguard-phase13-cost-state.json
       PHASE13_OUTPUT: /tmp/archguard-phase13-evidence
     steps:
@@ -59,10 +59,10 @@ jobs:
       - name: Validate source-free continuation checkpoint
         run: |
           uv run archguard experiment validate-checkpoint --checkpoint "$PHASE13_CHECKPOINT" > "$RUNNER_TEMP/checkpoint.json"
-          jq -e '.network_request == false and .completed_ordinals == [1]
-            and .next_ordinal == 2 and .remaining_executions == 5
-            and .carried_observed_usd == "0.025945"
-            and .carried_provider_calls == 1
+          jq -e '.network_request == false and .completed_ordinals == [1,2,3,4]
+            and .next_ordinal == 5 and .remaining_executions == 2
+            and .carried_observed_usd == "0.1296325"
+            and .carried_provider_calls == 4
             and .historical_stop_reason == "execution_failure"
             and .active_stop_reason == null
             and .resume_allowed == true' "$RUNNER_TEMP/checkpoint.json" >/dev/null

@@ -21,20 +21,25 @@ from archguard.domain.phase13 import (
     experiment_id,
 )
 
-ARCHIVE_SHA256 = "035c173e7505f8548996c2e18fcfdfaabf9b3ef3b29e221ba8b5f689c2df9952"
+ARCHIVE_SHA256 = "2004229eba0a901150335d2133dc345e551badd76cb763618fccf0afea41e31d"
 PROTOCOL_FINGERPRINT = "eae1920ce71c025d2d94096798daf8b14df098249743631efe9a0aa7a541fbe8"
-INCIDENT_FINGERPRINT = "1962b2743ee2f36ba05a163d1331d8197f826708b937e0e9adadb093c3002617"
+INCIDENT_FINGERPRINT = "71f60e3969313f139c493cad31ee20640fd6c2870d70411debdd5ab1956994e1"
 CHECKPOINT_SCHEMA = "archguard.phase-13-checkpoint/v1"
-MAX_ARCHIVE_BYTES = 16_384
+MAX_ARCHIVE_BYTES = 32_768
 MAX_MEMBER_BYTES = 4_096
 MEMBERS = frozenset(
     {
         "home/runner/work/_temp/provider-preflight.json",
+        "home/runner/work/_temp/checkpoint.json",
         "tmp/archguard-phase13-cost-state.json",
         "tmp/archguard-phase13-evidence/cleanup.json",
         "tmp/archguard-phase13-evidence/cost-state.json",
         "tmp/archguard-phase13-evidence/execution-1.json",
+        "tmp/archguard-phase13-evidence/execution-2.json",
+        "tmp/archguard-phase13-evidence/execution-3.json",
+        "tmp/archguard-phase13-evidence/execution-4.json",
         "tmp/archguard-phase13-evidence/manifest.json",
+        "tmp/archguard-phase13-evidence/pre-provider-failure.json",
     }
 )
 
@@ -62,14 +67,11 @@ def import_checkpoint(archive: Path, incident_fingerprint: str) -> dict[str, Any
                 raise ValueError("invalid checkpoint JSON object")
             values[info.filename] = value
     _validate_archive_values(values)
-    execution = values["tmp/archguard-phase13-evidence/execution-1.json"]
-    call_id = fingerprint(
-        {
-            "github_run_id": "38452767198",
-            "ordinal": 1,
-            "response_fingerprint": execution["response_fingerprint"],
-        }
-    )
+    executions = [
+        values[f"tmp/archguard-phase13-evidence/execution-{ordinal}.json"]
+        for ordinal in range(1, 5)
+    ]
+    call_ids = values["tmp/archguard-phase13-evidence/cost-state.json"]["call_ids"]
     checkpoint: dict[str, Any] = {
         "schema": CHECKPOINT_SCHEMA,
         "archive_sha256": ARCHIVE_SHA256,
@@ -78,27 +80,31 @@ def import_checkpoint(archive: Path, incident_fingerprint: str) -> dict[str, Any
         "protocol_fingerprint": PROTOCOL_FINGERPRINT,
         "provider_configuration_fingerprint": PROVIDER_FINGERPRINT,
         "experiment_id": experiment_id(PROTOCOL_FINGERPRINT),
-        "completed_ordinals": [1],
-        "next_ordinal": 2,
-        "remaining_ordinals": [2, 3, 4, 5, 6],
-        "carried_observed_usd": "0.025945",
-        "carried_provider_calls": 1,
+        "completed_ordinals": [1, 2, 3, 4],
+        "next_ordinal": 5,
+        "remaining_ordinals": [5, 6],
+        "carried_observed_usd": "0.1296325",
+        "carried_provider_calls": 4,
         "attempted_retries": 0,
-        "historical_stop_reason": ResumeStopReason.EXECUTION_FAILURE.value,
+        "historical_stop_reason": ResumeStopReason.PRE_PROVIDER_FAILURE.value,
         "historical_stop_classification": (
-            ResumeStopClassification.CORRECTED_TERMINAL_OUTCOME_BUG.value
+            ResumeStopClassification.CORRECTED_CHECKOUT_ACQUISITION_BUG.value
         ),
+        "historical_pre_provider_failure": values[
+            "tmp/archguard-phase13-evidence/pre-provider-failure.json"
+        ],
         "active_stop_reason": None,
         "resume_allowed": True,
         "call_ledger": [
             {
                 "call_id": call_id,
-                "ordinal": 1,
+                "ordinal": ordinal,
                 "completed": True,
                 "usage_recorded": True,
             }
+            for ordinal, call_id in enumerate(call_ids, start=1)
         ],
-        "completed_executions": [execution],
+        "completed_executions": executions,
     }
     checkpoint["checkpoint_fingerprint"] = fingerprint(checkpoint)
     return checkpoint
@@ -130,11 +136,11 @@ def load_checkpoint(path: Path) -> dict[str, Any]:
         or value.get("protocol_fingerprint") != PROTOCOL_FINGERPRINT
         or value.get("provider_configuration_fingerprint") != PROVIDER_FINGERPRINT
         or value.get("experiment_id") != experiment_id(PROTOCOL_FINGERPRINT)
-        or value.get("completed_ordinals") != [1]
-        or value.get("next_ordinal") != 2
-        or value.get("remaining_ordinals") != [2, 3, 4, 5, 6]
-        or value.get("carried_observed_usd") != "0.025945"
-        or value.get("carried_provider_calls") != 1
+        or value.get("completed_ordinals") != [1, 2, 3, 4]
+        or value.get("next_ordinal") != 5
+        or value.get("remaining_ordinals") != [5, 6]
+        or value.get("carried_observed_usd") != "0.1296325"
+        or value.get("carried_provider_calls") != 4
         or value.get("attempted_retries") != 0
         or value.get("active_stop_reason") is not None
         or value.get("resume_allowed") is not policy.resume_allowed
@@ -143,15 +149,16 @@ def load_checkpoint(path: Path) -> dict[str, Any]:
         raise ValueError("checkpoint invariant mismatch")
     executions = value.get("completed_executions")
     ledger = value.get("call_ledger")
-    if not isinstance(executions, list) or len(executions) != 1:
+    if not isinstance(executions, list) or len(executions) != 4:
         raise ValueError("invalid checkpoint executions")
-    if not isinstance(ledger, list) or len(ledger) != 1:
+    if not isinstance(ledger, list) or len(ledger) != 4:
         raise ValueError("invalid checkpoint call ledger")
-    _validate_execution(executions[0])
+    for ordinal, execution in enumerate(executions, start=1):
+        _validate_execution(execution, ordinal)
     call_ids = [item.get("call_id") for item in ledger if isinstance(item, dict)]
     if (
         len(call_ids) != len(set(call_ids))
-        or len(call_ids) != 1
+        or len(call_ids) != 4
         or any(not isinstance(call_id, str) or len(call_id) != 64 for call_id in call_ids)
     ):
         raise ValueError("duplicate or malformed checkpoint call identity")
@@ -163,8 +170,9 @@ def _validate_archive_values(values: dict[str, dict[str, Any]]) -> None:
     initial = values["tmp/archguard-phase13-cost-state.json"]
     cleanup = values["tmp/archguard-phase13-evidence/cleanup.json"]
     cost = values["tmp/archguard-phase13-evidence/cost-state.json"]
-    execution = values["tmp/archguard-phase13-evidence/execution-1.json"]
+    executions = [values[f"tmp/archguard-phase13-evidence/execution-{n}.json"] for n in range(1, 5)]
     manifest = values["tmp/archguard-phase13-evidence/manifest.json"]
+    diagnostic = values["tmp/archguard-phase13-evidence/pre-provider-failure.json"]
     if (
         preflight.get("schema") != "archguard.provider-preflight/v1"
         or preflight.get("network_request") is not False
@@ -177,23 +185,35 @@ def _validate_archive_values(values: dict[str, dict[str, Any]]) -> None:
         raise ValueError("invalid imported initial state")
     if cleanup != {"complete": True, "schema": "archguard.phase-13-cleanup/v1"}:
         raise ValueError("incomplete imported cleanup")
-    _validate_execution(execution)
-    execution_hash = hashlib.sha256(canonical_json(execution)).hexdigest()
+    for ordinal, execution in enumerate(executions, start=1):
+        _validate_execution(execution, ordinal)
+    execution_hashes = [hashlib.sha256(canonical_json(item)).hexdigest() for item in executions]
     if (
         cost.get("schema") != "archguard.phase-13-cost-state/v1"
-        or cost.get("completed_primary") != 1
-        or cost.get("calls_started") != 2
-        or cost.get("observed_usd") != "0.025945"
+        or cost.get("completed_primary") != 4
+        or cost.get("provider_calls_started") != 4
+        or cost.get("provider_calls_completed") != 4
+        or cost.get("provider_calls_with_usage") != 4
+        or cost.get("observed_usd") != "0.1296325"
         or manifest.get("schema") != "archguard.phase-13-manifest/v1"
-        or manifest.get("completed_executions") != 1
-        or manifest.get("total_calls") != 2
-        or manifest.get("total_cost_usd") != "0.025945"
-        or manifest.get("result_fingerprints") != [execution_hash]
+        or manifest.get("completed_executions") != 4
+        or manifest.get("provider_calls_completed") != 4
+        or manifest.get("total_cost_usd") != "0.1296325"
+        or manifest.get("result_fingerprints") != execution_hashes
+        or diagnostic
+        != {
+            "condition": "baseline",
+            "diagnostic_fingerprint": INCIDENT_FINGERPRINT,
+            "exception_category": "validation_failure",
+            "run_ordinal": 5,
+            "stage": "checkout",
+            "task_id": "black-4",
+        }
     ):
         raise ValueError("imported incident evidence mismatch")
 
 
-def _validate_execution(value: Any) -> None:
+def _validate_execution(value: Any, ordinal: int) -> None:
     if not isinstance(value, dict):
         raise ValueError("invalid imported execution")
     required_hashes = (
@@ -215,26 +235,54 @@ def _validate_execution(value: Any) -> None:
             value.get("project"),
             value.get("condition"),
         )
-        != (1, "PySnooper-2", "PySnooper", "baseline")
+        != {
+            1: (1, "PySnooper-2", "PySnooper", "baseline"),
+            2: (2, "PySnooper-2", "PySnooper", "archguard"),
+            3: (3, "PySnooper-3", "PySnooper", "baseline"),
+            4: (4, "PySnooper-3", "PySnooper", "archguard"),
+        }[ordinal]
         or value.get("terminal_classification") != "invalid_patch"
         or value.get("patch_parsed") is not False
         or value.get("patch_applied") is not False
         or value.get("evaluator_executed") is not False
-        or value.get("observed_usd") != "0.025945"
+        or value.get("observed_usd")
+        != {1: "0.025945", 2: "0.06102", 3: "0.0091625", 4: "0.033505"}[ordinal]
         or value.get("usage")
         != {
-            "cached_input_tokens": 0,
-            "input_tokens": 5200,
-            "output_tokens": 863,
-            "reasoning_tokens": 0,
-        }
+            1: {
+                "cached_input_tokens": 0,
+                "input_tokens": 5200,
+                "output_tokens": 863,
+                "reasoning_tokens": 0,
+            },
+            2: {
+                "cached_input_tokens": 0,
+                "input_tokens": 15108,
+                "output_tokens": 1550,
+                "reasoning_tokens": 0,
+            },
+            3: {
+                "cached_input_tokens": 0,
+                "input_tokens": 2621,
+                "output_tokens": 174,
+                "reasoning_tokens": 0,
+            },
+            4: {
+                "cached_input_tokens": 0,
+                "input_tokens": 12502,
+                "output_tokens": 150,
+                "reasoning_tokens": 0,
+            },
+        }[ordinal]
         or any(
             not isinstance(value.get(key), str) or len(value[key]) != 64 for key in required_hashes
         )
     ):
         raise ValueError("imported execution mismatch")
+    usage = value["usage"]
     expected_cost = (
-        Decimal("5200") * Decimal("2.50") + Decimal("863") * Decimal("15.00")
+        Decimal(usage["input_tokens"]) * Decimal("2.50")
+        + Decimal(usage["output_tokens"]) * Decimal("15.00")
     ) / Decimal("1000000")
     if expected_cost != Decimal(value["observed_usd"]):
         raise ValueError("imported execution cost mismatch")

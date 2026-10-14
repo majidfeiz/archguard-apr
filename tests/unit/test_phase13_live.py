@@ -170,30 +170,75 @@ def test_checkout_validates_revision_and_tree(
     repository_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     executor = _executor(repository_root, tmp_path)
-    responses = iter(
-        [
-            "",
-            "",
-            "e21a31162f4c54be693d8ca8260e42393b39abd3\n",
-            "100644 blob x\tfile.py\n",
-        ]
-    )
 
-    def fake_run(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(stdout=next(responses), returncode=0)
+    def fake_run(command: list[str], **kwargs: Any) -> SimpleNamespace:
+        joined = " ".join(command)
+        if "remote get-url" in joined:
+            output: str | bytes = "https://github.com/cool-RR/PySnooper.git\n"
+        elif "HEAD^{commit}" in joined:
+            output = "e21a31162f4c54be693d8ca8260e42393b39abd3\n"
+        elif "HEAD^{tree}" in joined:
+            output = "999fdc6713e170e36ba077eda47294c66d2167b1\n"
+        elif "ls-tree" in joined:
+            output = b"100644 blob x\tfile.py\0"
+        else:
+            output = ""
+        return SimpleNamespace(stdout=output, returncode=0)
 
     monkeypatch.setattr("archguard.infrastructure.phase13_live.subprocess.run", fake_run)
     executor._checkout(_request(), tmp_path / "checkout")
 
 
+def test_black4_checkout_accepts_only_internal_tracked_symlink(
+    repository_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    origin = tmp_path / "black-origin.git"
+    origin.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=origin, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "fixture@example.invalid"], cwd=origin, check=True
+    )
+    subprocess.run(["git", "config", "user.name", "Fixture"], cwd=origin, check=True)
+    (origin / "target.txt").write_text("frozen\n")
+    (origin / "internal-link").symlink_to("target.txt")
+    subprocess.run(["git", "add", "target.txt", "internal-link"], cwd=origin, check=True)
+    subprocess.run(["git", "commit", "-qm", "fixture"], cwd=origin, check=True)
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=origin, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    tree = subprocess.run(
+        ["git", "rev-parse", "HEAD^{tree}"], cwd=origin, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    monkeypatch.setitem(
+        __import__(
+            "archguard.infrastructure.phase13_live", fromlist=["_REPOSITORIES"]
+        )._REPOSITORIES,
+        "Black",
+        str(origin)[:-4],
+    )
+    monkeypatch.setitem(
+        __import__("archguard.infrastructure.phase13_live", fromlist=["_REVISIONS"])._REVISIONS,
+        "black-4",
+        revision,
+    )
+    monkeypatch.setitem(
+        __import__("archguard.infrastructure.phase13_live", fromlist=["_TREES"])._TREES,
+        "black-4",
+        tree,
+    )
+    executor = _executor(repository_root, tmp_path)
+    executor._checkout(_request(5), tmp_path / "checkout")
+    assert (tmp_path / "checkout/internal-link").resolve().read_text() == "frozen\n"
+
+
 @pytest.mark.parametrize(
-    ("head", "modes", "message"),
+    ("head", "tree", "message"),
     [
-        ("0" * 40, "100644 blob x\tf.py", "revision"),
+        ("0" * 40, "999fdc6713e170e36ba077eda47294c66d2167b1", "revision"),
         (
             "e21a31162f4c54be693d8ca8260e42393b39abd3",
-            "120000 blob x\tlink",
-            "symlink",
+            "0" * 40,
+            "tree",
         ),
     ],
 )
@@ -202,15 +247,26 @@ def test_checkout_rejects_untrusted_tree(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     head: str,
-    modes: str,
+    tree: str,
     message: str,
 ) -> None:
     executor = _executor(repository_root, tmp_path)
-    responses = iter(["", "", head, modes])
-    monkeypatch.setattr(
-        "archguard.infrastructure.phase13_live.subprocess.run",
-        lambda *args, **kwargs: SimpleNamespace(stdout=next(responses), returncode=0),
-    )
+
+    def fake_run(command: list[str], **kwargs: Any) -> SimpleNamespace:
+        joined = " ".join(command)
+        if "remote get-url" in joined:
+            output: str | bytes = "https://github.com/cool-RR/PySnooper.git"
+        elif "HEAD^{commit}" in joined:
+            output = head
+        elif "HEAD^{tree}" in joined:
+            output = tree
+        elif "ls-tree" in joined:
+            output = b"100644 blob x\tf.py\0"
+        else:
+            output = ""
+        return SimpleNamespace(stdout=output, returncode=0)
+
+    monkeypatch.setattr("archguard.infrastructure.phase13_live.subprocess.run", fake_run)
     with pytest.raises(ValueError, match=message):
         executor._checkout(_request(), tmp_path / "checkout")
 
