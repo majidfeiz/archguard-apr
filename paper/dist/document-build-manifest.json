@@ -8,24 +8,24 @@
   },
   "outputs": {
     "ArchGuard-APR-English.docx": {
-      "bytes": 26534,
+      "bytes": 27064,
       "pages": 29,
-      "sha256": "64bc254302f48818e7988d1923a113496888d6ab668ccf87958fec7dfe5a3e67"
+      "sha256": "8086ee5912392b940bc684d1d179f94969e819720c66175524f6a47843d89bbf"
     },
     "ArchGuard-APR-English.pdf": {
-      "bytes": 350770,
+      "bytes": 405705,
       "pages": 29,
-      "sha256": "3897a5a08fbe2d911659285cfbd03c92828fa6a10f4ddcdb21ec8de6d080bc45"
+      "sha256": "fefa19844d1981031b3fa3bda761c4ca7e096346e98adb88a7d1fe4207fae0e0"
     },
     "ArchGuard-APR-Persian.docx": {
-      "bytes": 24136,
+      "bytes": 24662,
       "pages": 20,
-      "sha256": "b1108a80e5f13324fcf0b5044aa84873a92fcf056377717b9dcdf72b6ac1032f"
+      "sha256": "b0ffcf722c773a866a7ab218afe59cc044ea8ff4b149fa85fd34680126d96962"
     },
     "ArchGuard-APR-Persian.pdf": {
-      "bytes": 353561,
+      "bytes": 364571,
       "pages": 20,
-      "sha256": "74991960ebc71abbd0b1728e4d3b0e8a0fa6c785e2e373a1f41e1d6661a67158"
+      "sha256": "414e8d8763886027aab09b046d6acd6260cfc534a597d2b81cae3ab39c1d49eb"
     }
   },
   "phase13_modified": false,

@@ -4,10 +4,10 @@
     {"classification": "safe_for_public_release", "path": "tests/", "role": "tests and synthetic fixtures"},
     {"classification": "generated_but_safe", "path": "research/results/phase-13/", "role": "canonical source-free results"},
     {"classification": "public_with_attribution", "path": "paper/", "role": "author manuscripts and publication material"},
-    {"classification": "generated_but_safe", "path": "paper/dist/ArchGuard-APR-English.pdf", "sha256": "3897a5a08fbe2d911659285cfbd03c92828fa6a10f4ddcdb21ec8de6d080bc45"},
-    {"classification": "generated_but_safe", "path": "paper/dist/ArchGuard-APR-English.docx", "sha256": "64bc254302f48818e7988d1923a113496888d6ab668ccf87958fec7dfe5a3e67"},
-    {"classification": "generated_but_safe", "path": "paper/dist/ArchGuard-APR-Persian.pdf", "sha256": "74991960ebc71abbd0b1728e4d3b0e8a0fa6c785e2e373a1f41e1d6661a67158"},
-    {"classification": "generated_but_safe", "path": "paper/dist/ArchGuard-APR-Persian.docx", "sha256": "b1108a80e5f13324fcf0b5044aa84873a92fcf056377717b9dcdf72b6ac1032f"}
+    {"classification": "generated_but_safe", "path": "paper/dist/ArchGuard-APR-English.pdf", "sha256": "fefa19844d1981031b3fa3bda761c4ca7e096346e98adb88a7d1fe4207fae0e0"},
+    {"classification": "generated_but_safe", "path": "paper/dist/ArchGuard-APR-English.docx", "sha256": "8086ee5912392b940bc684d1d179f94969e819720c66175524f6a47843d89bbf"},
+    {"classification": "generated_but_safe", "path": "paper/dist/ArchGuard-APR-Persian.pdf", "sha256": "414e8d8763886027aab09b046d6acd6260cfc534a597d2b81cae3ab39c1d49eb"},
+    {"classification": "generated_but_safe", "path": "paper/dist/ArchGuard-APR-Persian.docx", "sha256": "b0ffcf722c773a866a7ab218afe59cc044ea8ff4b149fa85fd34680126d96962"}
   ],
   "baseline_sha": "bc12e7c5e60052e0f5399777ba3bb3f95d76f95d",
   "excluded": ["credentials", "raw provider responses", "benchmark repositories", "gold patches", "evaluator-only assets", "raw logs", "temporary worktrees", "external evidence ZIP files"],

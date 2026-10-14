@@ -4,6 +4,7 @@ import subprocess
 import sys
 import zipfile
 from pathlib import Path
+from xml.etree import ElementTree
 
 
 def test_bilingual_publication_sources_validate(repository_root: Path) -> None:
@@ -70,6 +71,33 @@ def test_publication_documents_are_structurally_readable(repository_root: Path) 
             assert "word/document.xml" in names
             assert "word/header1.xml" in names
             assert "word/footer1.xml" in names
+            assert "word/footer2.xml" in names
+            document = ElementTree.fromstring(archive.read("word/document.xml"))
+            namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+            paragraphs = [
+                "".join(node.text or "" for node in paragraph.findall(".//w:t", namespace))
+                for paragraph in document.findall(".//w:p", namespace)
+            ]
+            assert document.find(".//w:titlePg", namespace) is not None
+            header_references = document.findall(".//w:headerReference", namespace)
+            relationship_type = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}type"
+            assert {reference.attrib[relationship_type] for reference in header_references} == {
+                "default"
+            }
+            assert sum("0009-0006-8439-1839" in paragraph for paragraph in paragraphs) == 1
+            assert all(
+                "ArchGuard-APR — Author manuscript" not in paragraph for paragraph in paragraphs
+            )
+            expected_author = "مجید فیض دیلمی" if "Persian" in name else "Majid Feiz Deilami"
+            assert expected_author in paragraphs
+            expected_status = (
+                "نسخه نویسنده — داوری علمی نشده"
+                if "Persian" in name
+                else "Author manuscript — not peer reviewed"
+            )
+            assert expected_status in paragraphs
+            relationships = archive.read("word/_rels/document.xml.rels").decode()
+            assert 'Target="https://orcid.org/0009-0006-8439-1839"' in relationships
     for name in ("ArchGuard-APR-English.pdf", "ArchGuard-APR-Persian.pdf"):
         assert (dist / name).read_bytes().startswith(b"%PDF-")
 
