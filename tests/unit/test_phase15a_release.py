@@ -7,12 +7,25 @@ from pathlib import Path
 import yaml
 
 
-def test_release_gate_fails_closed_for_historical_privacy(repository_root: Path) -> None:
+def test_release_gate_accepts_scoped_historical_personal_disclosure(
+    repository_root: Path,
+) -> None:
     gate = json.loads((repository_root / "release/public-release-gate.json").read_text())
-    assert gate["status"] == "BLOCKED"
-    assert gate["checks"]["history_privacy"] == "BLOCKED"
+    decision = json.loads(
+        (repository_root / "release/decisions/personal-email-disclosure.json").read_text()
+    )
+    assert gate["status"] == "READY_FOR_PUBLICATION"
+    assert gate["checks"]["history_privacy"] == "ACCEPTED_PERSONAL_DISCLOSURE"
+    assert gate["checks"]["personal_disclosure"] == "ACCEPTED_PERSONAL_DISCLOSURE"
+    assert gate["checks"]["license_boundary"] == "PASS_WITH_EXTERNAL_LIMITATIONS"
     assert gate["phase13_modified"] is False
-    assert gate["blocking_findings"]
+    assert gate["blocking_findings"] == []
+    assert decision["decision"] == "ACCEPT"
+    assert decision["authorized_value_category"] == "author-owned personal email"
+    assert decision["scope"] == "public Git repository history"
+    assert {"API keys", "credentials", "private third-party data"} <= set(
+        decision["authorization_exclusions"]
+    )
 
 
 def test_public_manifest_hashes_match_publication_files(repository_root: Path) -> None:
@@ -50,7 +63,17 @@ def test_release_inventory_is_source_free(repository_root: Path) -> None:
     with (repository_root / "release/replication-package-inventory.csv").open(newline="") as stream:
         rows = list(csv.DictReader(stream))
     restricted = {row["path"] for row in rows if row["included"] == "false"}
-    assert {"benchmark repositories", "gold patches", "raw provider responses"} <= restricted
+    assert {
+        "benchmark repositories",
+        "benchmark source archives",
+        "gold patches",
+        "SWE-bench dataset payload",
+        "BugsInPy source payload",
+        "evaluator-only restricted materials",
+        "third-party fonts",
+        "third-party papers",
+        "raw provider responses",
+    } <= restricted
     assert all(row["source_free"] == "true" for row in rows if row["included"] == "true")
 
 

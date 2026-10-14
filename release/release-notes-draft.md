@@ -4,4 +4,4 @@ ArchGuard-APR is a research prototype for architecture-aware automated program r
 
 This candidate includes verified English and Persian author manuscripts and the closed Phase 13 exploratory feasibility results. Six runs were planned; four completed with invalid patches and two were pre-provider infrastructure attritions. No effectiveness advantage, superiority, or generalization is claimed.
 
-Before release, resolve the blocked historical privacy finding, complete legal/manual license review, verify GitHub security settings, select an actual version/tag, and review the generated source archive. Do not include provider payloads, credentials, benchmark source, gold patches, evaluator-only assets, or raw logs.
+Before release, reconfirm the scoped historical personal-disclosure decision and distribution boundary, verify GitHub security settings, select an actual version/tag, and review the generated source archive. No legal opinion was obtained. Do not include provider payloads, credentials, benchmark source, gold patches, evaluator-only assets, or raw logs.

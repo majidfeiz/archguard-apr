@@ -2,7 +2,7 @@
 
 No Zenodo action occurs in Phase 15A. Before a deposit:
 
-1. Resolve the blocked history/privacy finding and all manual license checks.
+1. Reconfirm the accepted personal-disclosure decision and distribution-boundary review.
 2. Choose and tag an actual release version; replace the version placeholder in the metadata draft.
 3. Verify author identity, ORCID, affiliation, abstract, keywords, access right, and license scopes.
 4. Deposit only the source-free public-artifact manifest; exclude benchmark source, gold patches, provider payloads, credentials, raw logs, evaluator-only assets, worktrees, and external evidence ZIPs.
