@@ -1,11 +1,11 @@
 english,persian
-automated program repair,ترمیم خودکار برنامه
+automated program repair,تعمیر خودکار برنامه
 architecture constraint,قید معماری
 repository graph,گراف مخزن
 execution feedback,بازخورد اجرا
 patch validation,اعتبارسنجی وصله
 infrastructure attrition,ریزش زیرساختی
-exploratory feasibility evaluation,ارزیابی امکان‌سنجی اکتشافی
-source-free evidence,شواهد بدون منبع
-canonical artifact,اثر متعارف
+exploratory feasibility evaluation,ارزیابی اکتشافی امکان‌پذیری
+source-free evidence,شواهد عاری از کد منبع
+canonical artifact,مصنوع استاندارد
 reproducibility,بازتولیدپذیری

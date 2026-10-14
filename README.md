@@ -14,6 +14,9 @@ work protocol. Manuscript interpretation, novelty, venue, authorship, and unveri
 human decisions.
 Phase 14B–14C adds a verified-only bibliography and complete English Markdown/LaTeX manuscript draft;
 it remains unsubmitted, unreviewed, and subject to explicit human approval.
+Phase 14D–14E adds complete English and Persian author manuscripts plus A4 Word/PDF publication
+editions, cryptographic inventories, and page-level visual QA. The editions remain unsubmitted and
+not peer reviewed; venue selection and final human review remain open.
 
 Version 0.12.8 closes Phase 12 with fail-closed evidence ingestion, a human-approved exploratory
 three-task/two-project population, protocol-freeze contracts, and a factual Phase 13 readiness gate.

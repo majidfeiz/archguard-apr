@@ -1,8 +1,10 @@
 # ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair Using Repository Graphs and Execution Feedback
 
-**Majid Feiz**<br>
-Affiliation: `HUMAN_CONFIRMATION_REQUIRED`<br>
-Email: `HUMAN_CONFIRMATION_REQUIRED` · ORCID: `HUMAN_CONFIRMATION_REQUIRED`
+**Majid Feiz Deilami**<br>
+M.Sc. Student in Software Engineering<br>
+Department of Computer Engineering, Lahijan Branch, Islamic Azad University, Lahijan, Iran<br>
+Corresponding author: majid.feiz@iau.ir · ORCID: https://orcid.org/0009-0006-8439-1839<br>
+*Author manuscript — not peer reviewed*
 
 ## Abstract
 
@@ -745,15 +747,16 @@ and verification tests. The target venue remains undecided; the article is not s
 
 ## Author Contributions
 
-`HUMAN_CONFIRMATION_REQUIRED`
+The author was solely responsible for conceptualization, methodology, software development,
+validation, investigation, data curation, formal analysis, visualization, and manuscript preparation.
 
 ## Funding
 
-`HUMAN_CONFIRMATION_REQUIRED`
+This research received no external funding.
 
 ## Conflict of Interest
 
-`HUMAN_CONFIRMATION_REQUIRED`
+The author declares no conflict of interest.
 
 ## References
 
@@ -807,3 +810,6 @@ and verification tests. The target venue remains undecided; the article is not s
 
 Final manifest: `8afb87add96e29898ae712f8ef08928b9ba1290a0aabc3ce34bac82adb4b86c2`.
 Import: `80eac046fc614cad1beb7de127ba69aa907b5c588d5409c30e92e5b685c0dc28`.
+Population: `421f3129ef6bee5883c41d05f087d6faff5b2a3de3b2ea543b4d27ade1488886`.
+Protocol: `eae1920ce71c025d2d94096798daf8b14df098249743631efe9a0aa7a541fbe8`.
+Provider configuration: `f5dc6fb5b8bf54c7cf1b58b990fa3db44073500df9903e3a7d93cbeb1ad92c2d`.
