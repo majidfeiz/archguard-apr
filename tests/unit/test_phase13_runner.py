@@ -274,6 +274,8 @@ def test_workflow_scopes_secret_to_live_step(repository_root: Path) -> None:
     assert "default: false" in source
     assert "if: inputs.execute_scientific_run" in source
     assert "RUN_FROZEN_PHASE_13" in source
+    assert '.historical_stop_reason == "pre_provider_failure"' in source
+    assert '.historical_stop_reason == "execution_failure"' not in source
 
 
 class AlwaysFailExecutor(FakeExecutor):
