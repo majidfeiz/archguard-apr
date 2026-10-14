@@ -45,12 +45,14 @@ class ResumeStopReason(StrEnum):
     LEAKAGE_OR_SECURITY_FAILURE = "leakage_security_failure"
     CORRUPT_CHECKPOINT = "corrupt_checkpoint"
     INCOMPLETE_CLEANUP = "incomplete_cleanup"
+    PRE_PROVIDER_FAILURE = "pre_provider_failure"
 
 
 class ResumeStopClassification(StrEnum):
     """Auditable classification assigned to a historical stop."""
 
     CORRECTED_TERMINAL_OUTCOME_BUG = "corrected_terminal_outcome_bug"
+    CORRECTED_CHECKOUT_ACQUISITION_BUG = "corrected_checkout_acquisition_bug"
     FATAL = "fatal"
 
 
@@ -109,6 +111,9 @@ def classify_resume_stop(
     if (
         reason is ResumeStopReason.EXECUTION_FAILURE
         and classification is ResumeStopClassification.CORRECTED_TERMINAL_OUTCOME_BUG
+    ) or (
+        reason is ResumeStopReason.PRE_PROVIDER_FAILURE
+        and classification is ResumeStopClassification.CORRECTED_CHECKOUT_ACQUISITION_BUG
     ):
         return ResumePolicy(reason, None, True)
     return ResumePolicy(reason, reason, False)

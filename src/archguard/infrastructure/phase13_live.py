@@ -43,6 +43,11 @@ _REVISIONS = {
     "PySnooper-3": "6e3d797be3fa0a746fb5b1b7c7fea78eb926c208",
     "black-4": "65ea568e3301951f26e0e3b98f6d5dc80132e917",
 }
+_TREES = {
+    "PySnooper-2": "999fdc6713e170e36ba077eda47294c66d2167b1",
+    "PySnooper-3": "1afca46be552af2f9ace002d4b2ad13ca45bbfd3",
+    "black-4": "efd6ad524605315c87885e0c352f5d82f6230509",
+}
 _TASKS = {
     "PySnooper-2": (
         "Repair PySnooper custom_repr handling: a (list, callable) custom representation "
@@ -218,8 +223,9 @@ class Phase13LiveExecutor:
         return not self.root.exists()
 
     def _checkout(self, request: TreatmentRequest, destination: Path) -> None:
-        repository = _REPOSITORIES[request.identity.project]
+        repository = f"{_REPOSITORIES[request.identity.project]}.git"
         revision = _REVISIONS[request.identity.task_id]
+        expected_tree = _TREES[request.identity.task_id]
         environment = {**os.environ, "GIT_CONFIG_NOSYSTEM": "1", "GIT_LFS_SKIP_SMUDGE": "1"}
         subprocess.run(
             [
@@ -247,7 +253,7 @@ class Phase13LiveExecutor:
             timeout=120,
         )
         head = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "rev-parse", "HEAD^{commit}"],
             cwd=destination,
             check=True,
             capture_output=True,
@@ -255,15 +261,62 @@ class Phase13LiveExecutor:
         ).stdout.strip()
         if head != revision:
             raise ValueError("immutable revision mismatch")
+        remote = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=destination,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if remote != repository:
+            raise ValueError("repository remote mismatch")
+        tree = subprocess.run(
+            ["git", "rev-parse", "HEAD^{tree}"],
+            cwd=destination,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if tree != expected_tree:
+            raise ValueError("immutable tree mismatch")
         modes = subprocess.run(
-            ["git", "ls-tree", "-r", "HEAD"],
+            ["git", "ls-tree", "-rz", "HEAD"],
+            cwd=destination,
+            check=True,
+            capture_output=True,
+        ).stdout.split(b"\0")
+        root = destination.resolve()
+        for entry in modes:
+            if not entry:
+                continue
+            metadata, raw_path = entry.split(b"\t", 1)
+            mode = metadata.split(b" ", 1)[0]
+            if mode == b"160000":
+                raise ValueError("gitlink rejected")
+            if mode != b"120000":
+                continue
+            relative = Path(os.fsdecode(raw_path))
+            if relative.is_absolute() or ".." in relative.parts or relative.parts[0] == ".git":
+                raise ValueError("unsafe symlink path")
+            link = destination / relative
+            if not link.is_symlink() or Path(os.readlink(link)).is_absolute():
+                raise ValueError("unsafe symlink")
+            try:
+                target = link.resolve(strict=True)
+                target.relative_to(root)
+            except (OSError, ValueError):
+                raise ValueError("escaping or dangling symlink") from None
+            if target == destination / ".git" or (destination / ".git") in target.parents:
+                raise ValueError("git metadata symlink rejected")
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain=v1", "--untracked-files=no"],
             cwd=destination,
             check=True,
             capture_output=True,
             text=True,
         ).stdout
-        if any(line.startswith(("120000 ", "160000 ")) for line in modes.splitlines()):
-            raise ValueError("symlink or gitlink rejected")
+        if dirty:
+            raise ValueError("dirty checkout")
 
     def _context(self, request: TreatmentRequest, source: Path) -> tuple[str, str]:
         selected: list[str] = []
