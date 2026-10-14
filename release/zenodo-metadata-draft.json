@@ -1,0 +1,33 @@
+{
+  "access_right": "open",
+  "creators": [
+    {
+      "affiliation": "Department of Computer Engineering, Lahijan Branch, Islamic Azad University, Lahijan, Iran",
+      "name": "Feiz Deilami, Majid",
+      "orcid": "0009-0006-8439-1839"
+    }
+  ],
+  "description": "ArchGuard-APR is a research prototype for architecture-constraint-aware automated program repair using deterministic repository graphs, explicit architecture profiles, graph-guided context retrieval, isolated execution feedback, and reproducible source-free artifacts. Its Phase 13 evaluation is exploratory and underpowered and provides no effectiveness or superiority claim.",
+  "keywords": [
+    "automated program repair",
+    "software architecture",
+    "architecture conformance",
+    "repository graph",
+    "static analysis",
+    "reproducible research"
+  ],
+  "license": "Apache-2.0; separate author-owned documentation/manuscript content is CC BY 4.0",
+  "notes": "DRAFT ONLY: verify scoped licensing and replace the version placeholder before deposit. No DOI has been assigned.",
+  "publication_type": "software",
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/majidfeiz/archguard-apr",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ],
+  "repository_url": "https://github.com/majidfeiz/archguard-apr",
+  "title": "ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair with Repository Graphs and Execution Feedback",
+  "upload_type": "software",
+  "version": "REPLACE_WITH_APPROVED_RELEASE_VERSION"
+}

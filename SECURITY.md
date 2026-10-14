@@ -1,9 +1,10 @@
 # Security policy
 
-Phase 1 has no untrusted-code runner or public authenticated API. Bind the health API locally.
-Report vulnerabilities through GitHub private vulnerability reporting if enabled, or request
-a private maintainer contact through the owner’s profile without publishing exploit details.
-TODO: verify a dedicated reporting channel and support policy before operational release.
+Report vulnerabilities through GitHub private vulnerability reporting when enabled. If that feature
+is unavailable, email `majid.feiz@iau.ir` with the subject “ArchGuard-APR security report.” Do not
+open a public issue or include credentials, exploit payloads, benchmark source, or personal data in
+public discussion. Receipt is not a promise of a particular response time; this is research software,
+not a supported production service.
 
 Future builds/tests execute arbitrary code. Before enabling them, implement isolation, resource
 limits, network restrictions, filesystem/symlink containment, credential separation and output

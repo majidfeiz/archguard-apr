@@ -1,0 +1,22 @@
+{
+  "authorization_exclusions": [
+    "passwords",
+    "API keys",
+    "tokens",
+    "private keys",
+    "session values",
+    "credentials",
+    "private third-party data",
+    "raw provider responses",
+    "restricted benchmark content"
+  ],
+  "authorized_by": "Majid Feiz Deilami",
+  "authorized_value": "sermajid3@gmail.com",
+  "authorized_value_category": "author-owned personal email",
+  "decision": "ACCEPT",
+  "decision_date": "2026-10-14",
+  "reason": "The author accepts public disclosure and prioritizes preservation of repository and scientific provenance.",
+  "schema": "archguard.release-decision/v1",
+  "scope": "public Git repository history",
+  "subject": "historical personal-email disclosure"
+}

@@ -1,6 +1,9 @@
 name: Research task
 description: Propose a falsifiable research task.
 body:
+  - type: markdown
+    attributes:
+      value: "Proposals must preserve provenance, negative results, and licensing. Do not attach restricted benchmark data, gold patches, provider payloads, or credentials."
   - type: textarea
     id: context
     attributes:
