@@ -36,15 +36,19 @@ def main() -> None:
         "outperforms",
     ]
     assert not any(value in md.lower() or value in tex.lower() for value in prohibited)
-    citations = sorted(set(re.findall(r"\\cite\{([^}]+)\}", tex)))
+    citations = sorted(
+        {key.strip() for group in re.findall(r"\\cite\{([^}]+)\}", tex) for key in group.split(",")}
+    )
     bib = (ROOT / "paper/manuscript/archguard-apr-en.bib").read_text()
     assert all("{" + key + "," in bib for key in citations)
+    manuscript_body = md.split("\n## References\n", maxsplit=1)[0]
     statistics = {
         "schema": "archguard.manuscript-statistics/v1",
-        "word_count": len(re.findall(r"\b[\w'-]+\b", md)),
-        "verified_reference_count": 3,
+        "word_count": len(re.findall(r"\b[\w'-]+\b", manuscript_body)),
+        "total_markdown_word_count": len(re.findall(r"\b[\w'-]+\b", md)),
+        "verified_reference_count": 23,
         "citation_key_count": len(citations),
-        "table_count": 9,
+        "table_count": 10,
         "figure_count": 7,
         "unresolved_human_placeholders": 9,
         "scientific_result_fingerprints": [

@@ -1,8 +1,17 @@
 # Verified bibliography report
 
-Three primary arXiv records were independently inspected and retain `VERIFIED` status: RepairAgent,
-AutoCodeRover, and SpecRover. Their titles, complete author lists, years, original URLs, and relevance
-are recorded in the matrix and BibTeX. No archival supersession was established from the inspected
-records. Twenty-two Phase 14A search leads remain `NEEDS_VERIFICATION`; they are excluded from the
-manuscript bibliography and citations. The compact verified bibliography is below the aspirational
-25–40 target because metadata accuracy takes priority over count.
+On 2026-10-14, 23 directly relevant records were independently checked against authoritative primary
+records: publisher DOI pages, official ACM/IEEE/Springer records, official ICLR/NeurIPS proceedings,
+and official arXiv records where no archival publication was established. Verification covered exact
+title, complete author list, year, publication type, venue, DOI when assigned, official URL,
+archival/preprint relationship, supported claim, relevance, and source.
+
+Coverage includes foundational generate-and-validate, search-based, semantic, learning-based, neural,
+and LLM repair; repository issue resolution; tool-using agents; retrieval; program graphs;
+architecture foundations and conformance; execution feedback; Defects4J, BugsInPy, and SWE-bench; and
+APR evaluation/reproducibility. Three ambiguous or incomplete search leads remain
+`NEEDS_VERIFICATION` and are excluded from both bibliographies and manuscript claims.
+
+Duplicate titles and preprint/archival relationships were checked by normalized title and DOI. The
+matrix is the canonical audit record. `NR` in the comparison table means a feature was not reported or
+not established from the inspected source, never that absence was inferred.

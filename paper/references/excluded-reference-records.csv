@@ -1,23 +1,4 @@
-citation_key,reason,status
-Ye2017Elixir,complete author metadata not independently confirmed,NEEDS_VERIFICATION
-Martinez2017Astor,complete bibliographic metadata not independently confirmed,NEEDS_VERIFICATION
-LeGoues2012GenProg,DOI and complete metadata not independently confirmed,NEEDS_VERIFICATION
-Just2014Defects4J,DOI and complete metadata not independently confirmed,NEEDS_VERIFICATION
-Jimenez2024SWEBench,archival metadata not independently confirmed,NEEDS_VERIFICATION
-Nguyen2013SemFix,complete metadata not independently confirmed,NEEDS_VERIFICATION
-Mechtaev2016Angelix,complete metadata not independently confirmed,NEEDS_VERIFICATION
-Long2016Prophet,complete metadata not independently confirmed,NEEDS_VERIFICATION
-Lutellier2020CoCoNuT,complete metadata not independently confirmed,NEEDS_VERIFICATION
-Xia2023ChatRepair,complete metadata not independently confirmed,NEEDS_VERIFICATION
-Yao2022ReAct,complete metadata not independently confirmed,NEEDS_VERIFICATION
-Shinn2023Reflexion,complete metadata not independently confirmed,NEEDS_VERIFICATION
-BavotaArchitectureConformance,record is incomplete search lead,NEEDS_VERIFICATION
-Murphy1995Reflexion,complete metadata not independently confirmed,NEEDS_VERIFICATION
-Garlan1996Dali,complete metadata not independently confirmed,NEEDS_VERIFICATION
-Perry1992Foundations,complete metadata not independently confirmed,NEEDS_VERIFICATION
-Allamanis2018Graphs,complete metadata not independently confirmed,NEEDS_VERIFICATION
-Guo2021GraphCodeBERT,complete metadata not independently confirmed,NEEDS_VERIFICATION
-Lewis2020RAG,complete metadata not independently confirmed,NEEDS_VERIFICATION
-LeGoues2019APRReview,complete metadata not independently confirmed,NEEDS_VERIFICATION
-Monperrus2018LivingReview,complete metadata not independently confirmed,NEEDS_VERIFICATION
-Durieux2019RepairThemAll,complete metadata not independently confirmed,NEEDS_VERIFICATION
+citation_key,title,status,reason
+BavotaArchitectureConformance,Architecture Conformance Checking Study,NEEDS_VERIFICATION,ambiguous title and missing primary metadata
+Garlan1996Dali,Dali: A Tool for Architecture Extraction,NEEDS_VERIFICATION,incomplete primary metadata in the recorded lead
+LeGoues2019APRReview,Automated Program Repair: A Step Towards Practical Evaluation,NEEDS_VERIFICATION,title and publication metadata not resolved from an authoritative record

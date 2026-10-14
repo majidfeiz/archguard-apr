@@ -1,5 +1,6 @@
 import csv
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -81,12 +82,27 @@ def test_manuscript_does_not_assert_prohibited_results(repository_root: Path) ->
 
 def test_reference_status_and_bibtex_syntax(repository_root: Path) -> None:
     rows = list(csv.DictReader((repository_root / "paper/references/literature-matrix.csv").open()))
-    assert len(rows) == 25
-    assert sum(row["verification_status"] == "VERIFIED" for row in rows) == 3
-    assert sum(row["verification_status"] == "NEEDS_VERIFICATION" for row in rows) == 22
+    assert len(rows) == 26
+    assert sum(row["verification_status"] == "VERIFIED" for row in rows) == 23
+    assert sum(row["verification_status"] == "NEEDS_VERIFICATION" for row in rows) == 3
     bib = (repository_root / "paper/references/references.bib").read_text()
-    assert bib.count("@misc{") == 3
+    assert bib.count("@") >= 23
     assert bib.count("{") == bib.count("}")
+    verified = [row for row in rows if row["verification_status"] == "VERIFIED"]
+    assert len({row["citation_key"] for row in verified}) == len(verified)
+    assert len({row["title"].casefold() for row in verified}) == len(verified)
+    assert all(row["official_url"].startswith("https://") for row in verified)
+    assert all(not row["doi"] or re.fullmatch(r"10\.\d{4,9}/\S+", row["doi"]) for row in verified)
+
+
+def test_related_work_comparison_uses_explicit_unknowns(repository_root: Path) -> None:
+    rows = list(
+        csv.DictReader((repository_root / "paper/tables/table-related-work-comparison.csv").open())
+    )
+    assert len(rows) == 10
+    assert any("NR" in row.values() for row in rows)
+    assert rows[-1]["approach"] == "ArchGuard-APR"
+    assert rows[-1]["benchmark_scale"] == "6 planned; 4 completed"
 
 
 def test_english_manuscript_consistency(repository_root: Path) -> None:
@@ -103,7 +119,8 @@ def test_english_manuscript_consistency(repository_root: Path) -> None:
     )
     assert consistency["status"] == "PASS"
     assert consistency["black4_classification"] == "PRE_PROVIDER_INFRASTRUCTURE_ATTRITION"
-    assert statistics["verified_reference_count"] == 3
-    assert statistics["citation_key_count"] == 3
-    assert statistics["table_count"] == 9
+    assert statistics["verified_reference_count"] == 23
+    assert statistics["citation_key_count"] == 23
+    assert statistics["table_count"] == 10
     assert statistics["figure_count"] == 7
+    assert 6500 <= statistics["word_count"] <= 8500

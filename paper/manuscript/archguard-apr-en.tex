@@ -23,11 +23,44 @@ implemented architecture-aware prototype and reproducible research infrastructur
 evidence is a small negative and inconclusive feasibility study, not an effectiveness demonstration.
 
 \section{Background and Related Work}
-Tool-using LLM repair agents have been explored by RepairAgent~\cite{Bouzenia2024RepairAgent}.
-AutoCodeRover uses structured repository search~\cite{Zhang2024AutoCodeRover}, while SpecRover adds
-intent extraction and review~\cite{Ruan2024SpecRover}. These primary records motivate agents,
-repository context, and review, but do not establish ArchGuard-APR's effectiveness or priority. Search
-leads lacking independently verified metadata are excluded.
+Generate-and-validate repair searches candidates and uses tests as an available oracle. GenProg is a
+foundational search-based system~\cite{LeGoues2012GenProg}; SemFix~\cite{Nguyen2013SemFix} and
+Angelix~\cite{Mechtaev2016Angelix} use semantic or symbolic synthesis. Prophet learns candidate
+ranking~\cite{Long2016Prophet}, Elixir uses object-oriented context~\cite{Ye2017Elixir}, and CoCoNuT
+uses context-aware neural translation~\cite{Lutellier2020CoCoNuT}. A broad taxonomy appears in
+Monperrus~\cite{Monperrus2018Bibliography}. Test adequacy does not necessarily establish patch
+correctness, as demonstrated in a large Defects4J experiment~\cite{Martinez2017Astor}.
+
+Defects4J~\cite{Just2014Defects4J} and BugsInPy~\cite{Widyasari2020BugsInPy} provide controlled fault
+collections, while SWE-bench frames repository issue resolution~\cite{Jimenez2024SWEBench}.
+RepairThemAll documents cross-tool and cross-benchmark experimentation~\cite{Durieux2019RepairThemAll}.
+Program relations have been represented as graphs~\cite{Allamanis2018Graphs}, and GraphCodeBERT uses
+data-flow structure in learned representations~\cite{Guo2021GraphCodeBERT}. Retrieval-augmented
+generation separates retrieved evidence from model parameters~\cite{Lewis2020RAG}.
+
+Software architecture includes elements, relations, and rationale~\cite{Perry1992Foundations};
+reflexion models compare high-level models with source structure~\cite{Murphy1995Reflexion}.
+General agent work interleaves reasoning and action~\cite{Yao2023ReAct} and incorporates verbal
+feedback~\cite{Shinn2023Reflexion}. LLM-based APR has been evaluated directly~\cite{Xia2023LLMRepair}.
+RepairAgent uses repair tools~\cite{Bouzenia2024RepairAgent}; AutoCodeRover uses structured repository
+search~\cite{Zhang2024AutoCodeRover}; and SpecRover adds intent extraction and review
+~\cite{Ruan2024SpecRover}. These sources motivate the design but do not establish ArchGuard-APR's
+effectiveness or priority.
+
+\begin{table*}[t]
+\caption{Verified related-work comparison; NR means not reported or not established from the inspected source.}
+\label{tab:related-work}\centering\small
+\begin{tabular}{lccccccc}\toprule
+Approach & Repo. & Arch. & Graph & Feedback & Agentic & Isolation & Scale \\\midrule
+GenProg & no & no & no & tests & no & NR & 16 programs \\
+CoCoNuT & local & no & no & tests & no & NR & multiple corpora \\
+RepairAgent & yes & no & NR & yes & yes & NR & Defects4J \\
+AutoCodeRover & yes & no & search & yes & yes & NR & 300 issues \\
+SpecRover & yes & no & structured & yes & yes & NR & 2,294 issues \\
+ArchGuard-APR & yes & profiles & canonical & isolated & role-based & yes & 6 planned/4 completed \\
+\bottomrule\end{tabular}
+\end{table*}
+Table~\ref{tab:related-work} limits feature claims to evidence in the inspected primary records.
 
 \section{Research Questions}
 RQ1 asks whether architecture constraints, repository graphs, retrieval, and execution feedback can be

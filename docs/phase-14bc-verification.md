@@ -1,11 +1,11 @@
 # Phase 14B–14C verification
 
-The English manuscript is a complete 2,795-word technical draft derived from frozen Phase 13 evidence.
-It cites only three independently verified primary arXiv records; 22 unresolved search leads remain
-excluded. Accuracy and non-padding took priority over the aspirational bibliography and word targets.
+The English manuscript is a substantive 6,546-word publication draft (excluding references and
+appendices) derived from frozen Phase 13 evidence. It uses 23 independently verified primary records;
+three unresolved search leads remain excluded.
 
 Checks cover immutable scientific counts/fingerprints, Markdown/LaTeX fact agreement, citations,
-BibTeX keys, verified-reference status, nine tables, six referenced figures, JSON/CSV structure,
+BibTeX keys, verified-reference status, ten tables, seven referenced figures, JSON/CSV structure,
 prohibited claims, black-4 attrition classification, and unresolved human placeholders. No experiment,
 repair agent, provider call, benchmark, Docker workload, or GitHub Actions run occurred.
 
