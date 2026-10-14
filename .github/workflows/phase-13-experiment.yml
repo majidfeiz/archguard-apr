@@ -63,7 +63,7 @@ jobs:
             and .next_ordinal == 5 and .remaining_executions == 2
             and .carried_observed_usd == "0.1296325"
             and .carried_provider_calls == 4
-            and .historical_stop_reason == "execution_failure"
+            and .historical_stop_reason == "pre_provider_failure"
             and .active_stop_reason == null
             and .resume_allowed == true' "$RUNNER_TEMP/checkpoint.json" >/dev/null
       - name: Enforce frozen provider ceilings
