@@ -21,6 +21,13 @@ of the corresponding DOCX export path. The review checked shaping, bidi behavior
 footers, page numbers, section continuity, citations, references, diagrams, tables, hashes, and blank
 pages. Derived page images remain in temporary storage and are not committed.
 
+The publication-layout repair replaced the generic justified title metadata with dedicated centered
+English and Persian title blocks. It uses a controlled 20 pt title, intact author/status lines,
+naturally wrapped affiliations, separate email and linked ORCID paragraphs, subdued manuscript-status
+text, and a different first-page header configuration. Pages 1–2 were inspected at 220 DPI and every
+remaining page was checked by contact sheet. The repair changed layout only; bilingual scientific
+content, citations, evidence, tables, figures, bibliography, and author identity remained unchanged.
+
 The rebuilt English editions contain 29 A4 pages each and the Persian editions contain 20 A4 pages
 each. Arial was selected for Persian as the trusted installed fallback because Vazirmatn, Noto Naskh
 Arabic, and Noto Sans Arabic were unavailable. No font was downloaded. All 20 Persian pages were

@@ -27,6 +27,15 @@ TITLE_EN = (
 TITLE_FA = "ArchGuard-APR: تعمیر خودکار برنامه آگاه از قیود معماری با استفاده از گراف‌های مخزن و بازخورد اجرا"
 AUTHOR_EN = "Majid Feiz Deilami"
 AUTHOR_FA = "مجید فیض دیلمی"
+ACADEMIC_STATUS_EN = "M.Sc. Student in Software Engineering"
+ACADEMIC_STATUS_FA = "دانشجوی کارشناسی ارشد مهندسی نرم‌افزار"
+AFFILIATION_EN = (
+    "Department of Computer Engineering, Lahijan Branch, Islamic Azad University, Lahijan, Iran"
+)
+AFFILIATION_FA = "گروه مهندسی کامپیوتر، واحد لاهیجان، دانشگاه آزاد اسلامی، لاهیجان، ایران"
+EMAIL = "majid.feiz@iau.ir"
+ORCID_ID = "0009-0006-8439-1839"
+ORCID_URL = f"https://orcid.org/{ORCID_ID}"
 SUBJECT = "Architecture-aware automated program repair and exploratory feasibility evaluation"
 KEYWORDS = (
     "automated program repair; software architecture; repository graph; architecture constraints; "
@@ -111,6 +120,8 @@ def _inline(value: str) -> str:
 
 def _markdown_html(source: Path, *, rtl: bool) -> str:
     lines = source.read_text().splitlines()
+    first_section = next(index for index, line in enumerate(lines) if line.startswith("## "))
+    lines = lines[first_section:]
     body: list[str] = []
     paragraph: list[str] = []
     table: list[list[str]] = []
@@ -183,12 +194,48 @@ def _markdown_html(source: Path, *, rtl: bool) -> str:
     font = "Arial" if rtl else "Times New Roman"
     title = TITLE_FA if rtl else TITLE_EN
     author = AUTHOR_FA if rtl else AUTHOR_EN
+    if rtl:
+        title_lines = (
+            '<span dir="ltr">ArchGuard-APR:</span> تعمیر خودکار برنامه آگاه از قیود معماری',
+            "با استفاده از گراف‌های مخزن و بازخورد اجرا",
+        )
+        academic_status = ACADEMIC_STATUS_FA
+        affiliation = AFFILIATION_FA
+        email_label = "نویسنده مسئول"
+        status = "نسخه نویسنده — داوری علمی نشده"
+        status_markup = status
+    else:
+        title_lines = (
+            "ArchGuard-APR:",
+            "Architecture-Constraint-Aware",
+            "Multi-Agent Program Repair Using Repository Graphs",
+            "and Execution Feedback",
+        )
+        academic_status = ACADEMIC_STATUS_EN
+        affiliation = AFFILIATION_EN
+        email_label = "Corresponding author"
+        status = "Author manuscript — not peer reviewed"
+        status_markup = f"<em>{status}</em>"
+    title_block = (
+        '<header class="title-page">'
+        f"<h1>{'<br>'.join(title_lines)}</h1>"
+        f'<p class="author">{html.escape(author)}</p>'
+        f'<p class="academic-status">{html.escape(academic_status)}</p>'
+        f'<p class="affiliation">{html.escape(affiliation)}</p>'
+        f'<p class="contact"><span>{html.escape(email_label)}: {EMAIL}</span></p>'
+        f'<p class="orcid"><a href="{ORCID_URL}">ORCID: {ORCID_ID}</a></p>'
+        f'<p class="manuscript-status">{status_markup}</p>'
+        "</header>"
+    )
     return f"""<!doctype html><html lang="{lang}" dir="{direction}"><head><meta charset="utf-8">
 <meta name="author" content="{author}"><meta name="title" content="{html.escape(title)}">
 <style>@page{{size:A4;margin:22mm 20mm 22mm 20mm}} body{{font-family:'{font}';font-size:11pt;line-height:1.45;direction:{direction};text-align:{"right" if rtl else "left"}}}
-h1{{font-size:18pt;text-align:center;page-break-after:avoid}} h2{{font-size:14pt;color:#17365d;page-break-after:avoid}} h3{{font-size:12pt;color:#365f91;page-break-after:avoid}}
+h1{{font-size:20pt;line-height:1.18;text-align:center;color:#000;margin:0 0 18pt;page-break-after:avoid}} h2{{font-size:14pt;color:#111;page-break-after:avoid}} h3{{font-size:12pt;color:#222;page-break-after:avoid}}
 p{{text-align:justify;orphans:3;widows:3}} table{{border-collapse:collapse;width:100%;margin:10pt 0;page-break-inside:avoid}} th,td{{border:1px solid #777;padding:4pt;font-size:9pt;vertical-align:top}} th{{background:#d9eaf7}}
-figure{{text-align:center;margin:12pt 0;page-break-inside:avoid}} img{{max-width:92%;max-height:14cm}} figcaption{{font-size:9pt;font-style:italic;margin-top:4pt}} .diagram div{{border:2px solid #365f91;background:#eef5fb;padding:18pt;border-radius:6pt}} code{{font-family:Menlo,monospace;font-size:8.5pt;overflow-wrap:anywhere}} .bullet{{margin-left:18pt}}</style></head><body>{"".join(body)}</body></html>"""
+figure{{text-align:center;margin:12pt 0;page-break-inside:avoid}} img{{max-width:92%;max-height:14cm}} figcaption{{font-size:9pt;font-style:italic;margin-top:4pt}} .diagram div{{border:2px solid #365f91;background:#eef5fb;padding:18pt;border-radius:6pt}} code{{font-family:Menlo,monospace;font-size:8.5pt;overflow-wrap:anywhere}} .bullet{{margin-left:18pt}}
+.title-page{{text-align:center;margin:10pt auto 20pt;page-break-inside:avoid}} .title-page p{{text-align:center !important;margin:0;line-height:1.25;word-spacing:normal}}
+.title-page .author{{font-size:13pt;font-weight:bold;margin-top:3pt}} .title-page .academic-status{{font-size:11pt;margin-top:5pt}} .title-page .affiliation{{font-size:10.5pt;margin:5pt auto 0;max-width:150mm}}
+.title-page .contact,.title-page .orcid{{font-size:10pt;margin-top:4pt;white-space:nowrap}} .title-page .manuscript-status{{font-size:9pt;margin-top:10pt;color:#222}}</style></head><body>{title_block}{"".join(body)}</body></html>"""
 
 
 def _patch_docx(path: Path, *, rtl: bool) -> None:
@@ -216,9 +263,27 @@ def _patch_docx(path: Path, *, rtl: bool) -> None:
             xml = re.sub(r"<w:pgSz[^>]*/>", '<w:pgSz w:w="11906" w:h="16838"/>', xml)
         else:
             xml = xml.replace("<w:sectPr>", '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>')
+        orcid_paragraph = re.compile(
+            rf"<w:p>(?P<properties><w:pPr>.*?</w:pPr>)(?P<content>(?:(?!</w:p>).)*ORCID: {re.escape(ORCID_ID)}(?:(?!</w:p>).)*)</w:p>"
+        )
+        xml, orcid_replacements = orcid_paragraph.subn(
+            lambda match: (
+                f'<w:p>{match.group("properties")}<w:hyperlink r:id="rIdArchGuardOrcid" w:history="1">'
+                f"{match.group('content')}</w:hyperlink></w:p>"
+            ),
+            xml,
+            count=1,
+        )
+        if orcid_replacements != 1:
+            raise ValueError("unable to create the ORCID hyperlink")
         header_ref = '<w:headerReference w:type="default" r:id="rIdArchGuardHeader"/>'
         footer_ref = '<w:footerReference w:type="default" r:id="rIdArchGuardFooter"/>'
-        xml = xml.replace("<w:sectPr>", f"<w:sectPr>{header_ref}{footer_ref}", 1)
+        first_footer_ref = '<w:footerReference w:type="first" r:id="rIdArchGuardFirstFooter"/>'
+        xml = xml.replace(
+            "<w:sectPr>",
+            f"<w:sectPr>{header_ref}{footer_ref}{first_footer_ref}<w:titlePg/>",
+            1,
+        )
         document.write_text(xml)
         header = TITLE_FA if rtl else "ArchGuard-APR — Author manuscript"
         direction = "<w:bidi/>" if rtl else ""
@@ -234,11 +299,20 @@ def _patch_docx(path: Path, *, rtl: bool) -> None:
             '<w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>'
             '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>'
         )
+        (unpack / "word/footer2.xml").write_text(
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r>'
+            '<w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>'
+            '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>'
+        )
         rels = unpack / "word/_rels/document.xml.rels"
         rel_text = rels.read_text().replace(
             "</Relationships>",
             '<Relationship Id="rIdArchGuardHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>'
             '<Relationship Id="rIdArchGuardFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>'
+            '<Relationship Id="rIdArchGuardFirstFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer2.xml"/>'
+            f'<Relationship Id="rIdArchGuardOrcid" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="{ORCID_URL}" TargetMode="External"/>'
             "</Relationships>",
         )
         rels.write_text(rel_text)
@@ -247,6 +321,7 @@ def _patch_docx(path: Path, *, rtl: bool) -> None:
             "</Types>",
             '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>'
             '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
+            '<Override PartName="/word/footer2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
             "</Types>",
         )
         content_types.write_text(type_text)

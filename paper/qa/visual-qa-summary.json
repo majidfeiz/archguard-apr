@@ -2,13 +2,13 @@
   "schema": "archguard.visual-qa/v1",
   "status": "PASS",
   "inspection_date": "2026-10-14",
-  "temporary_render_root": "/tmp/archguard-fa-final-pages",
+  "temporary_render_root": "/tmp/archguard-title-qa-final",
   "all_pages_inspected": true,
   "documents": {
-    "english_docx": {"pages": 29, "page_size": "A4", "status": "PASS"},
-    "english_pdf": {"pages": 29, "page_size": "A4", "status": "PASS"},
-    "persian_docx": {"pages": 20, "page_size": "A4", "status": "PASS", "render_method": "independent Microsoft Word PDF export"},
-    "persian_pdf": {"pages": 20, "page_size": "A4", "status": "PASS", "render_method": "Poppler at 90 DPI"}
+    "english_docx": {"pages": 29, "page_size": "A4", "status": "PASS", "render_method": "Microsoft Word PDF export; pages 1-2 inspected at 220 DPI"},
+    "english_pdf": {"pages": 29, "page_size": "A4", "status": "PASS", "render_method": "Poppler; pages 1-2 inspected at 220 DPI"},
+    "persian_docx": {"pages": 20, "page_size": "A4", "status": "PASS", "render_method": "Microsoft Word PDF export; pages 1-2 inspected at 220 DPI"},
+    "persian_pdf": {"pages": 20, "page_size": "A4", "status": "PASS", "render_method": "Poppler; pages 1-2 inspected at 220 DPI"}
   },
   "checks": {
     "bidi_and_shaping": true,
@@ -19,6 +19,9 @@
     "no_clipping_or_overlap": true,
     "section_parity": true,
     "latin_identifiers_and_orcid": true,
+    "title_page_centering_and_spacing": true,
+    "first_page_running_header_suppressed": true,
+    "abstract_position": true,
     "table_width_and_figure_captions": true
   }
 }
