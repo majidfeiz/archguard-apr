@@ -12,5 +12,10 @@
   "baseline_sha": "bc12e7c5e60052e0f5399777ba3bb3f95d76f95d",
   "excluded": ["credentials", "raw provider responses", "benchmark repositories", "gold patches", "evaluator-only assets", "raw logs", "temporary worktrees", "external evidence ZIP files"],
   "phase13_modified": false,
+  "published_identifiers": {
+    "english_preprint_concept_doi": "10.5281/zenodo.23377964",
+    "english_preprint_version_doi": "10.5281/zenodo.23377965",
+    "software_version_doi": "10.5281/zenodo.23377882"
+  },
   "schema": "archguard.public-artifact-manifest/v1"
 }

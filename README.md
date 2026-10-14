@@ -5,8 +5,10 @@ ArchGuard-APR is a research prototype for architecture-constraint-aware automate
 [![CI](https://github.com/majidfeiz/archguard-apr/actions/workflows/ci.yml/badge.svg)](https://github.com/majidfeiz/archguard-apr/actions/workflows/ci.yml)
 [![Python 3.12–3.13](https://img.shields.io/badge/Python-3.12%E2%80%933.13-3776AB)](pyproject.toml)
 [![License: Apache-2.0](https://img.shields.io/badge/code-Apache--2.0-blue)](LICENSE)
+[![Preprint DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23377964.svg)](https://doi.org/10.5281/zenodo.23377964)
+[![Software DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23377882.svg)](https://doi.org/10.5281/zenodo.23377882)
 
-> **Research status:** this is research software, not a production repair service. Implementation verification is extensive; current effectiveness evidence is exploratory, underpowered, and negative/inconclusive. The manuscripts are author drafts, not peer reviewed, accepted, or published.
+> **Research status:** this is research software, not a production repair service. Implementation verification is extensive; current effectiveness evidence is exploratory, underpowered, and negative/inconclusive. The English manuscript is a published preprint and has not been peer reviewed; the Persian manuscript remains an unpublished author manuscript.
 
 ## Overview
 
@@ -182,14 +184,19 @@ Start with the [architecture overview](docs/architecture/overview.md), [developm
 
 ## Citation
 
-Cite the software repository using [`CITATION.cff`](CITATION.cff). No DOI or publication venue is currently assigned. See the [citation guide](docs/release/citation-guide.md) before changing the preferred citation.
+Choose the citation that matches the reused artifact:
+
+- **Preprint:** Majid Feiz Deilami (2026). *ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair Using Repository Graphs and Execution Feedback* (Version 1.0.0) [Preprint]. Zenodo. https://doi.org/10.5281/zenodo.23377965
+- **Software:** Majid Feiz Deilami (2026). *ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair with Repository Graphs and Execution Feedback* (Version v0.12.8) [Software]. Zenodo. https://doi.org/10.5281/zenodo.23377882
+
+The repository remains software in [`CITATION.cff`](CITATION.cff), with the version-specific preprint DOI as its preferred citation. Copyable BibTeX and role guidance are in [`paper/citation/`](paper/citation/README.md).
 
 ## Published manuscripts
 
-These tracked documents are author manuscripts, not published or peer-reviewed articles:
+The English author manuscript was published as an open-access Zenodo preprint on 14 October 2026 (Version 1.0.0; [concept DOI](https://doi.org/10.5281/zenodo.23377964); [version record](https://zenodo.org/records/23377965)). It has **not been peer reviewed** and is not an accepted journal or conference article. The Persian manuscript remains an unpublished, not-peer-reviewed author manuscript.
 
-- English: [PDF](paper/dist/ArchGuard-APR-English.pdf) · [Word](paper/dist/ArchGuard-APR-English.docx)
-- Persian: [PDF](paper/dist/ArchGuard-APR-Persian.pdf) · [Word](paper/dist/ArchGuard-APR-Persian.docx)
+- English preprint source files: [PDF](paper/dist/ArchGuard-APR-English.pdf) · [Word](paper/dist/ArchGuard-APR-English.docx)
+- Persian author manuscript: [PDF](paper/dist/ArchGuard-APR-Persian.pdf) · [Word](paper/dist/ArchGuard-APR-Persian.docx)
 
 ## Security
 

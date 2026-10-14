@@ -44,7 +44,25 @@ def test_citation_metadata_matches_package(repository_root: Path) -> None:
     assert author["given-names"] == "Majid"
     assert author["family-names"] == "Feiz Deilami"
     assert author["email"] == "majid.feiz@iau.ir"
-    assert "doi" not in citation
+    assert citation["type"] == "software"
+    assert citation["doi"] == "10.5281/zenodo.23377882"
+    assert citation["repository-code"] == "https://github.com/majidfeiz/archguard-apr"
+    preferred = citation["preferred-citation"]
+    assert preferred["type"] == "article"
+    assert preferred["doi"] == "10.5281/zenodo.23377965"
+    assert preferred["version"] == "1.0.0"
+    assert preferred["authors"][0]["orcid"] == "https://orcid.org/0009-0006-8439-1839"
+
+
+def test_publication_doi_roles_are_distinct(repository_root: Path) -> None:
+    manifest = json.loads((repository_root / "release/public-artifact-manifest.json").read_text())
+    identifiers = manifest["published_identifiers"]
+    assert identifiers == {
+        "english_preprint_concept_doi": "10.5281/zenodo.23377964",
+        "english_preprint_version_doi": "10.5281/zenodo.23377965",
+        "software_version_doi": "10.5281/zenodo.23377882",
+    }
+    assert len(set(identifiers.values())) == 3
 
 
 def test_readme_local_links_resolve(repository_root: Path) -> None:
