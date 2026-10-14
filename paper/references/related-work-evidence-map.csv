@@ -1,0 +1,5 @@
+claim_id,claim,citation_keys,evidence_scope
+RW1,Tool-using LLM agents have been applied to program repair,Bouzenia2024RepairAgent,verified primary preprint
+RW2,Repository-level repair agents use structured code search,Zhang2024AutoCodeRover,verified primary preprint
+RW3,Specification inference and reviewer agents have been explored for repository repair,Ruan2024SpecRover,verified primary preprint
+RW4,Architecture conformance plus graph retrieval plus execution feedback is positioned as an integrated prototype,,repository implementation evidence; no priority claim

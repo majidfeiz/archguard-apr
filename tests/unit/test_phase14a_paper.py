@@ -87,3 +87,23 @@ def test_reference_status_and_bibtex_syntax(repository_root: Path) -> None:
     bib = (repository_root / "paper/references/references.bib").read_text()
     assert bib.count("@misc{") == 3
     assert bib.count("{") == bib.count("}")
+
+
+def test_english_manuscript_consistency(repository_root: Path) -> None:
+    subprocess.run(
+        [sys.executable, "paper/scripts/check_manuscript.py"],
+        cwd=repository_root,
+        check=True,
+    )
+    consistency = json.loads(
+        (repository_root / "paper/manuscript/manuscript-consistency.json").read_text()
+    )
+    statistics = json.loads(
+        (repository_root / "paper/manuscript/manuscript-statistics.json").read_text()
+    )
+    assert consistency["status"] == "PASS"
+    assert consistency["black4_classification"] == "PRE_PROVIDER_INFRASTRUCTURE_ATTRITION"
+    assert statistics["verified_reference_count"] == 3
+    assert statistics["citation_key_count"] == 3
+    assert statistics["table_count"] == 9
+    assert statistics["figure_count"] == 7

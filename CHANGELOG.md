@@ -2,6 +2,8 @@
 
 ## 0.12.8
 
+- Add the Phase 14B–14C verified-only bibliography, frozen manuscript decisions, and complete English
+  Markdown/LaTeX draft without changing scientific evidence.
 - Prepare the Phase 14A reproducible manuscript foundation without changing Phase 13 results:
   traceable claims, publication tables/figures, bilingual outlines, and verified-reference controls.
 - Finalize Phase 13 as `COMPLETED_WITH_ATTRITION` from hash-validated source-free evidence: four
