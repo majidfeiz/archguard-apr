@@ -8,6 +8,11 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 
 ## Current implementation
 
+Phase 14A adds a deterministic paper-evidence foundation: claim traceability, canonical publication
+data, nine reproducible tables, descriptive figures, bilingual outlines, and a conservative related-
+work protocol. Manuscript interpretation, novelty, venue, authorship, and unverified references remain
+human decisions.
+
 Version 0.12.8 closes Phase 12 with fail-closed evidence ingestion, a human-approved exploratory
 three-task/two-project population, protocol-freeze contracts, and a factual Phase 13 readiness gate.
 Phase 13B implements the prospectively amended, explicitly authorized six-execution runner with

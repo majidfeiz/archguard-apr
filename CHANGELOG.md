@@ -2,6 +2,8 @@
 
 ## 0.12.8
 
+- Prepare the Phase 14A reproducible manuscript foundation without changing Phase 13 results:
+  traceable claims, publication tables/figures, bilingual outlines, and verified-reference controls.
 - Finalize Phase 13 as `COMPLETED_WITH_ATTRITION` from hash-validated source-free evidence: four
   completed invalid-patch outcomes, two pre-provider black-4 attritions, and no effectiveness claim.
 - Add the prospective one-repetition Phase 13 protocol amendment and deterministic six-run live

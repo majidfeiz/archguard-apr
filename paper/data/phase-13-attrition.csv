@@ -1,0 +1,2 @@
+ordinals,task_id,classification,stage,exception_category,diagnostic_fingerprint
+5;6,black-4,PRE_PROVIDER_INFRASTRUCTURE_ATTRITION,checkout,validation_failure,71f60e3969313f139c493cad31ee20640fd6c2870d70411debdd5ab1956994e1

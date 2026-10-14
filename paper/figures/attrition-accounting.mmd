@@ -1,0 +1,6 @@
+flowchart LR
+  A[Planned: 6] --> B[Completed: 4]
+  A --> C[Infrastructure attrition: 2]
+  B --> D[Invalid patch: 4]
+  C --> E[checkout validation_failure]
+  E --> F[No provider outcome; no repair failure]
