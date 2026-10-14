@@ -1,0 +1,12 @@
+claim_id,claim,citation_keys,evidence_scope
+RW1,Search and synthesis systems use tests as an available repair oracle,LeGoues2012GenProg;Nguyen2013SemFix;Mechtaev2016Angelix,verified archival papers
+RW2,Learning and neural methods rank or generate candidates from code context,Long2016Prophet;Ye2017Elixir;Lutellier2020CoCoNuT,verified archival papers
+RW3,Test adequacy does not necessarily establish patch correctness,Martinez2017Astor,verified journal article
+RW4,Controlled and repository-level benchmarks embody different task designs,Just2014Defects4J;Widyasari2020BugsInPy;Jimenez2024SWEBench,verified benchmark papers
+RW5,APR reproducibility requires cross-tool and cross-benchmark controls,Durieux2019RepairThemAll,verified archival paper
+RW6,Retrieval and graphs provide explicit external or structural context,Lewis2020RAG;Allamanis2018Graphs;Guo2021GraphCodeBERT,verified proceedings records
+RW7,Architecture can be represented as reviewed high-level relations and compared with source,Perry1992Foundations;Murphy1995Reflexion,verified ACM records
+RW8,Language agents can interleave action and incorporate feedback,Yao2023ReAct;Shinn2023Reflexion,verified conference records
+RW9,Tool-using LLM agents have been applied to repository repair,Bouzenia2024RepairAgent;Zhang2024AutoCodeRover;Ruan2024SpecRover,verified primary preprints
+RW10,Large pretrained language models have been evaluated for APR,Xia2023LLMRepair,verified IEEE archival paper
+RW11,ArchGuard-APR integrates architecture profiles graph retrieval and isolated feedback,,repository implementation evidence; no priority claim

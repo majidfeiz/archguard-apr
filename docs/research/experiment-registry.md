@@ -113,3 +113,6 @@ superiority claim.
 Phase 14A is documentation and research synthesis only. It derives publication tables and descriptive
 figures from the frozen Phase 13 artifacts, registers no new execution or outcome, and requires human
 approval for literature synthesis, novelty, venue, authorship, and interpretation.
+Phase 14B–14C verifies 23 primary literature records, excludes three unresolved leads, and completes
+the English Markdown/LaTeX manuscript with a source-qualified comparison table. It registers no new
+scientific execution, result, or effectiveness claim.

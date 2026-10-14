@@ -1,0 +1,139 @@
+\documentclass[10pt,journal]{IEEEtran}
+\usepackage{graphicx}\usepackage{booktabs}\usepackage{url}
+\title{ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair Using Repository Graphs and Execution Feedback}
+\author{Majid Feiz\\Affiliation, email, and ORCID: HUMAN\_CONFIRMATION\_REQUIRED}
+\begin{document}\maketitle
+\begin{abstract}
+Repository-level repair must preserve structural as well as behavioral constraints. ArchGuard-APR
+integrates deterministic repository analysis, immutable graphs, explicit architecture profiles,
+graph-guided context, role-based orchestration, patch validation, isolated execution feedback, cost
+controls, and canonical evidence. In an exploratory paired evaluation, six executions were planned,
+four completed, and two attrited before provider use. Baseline and ArchGuard each achieved 0/2
+successful repairs; all four completed outputs were invalid patches. Usage totaled 35,431 input and
+2,737 output tokens at USD 0.1296325. No effectiveness advantage was observed. Patch validity and
+infrastructure robustness are the main future-work targets.
+\end{abstract}
+\begin{IEEEkeywords}automated program repair, software architecture, repository graph, agents, reproducibility\end{IEEEkeywords}
+
+\section{Introduction}
+Repository-level automated program repair (APR) requires context selection, admissible patch
+generation, and controlled validation. A test-passing candidate may still violate architecture or
+security policy. ArchGuard-APR makes these boundaries explicit and fail-closed. Its contribution is an
+implemented architecture-aware prototype and reproducible research infrastructure; its scientific
+evidence is a small negative and inconclusive feasibility study, not an effectiveness demonstration.
+
+\section{Background and Related Work}
+Generate-and-validate repair searches candidates and uses tests as an available oracle. GenProg is a
+foundational search-based system~\cite{LeGoues2012GenProg}; SemFix~\cite{Nguyen2013SemFix} and
+Angelix~\cite{Mechtaev2016Angelix} use semantic or symbolic synthesis. Prophet learns candidate
+ranking~\cite{Long2016Prophet}, Elixir uses object-oriented context~\cite{Ye2017Elixir}, and CoCoNuT
+uses context-aware neural translation~\cite{Lutellier2020CoCoNuT}. A broad taxonomy appears in
+Monperrus~\cite{Monperrus2018Bibliography}. Test adequacy does not necessarily establish patch
+correctness, as demonstrated in a large Defects4J experiment~\cite{Martinez2017Astor}.
+
+Defects4J~\cite{Just2014Defects4J} and BugsInPy~\cite{Widyasari2020BugsInPy} provide controlled fault
+collections, while SWE-bench frames repository issue resolution~\cite{Jimenez2024SWEBench}.
+RepairThemAll documents cross-tool and cross-benchmark experimentation~\cite{Durieux2019RepairThemAll}.
+Program relations have been represented as graphs~\cite{Allamanis2018Graphs}, and GraphCodeBERT uses
+data-flow structure in learned representations~\cite{Guo2021GraphCodeBERT}. Retrieval-augmented
+generation separates retrieved evidence from model parameters~\cite{Lewis2020RAG}.
+
+Software architecture includes elements, relations, and rationale~\cite{Perry1992Foundations};
+reflexion models compare high-level models with source structure~\cite{Murphy1995Reflexion}.
+General agent work interleaves reasoning and action~\cite{Yao2023ReAct} and incorporates verbal
+feedback~\cite{Shinn2023Reflexion}. LLM-based APR has been evaluated directly~\cite{Xia2023LLMRepair}.
+RepairAgent uses repair tools~\cite{Bouzenia2024RepairAgent}; AutoCodeRover uses structured repository
+search~\cite{Zhang2024AutoCodeRover}; and SpecRover adds intent extraction and review
+~\cite{Ruan2024SpecRover}. These sources motivate the design but do not establish ArchGuard-APR's
+effectiveness or priority.
+
+\begin{table*}[t]
+\caption{Verified related-work comparison; NR means not reported or not established from the inspected source.}
+\label{tab:related-work}\centering\small
+\begin{tabular}{lccccccc}\toprule
+Approach & Repo. & Arch. & Graph & Feedback & Agentic & Isolation & Scale \\\midrule
+GenProg & no & no & no & tests & no & NR & 16 programs \\
+CoCoNuT & local & no & no & tests & no & NR & multiple corpora \\
+RepairAgent & yes & no & NR & yes & yes & NR & Defects4J \\
+AutoCodeRover & yes & no & search & yes & yes & NR & 300 issues \\
+SpecRover & yes & no & structured & yes & yes & NR & 2,294 issues \\
+ArchGuard-APR & yes & profiles & canonical & isolated & role-based & yes & 6 planned/4 completed \\
+\bottomrule\end{tabular}
+\end{table*}
+Table~\ref{tab:related-work} limits feature claims to evidence in the inspected primary records.
+
+\section{Research Questions}
+RQ1 asks whether architecture constraints, repository graphs, retrieval, and execution feedback can be
+integrated reproducibly. RQ2 asks what operational limitations emerge on qualified defects. RQ3 asks
+what outcomes, tokens, and costs are observed. No question asserts superiority.
+
+\section{Design and Repository Representation}
+Entrypoints call application services over a vendor-neutral domain. Infrastructure adapters implement
+Git, artifacts, containers, and providers. Analysis parses source without importing target code and
+emits a canonical snapshot. Graph construction consumes that snapshot without rereading source.
+Modules, definitions, containment, and imports support deterministic queries and context retrieval.
+The representation is primarily static and cannot model all reflective or runtime behavior.
+
+\section{Architecture Constraints and Repair Workflow}
+Versioned profiles map modules to human-reviewed components and constrain dependencies. Unassigned or
+ambiguous modules invalidate evaluation. The workflow coordinates analysis, retrieval, provider,
+validation, and evaluator roles through typed states. Provider calls require frozen configuration,
+acknowledgements, and cost guards. Patch parsing and security policy precede isolated evaluation.
+Invalid candidates remain terminal invalid-patch records rather than being silently normalized.
+
+\section{Context, Execution, Security, and Reproducibility}
+Bounded graph queries select module and symbol neighborhoods and emit manifest fingerprints.
+Execution uses resource, path, network, and output controls. Isolation reduces but does not eliminate
+risk. Canonical JSON, stable ordering, call accounting, and source-free diagnostics preserve evidence
+without publishing target source, gold patches, credentials, prompts, or responses.
+
+\section{Methodology}
+The exploratory protocol planned baseline and ArchGuard conditions for three qualified tasks. Four
+PySnooper executions reached the provider. Both black-4 conditions are pre-provider infrastructure
+attrition following checkout validation failure; they are neither provider outcomes nor repair
+failures. Analysis is descriptive because only two valid pairs and zero discordant successful pairs
+exist. No significance test is meaningful.
+
+\section{Results}
+Four of six executions completed and two attrited (33.3\%). Baseline and ArchGuard each achieved 0/2;
+all four completed responses were invalid patches. Thus no effectiveness difference was observed, but
+equivalence is not established. Baseline used 7,821 input and 1,037 output tokens at USD 0.0351075.
+ArchGuard used 27,610 input and 1,700 output tokens at USD 0.094525. Total usage was 38,168 tokens and
+USD 0.1296325. The higher observed ArchGuard cost cannot be generalized beyond these executions.
+
+\begin{figure}[t]\centering\includegraphics[width=\columnwidth]{../figures/execution-outcomes.png}
+\caption{Exploratory accounting: four invalid patches and two infrastructure attritions.}\end{figure}
+
+\section{Failure Analysis and Discussion}
+Evidence establishes patch-policy rejection but not a unique cause. Formatting, patch grammar,
+policy, task context, integration, and model behavior remain possible mechanisms. Strict validation
+improves safety and evidential clarity while potentially reducing apparent yield. Black-4 instead
+reveals checkout robustness limitations. RQ1 receives engineering integration support; RQ2 identifies
+patch validity and infrastructure as limitations; RQ3 records zero successes and condition-specific
+usage. Repair effectiveness remains unresolved.
+
+\section{Threats to Validity}
+Construct validity depends on a strict, project-specific success definition. Internal validity is
+limited by unknown invalid-patch causes and environment dependence. External validity is limited by
+two pairs from one project. Conclusion validity precludes inference or superiority. Infrastructure
+validity is affected by 33.3\% attrition. Results are model-, provider-, time-, and configuration-
+dependent. Static analysis may miss runtime relations; profiles require human judgment; sandboxing
+cannot eliminate all risk; and canonical evidence cannot reproduce stochastic provider behavior.
+
+\section{Ethics and Reproducibility}
+Negative outcomes and costs are retained. Only verified citations are used. Human authors remain
+responsible for interpretation, disclosure, and submission. The final result fingerprint is
+\texttt{761d9853f6ecfb4dafdaad81de781c4d49108b8b82912aeec509e173c7d56c70}.
+
+\section{Conclusion and Future Work}
+ArchGuard-APR demonstrates integration of architecture constraints with an auditable APR pipeline, but
+does not demonstrate repair advantage. Future work should improve admissible patch production,
+diagnostics, checkout robustness, and evaluation breadth before any confirmatory study.
+
+\section*{Data Availability}Canonical source-free data are under \texttt{research/results/phase-13}.
+\section*{Artifact Availability}Code, builders, tables, figures, and checks accompany the manuscript.
+\section*{Author Contributions}HUMAN\_CONFIRMATION\_REQUIRED.
+\section*{Funding}HUMAN\_CONFIRMATION\_REQUIRED.
+\section*{Conflict of Interest}HUMAN\_CONFIRMATION\_REQUIRED.
+\bibliographystyle{IEEEtran}\bibliography{archguard-apr-en}
+\end{document}
