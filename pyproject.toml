@@ -8,7 +8,7 @@ description = "Agent-agnostic architecture-aware program repair research foundat
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 license = "Apache-2.0"
-authors = [{name = "Majid Feizi"}]
+authors = [{name = "Majid Feiz Deilami", email = "majid.feiz@iau.ir"}]
 dependencies = ["pydantic>=2.10,<3", "pydantic-settings>=2.7,<3", "PyYAML>=6,<7", "typer>=0.15,<1", "fastapi>=0.115,<1", "uvicorn>=0.34,<1", "openai>=2.0,<3", "anthropic>=0.70,<1"]
 [project.urls]
 Repository = "https://github.com/majidfeiz/archguard-apr"

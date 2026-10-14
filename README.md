@@ -1,334 +1,210 @@
 # ArchGuard-APR
 
-Architecture-Constraint-Aware Multi-Agent Program Repair with Repository Graphs and Execution Feedback.
+ArchGuard-APR is a research prototype for architecture-constraint-aware automated program repair. It combines deterministic repository graphs, explicit architecture profiles, graph-guided context retrieval, isolated execution feedback, and reproducible experiment artifacts.
 
-A research foundation for studying whether explicit architecture validation improves repository-level
-repair. The research gap is preliminary and requires a verified literature review. No novelty,
-repair effectiveness, benchmark performance or empirical result is claimed.
+[![CI](https://github.com/majidfeiz/archguard-apr/actions/workflows/ci.yml/badge.svg)](https://github.com/majidfeiz/archguard-apr/actions/workflows/ci.yml)
+[![Python 3.12–3.13](https://img.shields.io/badge/Python-3.12%E2%80%933.13-3776AB)](pyproject.toml)
+[![License: Apache-2.0](https://img.shields.io/badge/code-Apache--2.0-blue)](LICENSE)
 
-## Current implementation
+> **Research status:** this is research software, not a production repair service. Implementation verification is extensive; current effectiveness evidence is exploratory, underpowered, and negative/inconclusive. The manuscripts are author drafts, not peer reviewed, accepted, or published.
 
-Phase 14A adds a deterministic paper-evidence foundation: claim traceability, canonical publication
-data, nine reproducible tables, descriptive figures, bilingual outlines, and a conservative related-
-work protocol. Manuscript interpretation, novelty, venue, authorship, and unverified references remain
-human decisions.
-Phase 14B–14C adds a verified-only bibliography and complete English Markdown/LaTeX manuscript draft;
-it remains unsubmitted, unreviewed, and subject to explicit human approval.
-Phase 14D–14E adds complete English and Persian author manuscripts plus A4 Word/PDF publication
-editions, cryptographic inventories, and page-level visual QA. The editions remain unsubmitted and
-not peer reviewed; venue selection and final human review remain open.
+## Overview
 
-Version 0.12.8 closes Phase 12 with fail-closed evidence ingestion, a human-approved exploratory
-three-task/two-project population, protocol-freeze contracts, and a factual Phase 13 readiness gate.
-Phase 13B implements the prospectively amended, explicitly authorized six-execution runner with
-sequential cost guards and source-free evidence. Phase 13 is closed as an exploratory feasibility
-evaluation with four completed invalid-patch outcomes and two pre-provider infrastructure attritions;
-the two valid pairs show no observed effectiveness difference and support no superiority claim.
-Phase 12.8A additionally prepared separately scoped license evidence, revision/profile-bound graph
-evidence, outcome-blind selection, and prospective power scenarios.
-Version 0.12.6 added a strict
-low-resource local micro-pilot: two real BugsInPy tasks were attempted,
-one stable task/evaluator qualified, and its architecture profile remains review-required. No paid
-provider or SWE-bench task ran, and Phase 13 remains blocked. Version 0.12.5 added external benchmark onboarding controls, source allowlists, external storage
-containment, license/reproduction/profile-review records, gold quarantine scans and non-forgeable
-Phase 13 readiness. Official metadata revisions were inspected, but no real task was qualified and
-Phase 13 remains blocked. Version 0.12.0 added controlled baseline and one-factor ablation definitions, comparison fairness,
-deterministic randomized-block scheduling, source-free run metrics and ledgers, blinding, descriptive
-pilot summaries, and an offline repeated experiment fixture. No live pilot or final scientific
-experiment was run. Version 0.11.0 added an immutable benchmark metadata pipeline, deterministic eligibility and splits,
-verified offline caches, gold quarantine boundaries, and source-free fixtures. It supports BugsInPy
-and SWE-bench Verified metadata shapes, but no external instance was acquired or verified. Version
-0.10.0 added deterministic iterative multi-candidate repair-loop contracts, protected prechecks,
-lineage, feedback and evidence-only selection. Version 0.9.0 added secure OpenAI Responses
-and Anthropic Messages adapters. Version 0.8.0 added
-provider-neutral typed repair orchestration, bounded budgets, hash-chained events,
-verified checkpoints, deterministic replay/ranking, scripted agents and explicit human gates.
-Version 0.7.0 added Docker-only execution feedback, trusted digest-pinned plans, pytest/JUnit evidence,
-deterministic functional deltas and combined architecture/functional gates. Version 0.6.0 added
-deterministic graph-based context retrieval, source-free manifests, explicitly
-sensitive bounded source bundles, and offline retrieval evaluation. Version 0.5.0 added isolated
-candidate patch validation and deterministic before/after architecture
-comparison. Version 0.4.0 added explicit versioned architecture profiles and conformance evaluation
-against validated repository graphs. Four typed rules, canonical profile/report artifacts and CLI
-workflows are implemented. Self-hosting CI checks ArchGuard's declared dependency boundaries.
-Phase 9 adds secure direct OpenAI Responses and Anthropic Messages API adapters with offline contract
-tests. Provider inference is nondeterministic and no repair-performance result is claimed. Codex CLI,
-Claude Code, MCP, IDE and GitHub Action product integrations remain **planned**.
-No repair effectiveness or scientific performance result is claimed.
+The system treats architecture conformance, repository provenance, context selection, patch policy, execution isolation, cost accounting, and source-free evidence as explicit boundaries. Its core is a ports-and-adapters modular monolith: entrypoints call application services, application depends only on domain contracts, and infrastructure implements external adapters.
 
-## Architecture and layout
+## Motivation
 
-Ports-and-adapters modular monolith: entrypoints → application → domain. Infrastructure implements
-application ports. Core layers import only standard-library modules and domain values.
+A locally plausible patch can violate module boundaries, depend on incomplete context, or pass an insufficient test. ArchGuard-APR studies whether explicit architecture information can be integrated into a safe, auditable repository-level repair pipeline. Engineering maturity and repair effectiveness are reported separately.
 
-- `src/archguard/domain`: immutable provider-neutral values.
-- `src/archguard/application/ports`: future capability contracts.
-- `src/archguard/entrypoints`: Typer CLI and FastAPI factory.
-- `src/archguard/infrastructure`: configuration, logging and path probes.
-- `src/archguard/schemas`: boundary validation.
-- `configs`, `docs`, `experiments`: examples, research and artifact policies.
-- `tests`: unit, integration and architecture tests; `.github`: CI and templates.
+## Key capabilities
 
-See [architecture](docs/architecture/overview.md) and [integration strategy](docs/architecture/integration-strategy.md).
+- Source-safe Python AST snapshots without importing or executing target code.
+- Immutable repository graphs and deterministic structural queries.
+- Explicit, versioned architecture profiles and conformance reports.
+- Bounded graph-guided context retrieval with provenance.
+- Provider-neutral typed orchestration and offline fake transports.
+- Strict patch parsing, path policy, detached worktrees, and architecture deltas.
+- Docker-only sandbox execution feedback with resource and network controls.
+- Reproducible experiments, resumable accounting, and canonical source-free artifacts.
 
-## Prerequisites and quick start
+## Architecture diagram
 
-Python 3.12, uv and Git. Python 3.13 is supported; `.python-version` selects 3.12.
-Docker is optional for library development and required for container checks.
-
-```bash
-uv sync --frozen
-uv run archguard version
-uv run archguard doctor
-uv run archguard config show
-uv run archguard config show --config configs/app.example.yaml
-uv run archguard experiment validate --config configs/experiments/smoke.yaml
-uv run archguard experiment plan validate --plan configs/experiments/phase12-plan.yaml
-uv run archguard benchmark external preflight \
-  --registry configs/benchmarks.external-metadata.yaml --output /tmp/external-preflight.json
-uv run uvicorn archguard.entrypoints.api.app:create_app --factory --host 127.0.0.1 --port 8000
+```mermaid
+flowchart LR
+  CLI[CLI / API] --> APP[Application services]
+  APP --> DOMAIN[Vendor-neutral domain]
+  APP --> SNAP[Validated snapshot adapter]
+  SNAP --> GRAPH[Immutable repository graph]
+  GRAPH --> PROFILE[Architecture-profile evaluation]
+  GRAPH --> CONTEXT[Bounded context retrieval]
+  CONTEXT --> ORCH[Repair orchestration]
+  PROFILE --> ORCH
+  ORCH --> PATCH[Patch validation]
+  PATCH --> SANDBOX[Sandboxed execution feedback]
+  SANDBOX --> EVIDENCE[Canonical source-free evidence]
 ```
 
-Validate a trusted plan without executing candidate code:
+## Repair workflow
+
+```mermaid
+flowchart TD
+  A[Validate immutable task and repository] --> B[Build snapshot and graph]
+  B --> C[Compile architecture profile]
+  C --> D[Retrieve bounded context]
+  D --> E{Explicit provider and cost gate}
+  E -->|offline tests| F[Fake transport]
+  E -->|authorized live run only| G[Provider adapter]
+  F --> H[Parse and inspect patch]
+  G --> H
+  H --> I[Disposable worktree]
+  I --> J[Isolated evaluator]
+  J --> K[Source-free result and cleanup proof]
+```
+
+## Current scientific evidence
+
+Phase 13 was an exploratory feasibility evaluation: six executions were planned, four completed, and two black-4 slots had pre-provider infrastructure attrition. Two valid paired tasks remained. Baseline success was 0/2; ArchGuard success was 0/2; all four completed outputs were invalid patches. No effectiveness advantage was observed. The study is underpowered and supports no generalization, equivalence, superiority, or state-of-the-art claim. See the [final verification](docs/phase-13-final-verification.md) and [paper-ready results](research/results/phase-13/paper-ready-results.json).
+
+## Installation
+
+Requirements: Python 3.12 or 3.13, [uv](https://docs.astral.sh/uv/), and Git. Docker is optional for ordinary development and required only for sandbox execution checks.
+
+```bash
+git clone https://github.com/majidfeiz/archguard-apr.git
+cd archguard-apr
+uv sync --frozen
+```
+
+## Quick start
+
+These commands are offline and do not execute a scientific experiment or contact a provider:
+
+```bash
+uv run archguard version
+uv run archguard doctor
+uv run archguard config show --config configs/app.example.yaml
+uv run archguard experiment validate --config configs/experiments/smoke.yaml
+```
+
+## Configuration
+
+Configuration precedence is environment, current-directory `.env`, explicit YAML/constructor values, then defaults. Use [`.env.example`](.env.example) only as a placeholder template. Provider credentials are read from the environment and must never be committed. See [provider configuration](docs/providers/configuration.md).
+
+## CLI examples
+
+```bash
+uv run archguard repository analyze examples/python/simple-layered-app \
+  --source-root src --output /tmp/archguard-snapshot.json
+uv run archguard graph build /tmp/archguard-snapshot.json \
+  --output /tmp/archguard-graph.json
+uv run archguard graph inspect /tmp/archguard-graph.json
+```
+
+## Architecture-profile example
+
+```bash
+uv run archguard architecture profile validate examples/architecture/simple-layered.yaml
+uv run archguard architecture profile compile examples/architecture/simple-layered.yaml \
+  --output /tmp/archguard-profile.json
+uv run archguard architecture evaluate /tmp/archguard-graph.json \
+  --profile examples/architecture/simple-layered.yaml \
+  --output /tmp/archguard-report.json
+```
+
+## Context-retrieval example
+
+```bash
+uv run archguard context query compile \
+  --problem examples/context/problem.txt --traceback examples/context/traceback.txt \
+  --module demo.service --symbol item_names --output /tmp/archguard-context-query.json
+```
+
+See [context retrieval](docs/architecture/context-retrieval.md) for the snapshot-bound query and bundle workflow. Source-bearing bundles must stay outside tracked repositories.
+
+## Patch-validation example
+
+```bash
+uv run archguard patch inspect examples/patches/preserves-architecture.diff
+```
+
+Patch inputs are untrusted data. Inspection does not execute them. See [patch validation](docs/architecture/patch-validation.md).
+
+## Sandboxed execution example
+
+Validate a trusted plan without running candidate code:
 
 ```bash
 uv run archguard execution plan validate --plan examples/execution/archguard-self.yaml
 ```
 
-Execution comparison never falls back to a host subprocess. See
-[execution feedback](docs/architecture/execution-feedback.md).
+Actual candidate evaluation is Docker-only and never falls back to a host subprocess. See [execution feedback](docs/architecture/execution-feedback.md).
 
-API: `/health`, `/ready`, `/version`. Readiness means validated configuration, not execution-backend
-availability. Imports perform no I/O or logging setup. Factory creation loads settings.
-Doctor checks Python, settings, workspace, output writability and Git. Missing optional Docker
-is reported without failing; daemon state is explicitly not checked. Failed prerequisites exit 1;
-invalid configuration or metadata exits 2. Experiment validation never runs a benchmark.
-
-## Configuration
-
-Precedence: environment variables > current-directory `.env` > explicit YAML/constructor values >
-defaults. Prefix: `ARCHGUARD_`. See `.env.example` and `configs/app.example.yaml`.
-Unknown fields fail. Provider credentials are read only from `OPENAI_API_KEY` and
-`ANTHROPIC_API_KEY`; never put them in configuration or CLI arguments. Provider/model names are
-optional metadata. Application directories can be absolute;
-artifact and experiment output references must be relative POSIX paths without parent traversal.
-Lexical path validation does not provide symlink containment or an execution sandbox.
-
-## Quality and Docker
-
-Provider configuration is offline-validatable. Doctor never makes a paid request:
+## Reproducibility
 
 ```bash
-OPENAI_MODEL=your-allowed-model ANTHROPIC_MODEL=your-allowed-model \
-  uv run archguard provider config validate --config configs/providers.example.yaml
-uv run archguard provider doctor --provider openai --config providers.yaml
+uv run python paper/scripts/build_paper_artifacts.py
+uv run python paper/scripts/check_bilingual_equivalence.py --check
+uv run python paper/scripts/build_publication_documents.py --format validate
+uv run pytest
 ```
 
-API access is separate from consumer subscriptions, model access varies by account, and usage may
-incur costs. Live smoke tests are opt-in. Structured output guarantees structure, not correctness;
-Phase 5 architecture and Phase 7 sandboxed execution remain mandatory gates. See
-[provider integration](docs/providers/overview.md).
+Phase 13 source-free data are under [`research/results/phase-13`](research/results/phase-13), and publication transformation is documented in [`paper/README.md`](paper/README.md). Do not rerun the scientific experiment to reproduce the reported tables.
 
-Validate or inspect an immutable Phase 10 task without provider or repository execution:
+## Experimental results
 
-```bash
-uv run archguard repair task validate --task examples/repair/task.yaml
-uv run archguard repair task inspect --task examples/repair/task.yaml
-uv run python scripts/iterative_repair_demo.py \
-  --task examples/repair/task.yaml --output /tmp/archguard-phase10-demo
-```
+The canonical result set contains four provider outcomes (`invalid_patch`) and two pre-provider infrastructure attritions. Combined observed usage was 35,431 input and 2,737 output tokens, costing USD 0.1296325 under the frozen configuration. These descriptive values are not effectiveness or cost forecasts. See the [result tables](paper/tables/) and [attrition report](paper/data/phase-13-attrition.csv).
 
-Candidates and issue text are untrusted. Model assertions are never validation evidence; selection
-uses only recorded applicability, architecture, sandbox execution, test-preservation and cleanup
-evidence. Selected tests do not prove complete correctness, and Phase 10 performs no deployment.
+## Limitations
 
-Validate Phase 11 fixture metadata and run offline shape checks:
+- Only two valid paired tasks and one represented project.
+- Zero successful repairs and no discordant successful pair.
+- 33.3% infrastructure attrition.
+- Patch-format/policy rejection dominated completed outcomes.
+- Static analysis does not model every dynamic or reflective relation.
+- Architecture profiles encode human judgment.
+- Sandboxing reduces risk but does not eliminate it.
 
-```bash
-uv run archguard benchmark registry validate --registry configs/benchmarks.fixture.yaml
-uv run archguard benchmark registry inspect --registry configs/benchmarks.fixture.yaml
-uv run python scripts/benchmark_fixture_demo.py --fixture synthetic --output /tmp/benchmark.json
-```
+## Repository structure
 
-Acquisition is always explicit and outside tracked paths. Ordinary imports, tests and CI make no
-benchmark network request. See [benchmark CLI](docs/benchmark-cli.md), [strategy](docs/research/benchmark-strategy.md)
-and [gold quarantine](docs/research/gold-patch-quarantine.md).
+| Path | Purpose |
+|---|---|
+| `src/archguard/` | Domain, application, infrastructure, schemas, and entrypoints |
+| `configs/` | Example and frozen configuration metadata |
+| `examples/` | Synthetic, non-secret examples |
+| `tests/` | Unit, integration, architecture, and safety tests |
+| `research/` | Canonical source-free research records |
+| `paper/` | Bilingual manuscripts, tables, figures, and publication files |
+| `docs/` | Architecture, research, schema, provider, and release documentation |
 
-```bash
-make install
-make check
-uv build
-uv run pre-commit install
-uv run pre-commit run --all-files
-docker compose config
-docker build -t archguard-apr:phase-7 .
-docker build -f Dockerfile.validation -t archguard-validation:phase-7 .
-docker compose up --build
-docker compose down
-```
+## Documentation
 
-Targets: `install`, `format`, `lint`, `typecheck`, `test`, `test-cov`, `check`, `run`, `doctor`,
-`docker-build`, `docker-up`, `docker-down`. Tests require at least 90% combined statement/branch coverage.
-Containers run non-root and Compose binds localhost. No data services are included.
-See [development](docs/development.md).
+Start with the [architecture overview](docs/architecture/overview.md), [development guide](docs/development.md), [research protocol](docs/research/research-protocol.md), and [public artifact policy](docs/release/public-artifact-policy.md).
 
-## Reproducibility and research roadmap
+## Citation
 
-Record seeds, configuration and lock hashes, exact repository commits, environment/container
-digests, model/provider versions and budgets. Preserve failed runs. Keep generated outputs and
-benchmark checkouts out of Git and never expose gold patches to repair context.
+Cite the software repository using [`CITATION.cff`](CITATION.cff). No DOI or publication venue is currently assigned. See the [citation guide](docs/release/citation-guide.md) before changing the preferred citation.
 
-1. Completed foundation: engineering and preliminary research protocol.
-2. Completed: Phase 2 deterministic Python repository analysis.
-3. Completed: Phase 3 deterministic repository graphs and structural queries.
-4. Completed: explicit architecture constraints and deterministic conformance.
-5. Completed: isolated patch and architecture-delta validation.
-6. Completed: deterministic graph context retrieval.
-7. Completed: Docker-only execution feedback and functional validation.
-8. Completed: provider-neutral multi-agent orchestration and deterministic replay.
-9. Completed: secure API provider adapters.
-10. Completed: iterative candidate/refinement control and deterministic evidence selection.
-11. Completed: reproducible benchmark metadata, dataset policy, gold-patch quarantine, and qualified
-    immutable task acquisition.
-12. Completed: controlled baselines, deterministic offline pilots, frozen population and prospective
-    exploratory protocol.
-13. Implemented but not executed: explicit-acknowledgement six-run workflow and source-free evidence.
+## Published manuscripts
 
-See [protocol](docs/research/research-protocol.md), [questions](docs/research/research-questions.md)
-and [registry](docs/research/experiment-registry.md). Smoke configuration is metadata only.
+These tracked documents are author manuscripts, not published or peer-reviewed articles:
 
-## License and citation
+- English: [PDF](paper/dist/ArchGuard-APR-English.pdf) · [Word](paper/dist/ArchGuard-APR-English.docx)
+- Persian: [PDF](paper/dist/ArchGuard-APR-Persian.pdf) · [Word](paper/dist/ArchGuard-APR-Persian.docx)
 
-Code: [Apache-2.0](LICENSE). Original documentation: [CC BY 4.0](docs/LICENSE.md).
-Future original datasets may use CC BY 4.0 only where underlying rights permit; upstream
-licenses remain controlling. Cite using [CITATION.cff](CITATION.cff). No DOI is assigned.
+## Security
 
-## Repository analysis (CLI and Python use case)
+Read [`SECURITY.md`](SECURITY.md) before reporting a vulnerability. Never include credentials, raw provider output, benchmark source, gold patches, or personal data in a public issue.
 
-```bash
-uv run archguard repository analyze examples/python/simple-layered-app --source-root src
-uv run archguard repository analyze examples/python/simple-layered-app --config configs/app.example.yaml
-uv run archguard repository analyze examples/python/simple-layered-app \
-  --source-root src --output /tmp/archguard-analysis.json
-uv run archguard repository inspect /tmp/archguard-analysis.json
-# Optional integrity check: append --sha256 EXPECTED_SHA256 to inspect.
-uv run python scripts/benchmark_repository_analysis.py
-```
+## Contributing
 
-Output is a concise JSON summary with fingerprint, counts and complete/partial status. `--output`
-writes canonical JSON externally and reports a basename and artifact hash. It cannot write inside
-the analyzed repository. Source is parsed without importing or executing it; links are never followed.
-Analysis requires Unix descriptor-relative APIs (macOS/Linux); unsupported platforms fail closed.
-Use stable checkouts and output parents. `.gitignore` is not interpreted. HTTP analysis is not exposed.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md), [`AGENTS.md`](AGENTS.md), and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Research integrity and provenance requirements apply.
 
-`--source-root` is repeatable and explicitly overrides configured roots. Environment overrides YAML;
-nested settings use `ARCHGUARD_ANALYSIS__MAX_FILE_BYTES=1048576`, or JSON array values for collections.
-`--strict` fails on error diagnostics after safe reporting; `analysis.fail_fast` aborts immediately.
-Exit codes: 0 complete/collected partial, 1 strict errors or I/O/analysis failure, 2 invalid input,
-3 path-policy rejection. Any partial status must be considered when consuming research artifacts.
-See [analysis policy](docs/architecture/repository-analysis.md), [schema](docs/schemas/repository-snapshot-v1.md)
-and [ADR-0003](docs/architecture/decisions/ADR-0003-canonical-repository-snapshot.md).
+## License
 
-## Repository graph CLI
+Source code is Apache-2.0 under [`LICENSE`](LICENSE). Original documentation is CC BY 4.0 under [`docs/LICENSE.md`](docs/LICENSE.md); author-owned manuscript material is scoped in [`paper/LICENSE.md`](paper/LICENSE.md). Third-party material retains its original terms; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
-```bash
-uv run archguard repository analyze examples/python/simple-layered-app \
-  --source-root src --output /tmp/archguard-snapshot.json
-uv run archguard graph build /tmp/archguard-snapshot.json --output /tmp/archguard-graph.json
-uv run archguard graph inspect /tmp/archguard-graph.json
-uv run archguard graph node /tmp/archguard-graph.json module:demo.service
-uv run archguard graph neighbors /tmp/archguard-graph.json module:demo.service --direction incoming
-uv run archguard graph dependencies /tmp/archguard-graph.json module:demo.service
-uv run archguard graph reverse-dependencies /tmp/archguard-graph.json module:demo.model
-uv run archguard graph path /tmp/archguard-graph.json module:demo.controller module:demo.model
-uv run archguard graph cycles /tmp/archguard-graph.json
-uv run archguard graph cycles /tmp/archguard-graph.json --runtime-only
-uv run python scripts/benchmark_repository_graph.py
-```
+## Author/contact
 
-Build reads only the snapshot. Supply `--protected-root SOURCE_ROOT` when repository context is known.
-Queries return deterministic JSON; inspect supports `--sha256`. Neighbors and path accept `--kind`.
-Exit codes: 0 success (including partial graphs), 1 artifact I/O failure, 2 invalid input/node,
-3 path-policy rejection. No full graph is printed by default. See [graph policy](docs/architecture/repository-graph.md),
-[schema](docs/schemas/repository-graph-v1.md), and [verification](docs/phase-3-verification.md).
-
-## Architecture conformance CLI
-
-```bash
-uv run archguard repository analyze examples/python/simple-layered-app \
-  --source-root src --output /tmp/archguard-snapshot.json
-uv run archguard graph build /tmp/archguard-snapshot.json --output /tmp/archguard-graph.json
-uv run archguard architecture profile validate examples/architecture/simple-layered.yaml
-uv run archguard architecture profile compile examples/architecture/simple-layered.yaml \
-  --output /tmp/archguard-profile.json
-uv run archguard architecture profile inspect /tmp/archguard-profile.json
-uv run archguard architecture evaluate /tmp/archguard-graph.json \
-  --profile examples/architecture/simple-layered.yaml --output /tmp/archguard-report.json
-uv run archguard architecture inspect /tmp/archguard-report.json
-uv run archguard architecture violations /tmp/archguard-report.json
-uv run archguard architecture violations /tmp/archguard-report.json --severity error
-make architecture-self
-uv run python scripts/benchmark_constraint_engine.py
-```
-
-The example profile passes. `simple-layered-violating.yaml` intentionally rejects the existing
-application-to-persistence import; see the actual explanation command in
-[Phase 4 verification](docs/phase-4-verification.md). Profiles are explicit specifications, not inferred
-layers. Assignment ambiguity is never resolved by declaration order. Dependency violations aggregate
-occurrences per rule/source/target; cycle violations aggregate per scoped SCC.
-
-Exit codes: 0 passed/valid, 1 conformance failed, 2 invalid input or artifact I/O, 3 unsafe path,
-4 partial evaluation without `--allow-partial`. A valid report is persisted before conformance exit.
-Warnings do not fail. Partial status always remains visible. Supply `--protected-root ROOT` to protect
-an analyzed root; inputs cannot be overwritten by compile/evaluate. Generated outputs belong outside
-analyzed roots. Targets: `architecture-smoke`, `architecture-self`, `architecture-benchmark`.
-
-Read the [DSL](docs/architecture/constraint-dsl.md), [engine](docs/architecture/constraint-engine.md),
-[profile schema](docs/schemas/architecture-profile-v1.md),
-[report schema](docs/schemas/architecture-report-v1.md) and
-[ADR-0005](docs/architecture/decisions/ADR-0005-versioned-constraint-dsl.md).
-
-## Isolated patch validation
-
-Phase 5 accepts a narrow textual Git unified-diff subset. It fingerprints the exact input bytes,
-rejects unsafe paths and unsupported constructs before application, binds one full baseline commit,
-and applies only inside a temporary detached worktree. The original repository must be clean and its
-HEAD, branch, index, tracked status, and untracked status are proven unchanged afterward.
-
-```console
-archguard patch inspect candidate.diff
-archguard patch validate repository --patch candidate.diff --profile architecture.yaml \
-  --baseline 0123456789abcdef0123456789abcdef01234567 --source-root src \
-  --output validation.json
-archguard patch result inspect validation.json
-archguard patch result delta validation.json
-archguard patch result violations validation.json --state introduced
-```
-
-Exit codes are 0 (complete/pass), 1 (complete/gate failed), 2 (invalid input/artifact), 3
-(rejected patch), 4 (incomplete comparison), and 5 (worktree/application failure). No patched code,
-hooks, submodules, tests, or arbitrary commands are executed. Static architecture conformance and
-resolved violations do not establish functional correctness. See the
-[Phase 5 design](docs/architecture/patch-validation.md) and
-[verification report](docs/phase-5-verification.md).
-
-## Deterministic context retrieval
-
-```console
-archguard context query compile --problem examples/context/problem.txt --output query.json
-archguard context retrieve graph.json --snapshot snapshot.json --query query.json --output manifest.json
-archguard context inspect manifest.json
-archguard context explain manifest.json file:src/demo/service.py
-archguard context bundle repository repository --snapshot snapshot.json --manifest manifest.json --output context-bundle.json --include-source
-archguard context bundle inspect context-bundle.json
-archguard context evaluate manifest.json --labels examples/context/relevance-labels.yaml --output retrieval-evaluation.json
-archguard context evaluation inspect retrieval-evaluation.json
-```
-
-Query, manifest and evaluation outputs are source-free. Bundles are explicitly
-`sensitive-source-bearing`; creation requires `--include-source`, and normal inspection never
-prints source. Exit codes are 0 complete, 1 no candidates, 2 invalid input/artifact, 3 source
-acknowledgement refusal, 4 partial result, and 6 source identity mismatch. See the
-[design](docs/architecture/context-retrieval.md), [schemas](docs/schemas/context-retrieval-v1.md),
-and [Phase 6 verification](docs/phase-6-verification.md). Phase 7 evidence is in
-[Phase 7 verification](docs/phase-7-verification.md).
+**Majid Feiz Deilami** (مجید فیض دیلمی), M.Sc. Student in Software Engineering<br>
+Department of Computer Engineering, Lahijan Branch, Islamic Azad University, Lahijan, Iran<br>
+[ORCID 0009-0006-8439-1839](https://orcid.org/0009-0006-8439-1839) · `majid.feiz@iau.ir`

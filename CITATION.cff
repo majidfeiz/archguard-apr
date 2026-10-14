@@ -3,9 +3,13 @@ message: "Please cite this software when using ArchGuard-APR."
 type: software
 title: "ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair with Repository Graphs and Execution Feedback"
 authors:
-  - family-names: Feizi
+  - family-names: Feiz Deilami
     given-names: Majid
-version: 0.6.0
+    orcid: "https://orcid.org/0009-0006-8439-1839"
+    affiliation: "Lahijan Branch, Islamic Azad University"
+    email: "majid.feiz@iau.ir"
+version: 0.12.8
 license: Apache-2.0
 repository-code: "https://github.com/majidfeiz/archguard-apr"
-# TODO: Add DOI only after a verified archival release.
+# After an archival Zenodo release, verify the DOI and then add it here and reassess
+# preferred-citation. Do not add an unassigned or draft DOI.

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Prepare a fail-closed public-release audit, professional README, scoped licensing, citation and
+  governance guidance, GitHub metadata recommendations, and source-free release drafts.
+- Remove a non-public contact field from the current tree while documenting that the value remains
+  in reachable history; publication stays blocked pending an explicit owner remediation decision.
+- Preserve the frozen Phase 13 results and bilingual manuscript content without provider or
+  experiment execution.
+
 ## 0.12.8
 
 - Produce final English and Persian author-manuscript sources and A4 Word/PDF editions with verified

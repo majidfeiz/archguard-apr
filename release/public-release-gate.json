@@ -1,0 +1,23 @@
+{
+  "blocking_findings": [
+    {
+      "category": "unsafe_historical_content",
+      "detail": "An explicitly non-public personal-email value remains in four reachable commits; only a redacted fingerprint is recorded in the audit.",
+      "remediation": "Owner must make an explicit disclosure-versus-history-rewrite decision and repeat the history scan before publication."
+    }
+  ],
+  "checks": {
+    "citation_metadata": "PASS",
+    "current_tree_credentials": "PASS",
+    "documentation": "PASS",
+    "history_credentials": "PASS",
+    "history_privacy": "BLOCKED",
+    "licensing": "REVIEW_REQUIRED",
+    "manuscript_hashes": "PASS",
+    "restricted_payloads": "PASS"
+  },
+  "generated_from_baseline": "bc12e7c5e60052e0f5399777ba3bb3f95d76f95d",
+  "phase13_modified": false,
+  "schema": "archguard.public-release-gate/v1",
+  "status": "BLOCKED"
+}

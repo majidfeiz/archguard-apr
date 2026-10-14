@@ -1,0 +1,13 @@
+path,classification,license_or_policy,source_free,included
+src/,safe_for_public_release,Apache-2.0,true,true
+tests/,safe_for_public_release,Apache-2.0,true,true
+configs/,safe_for_public_release,Apache-2.0,true,true
+research/results/phase-13/,generated_but_safe,repository policy,true,true
+paper/manuscript/,public_with_attribution,CC BY 4.0,true,true
+paper/tables/,public_with_attribution,CC BY 4.0,true,true
+paper/figures/,public_with_attribution,CC BY 4.0,true,true
+paper/dist/,generated_but_safe,scoped repository licenses,true,true
+benchmark repositories,private_restricted,upstream terms,false,false
+gold patches,private_restricted,quarantine policy,false,false
+raw provider responses,private_restricted,security policy,false,false
+external evidence ZIP files,excluded_from_git,manual review,unknown,false

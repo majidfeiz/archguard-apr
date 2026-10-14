@@ -1,6 +1,9 @@
 name: Bug report
 description: Report reproducible unexpected behavior.
 body:
+  - type: markdown
+    attributes:
+      value: "Do not include credentials, private data, provider payloads, benchmark source, or gold patches. Report vulnerabilities privately as described in SECURITY.md."
   - type: textarea
     id: context
     attributes:
