@@ -2,6 +2,10 @@
 
 ## 0.12.8
 
+- Produce final English and Persian author-manuscript sources and A4 Word/PDF editions with verified
+  author metadata, deterministic content validation, SHA-256 inventories, and visual QA.
+- Preserve all Phase 13 evidence and report the exploratory negative results without new provider or
+  experiment execution.
 - Add the Phase 14B–14C verified-only bibliography, frozen manuscript decisions, and complete English
   Markdown/LaTeX draft without changing scientific evidence.
 - Complete the manuscript at publication-draft depth with 23 authoritative references and a

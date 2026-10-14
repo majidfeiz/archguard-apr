@@ -11,6 +11,8 @@ __pycache__/
 htmlcov/
 coverage.xml
 dist/
+!paper/dist/
+!paper/dist/**
 build/
 *.egg-info/
 .DS_Store

@@ -1,0 +1,12 @@
+{
+  "schema": "archguard.publication-registry/v1",
+  "phase": "14D-14E",
+  "status": "READY_FOR_HUMAN_REVIEW",
+  "author_manuscript_status": "not peer reviewed",
+  "languages": ["English", "Persian"],
+  "verified_reference_count": 23,
+  "phase_13_result_fingerprint": "761d9853f6ecfb4dafdaad81de781c4d49108b8b82912aeec509e173c7d56c70",
+  "phase_13_evidence_modified": false,
+  "provider_calls": 0,
+  "inventory": "paper/dist/document-build-manifest.json"
+}

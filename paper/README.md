@@ -1,4 +1,4 @@
-# Phase 14A paper evidence package
+# Phase 14 paper evidence and publication package
 
 This package supports an evidence-grounded manuscript foundation for **ArchGuard-APR:
 Architecture-Constraint-Aware Multi-Agent Program Repair Using Repository Graphs and Execution
@@ -10,5 +10,9 @@ Scientific values originate only from `research/results/phase-13/`. Do not edit 
 hand. No state-of-the-art, superiority, statistical-significance, generalized-effectiveness,
 production-readiness, successful-repair, or complete multi-agent APR validation claim is allowed.
 
-Human approval is required for interpretation, novelty positioning, venue selection, authorship,
-related-work synthesis, and all final manuscript prose.
+Phase 14D–14E adds complete English and Persian author-manuscript sources and A4 Word/PDF editions.
+Run `paper/scripts/build_publication_documents.py` with `--format validate`, `docx`, `pdf`, and
+`finalize` in that order. The manifest records hashes, page counts, actual fonts, validation results,
+and the zero-provider-call boundary. PDF byte identity is not claimed because the exporter may embed
+variable metadata. Human approval remains required for interpretation, novelty positioning, venue
+selection, language quality, accessibility, and the final submission package.

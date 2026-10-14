@@ -8,10 +8,11 @@ from archguard.domain.canonical import canonical_json
 ROOT = Path(__file__).resolve().parents[2]
 MD = ROOT / "paper/manuscript/archguard-apr-en.md"
 TEX = ROOT / "paper/manuscript/archguard-apr-en.tex"
+FA = ROOT / "paper/manuscript/archguard-apr-fa.md"
 
 
 def main() -> None:
-    md, tex = MD.read_text(), TEX.read_text()
+    md, tex, fa = MD.read_text(), TEX.read_text(), FA.read_text()
     required = [
         "six executions",
         "four",
@@ -36,6 +37,8 @@ def main() -> None:
         "outperforms",
     ]
     assert not any(value in md.lower() or value in tex.lower() for value in prohibited)
+    assert "HUMAN_CONFIRMATION_REQUIRED" not in md + tex + fa
+    assert all(value in fa for value in ["۳۸٬۱۶۸", "۰٫۱۲۹۶۳۲۵", "ریزش زیرساختی"])
     citations = sorted(
         {key.strip() for group in re.findall(r"\\cite\{([^}]+)\}", tex) for key in group.split(",")}
     )
@@ -50,7 +53,10 @@ def main() -> None:
         "citation_key_count": len(citations),
         "table_count": 10,
         "figure_count": 7,
-        "unresolved_human_placeholders": 9,
+        "unresolved_human_placeholders": 0,
+        "persian_word_count": len(
+            re.findall(r"[\w\u0600-\u06ff]+", fa.split("\n## منابع\n", 1)[0])
+        ),
         "scientific_result_fingerprints": [
             "761d9853f6ecfb4dafdaad81de781c4d49108b8b82912aeec509e173c7d56c70"
         ],
