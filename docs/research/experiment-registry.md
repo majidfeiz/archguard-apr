@@ -100,3 +100,12 @@ task-condition executions before any provider call, observed cost, or scientific
 protocol remains immutable. The new protocol is bound to the unchanged population and frozen OpenAI
 configuration. This entry registers implementation readiness only: zero Phase 13 calls, USD 0
 observed cost, and no scientific result.
+
+Phase 13 is now closed from reviewed source-free artifact
+`48080661ddbff3e486d47cebc63754e29d4dd4664febbb7f8143484e4c03e99d` as
+`COMPLETED_WITH_ATTRITION`. Four executions completed with four provider calls and USD 0.1296325
+observed cost; all four were invalid patches and none repaired its task. The two black-4 conditions
+are pre-provider checkout infrastructure attrition, not model outcomes or repair failures. The two
+valid PySnooper pairs show 0/2 successes in each condition and no observed effectiveness difference.
+This underpowered exploratory feasibility result supports no inferential, generalization, or
+superiority claim.

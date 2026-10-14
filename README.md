@@ -11,9 +11,11 @@ repair effectiveness, benchmark performance or empirical result is claimed.
 Version 0.12.8 closes Phase 12 with fail-closed evidence ingestion, a human-approved exploratory
 three-task/two-project population, protocol-freeze contracts, and a factual Phase 13 readiness gate.
 Phase 13B implements the prospectively amended, explicitly authorized six-execution runner with
-sequential cost guards and source-free evidence. No Phase 13 provider call or experiment has run.
+sequential cost guards and source-free evidence. Phase 13 is closed as an exploratory feasibility
+evaluation with four completed invalid-patch outcomes and two pre-provider infrastructure attritions;
+the two valid pairs show no observed effectiveness difference and support no superiority claim.
 Phase 12.8A additionally prepared separately scoped license evidence, revision/profile-bound graph
-evidence, outcome-blind selection, and prospective power scenarios. No Phase 13 experiment has run.
+evidence, outcome-blind selection, and prospective power scenarios.
 Version 0.12.6 added a strict
 low-resource local micro-pilot: two real BugsInPy tasks were attempted,
 one stable task/evaluator qualified, and its architecture profile remains review-required. No paid

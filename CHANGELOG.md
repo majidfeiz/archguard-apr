@@ -2,6 +2,8 @@
 
 ## 0.12.8
 
+- Finalize Phase 13 as `COMPLETED_WITH_ATTRITION` from hash-validated source-free evidence: four
+  completed invalid-patch outcomes, two pre-provider black-4 attritions, and no effectiveness claim.
 - Add the prospective one-repetition Phase 13 protocol amendment and deterministic six-run live
   orchestrator with strict cost, retry, leakage, patch, evaluator, cleanup and artifact boundaries.
 - No provider request or Phase 13 scientific execution occurred during implementation.
