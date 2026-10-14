@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import sys
 import zipfile
@@ -21,6 +22,28 @@ def test_bilingual_publication_sources_validate(repository_root: Path) -> None:
     assert report["tables"] == 10
 
 
+def test_section_equivalence_matrix_is_current(repository_root: Path) -> None:
+    result = subprocess.run(
+        [sys.executable, "paper/scripts/check_bilingual_equivalence.py", "--check"],
+        cwd=repository_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "PASS: 49 paired sections" in result.stdout
+    matrix = (repository_root / "paper/manuscript/en-fa-section-equivalence.csv").read_text()
+    assert "compressed-review-required" not in matrix
+    assert matrix.count("equivalent") == 49
+
+
+def test_persian_has_complete_citation_table_and_figure_parity(repository_root: Path) -> None:
+    persian = (repository_root / "paper/manuscript/archguard-apr-fa.md").read_text()
+    assert {int(value) for value in re.findall(r"\[(\d+)]", persian)} == set(range(1, 24))
+    assert len(set(re.findall(r"\.\./tables/(table-[^)]+)", persian))) == 10
+    assert sum(line.startswith("![شکل ") for line in persian.splitlines()) == 7
+    assert all(marker in persian for marker in ("۳۵٬۴۳۱", "۲٬۷۳۷", "۰٫۱۲۹۶۳۲۵", "۳۳٫۳"))
+
+
 def test_author_metadata_and_disclosures_are_final(repository_root: Path) -> None:
     english = (repository_root / "paper/manuscript/archguard-apr-en.md").read_text()
     persian = (repository_root / "paper/manuscript/archguard-apr-fa.md").read_text()
@@ -40,6 +63,7 @@ def test_publication_documents_are_structurally_readable(repository_root: Path) 
     manifest = json.loads((dist / "document-build-manifest.json").read_text())
     assert manifest["phase13_modified"] is False
     assert manifest["provider_calls"] == 0
+    assert manifest["fonts"]["persian"] == "Arial"
     for name in ("ArchGuard-APR-English.docx", "ArchGuard-APR-Persian.docx"):
         with zipfile.ZipFile(dist / name) as archive:
             names = set(archive.namelist())

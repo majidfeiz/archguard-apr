@@ -101,6 +101,7 @@ def validate() -> dict[str, int]:
 
 def _inline(value: str) -> str:
     value = value.replace("<br>", "\n")
+    value = re.sub(r"\[([^]]+)]\([^)]+\)", r"\1", value)
     value = html.escape(value)
     value = re.sub(r"`([^`]+)`", r"<code>\1</code>", value)
     value = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", value)
@@ -336,8 +337,12 @@ def finalize(stats: dict[str, int]) -> None:
             }
             for path in outputs
         },
-        "fonts": {"english": "Times New Roman", "persian": "Arial"},
-        "build_notes": "DOCX created by macOS textutil and normalized OOXML; PDF exported by Microsoft Word. PDF byte identity is not claimed because the exporter may embed variable metadata.",
+        "fonts": {
+            "english": "Times New Roman",
+            "persian": "Arial",
+            "persian_selection_reason": "Arial fallback: Vazirmatn, Noto Naskh Arabic, and Noto Sans Arabic were not installed; no font was downloaded.",
+        },
+        "build_notes": "DOCX created by macOS textutil and normalized OOXML; PDF exported by Microsoft Word. Persian layout uses RTL paragraph direction and the trusted installed Arial fallback. PDF byte identity is not claimed because the exporter may embed variable metadata.",
         "validation": stats,
         "phase13_modified": False,
         "provider_calls": 0,
