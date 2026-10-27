@@ -1,5 +1,13 @@
 # ArchGuard-APR
 
+<p align="center">
+  <img
+    src="docs/assets/archguard-apr-banner.png"
+    alt="ArchGuard-APR — Architecture-Constraint-Aware Automated Program Repair"
+    width="100%"
+  />
+</p>
+
 ArchGuard-APR is a research prototype for architecture-constraint-aware automated program repair. It combines deterministic repository graphs, explicit architecture profiles, graph-guided context retrieval, isolated execution feedback, and reproducible experiment artifacts.
 
 [![CI](https://github.com/majidfeiz/archguard-apr/actions/workflows/ci.yml/badge.svg)](https://github.com/majidfeiz/archguard-apr/actions/workflows/ci.yml)
