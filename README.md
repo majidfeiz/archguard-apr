@@ -5,6 +5,7 @@ ArchGuard-APR is a research prototype for architecture-constraint-aware automate
 [![CI](https://github.com/majidfeiz/archguard-apr/actions/workflows/ci.yml/badge.svg)](https://github.com/majidfeiz/archguard-apr/actions/workflows/ci.yml)
 [![Python 3.12–3.13](https://img.shields.io/badge/Python-3.12%E2%80%933.13-3776AB)](pyproject.toml)
 [![License: Apache-2.0](https://img.shields.io/badge/code-Apache--2.0-blue)](LICENSE)
+[![arXiv](https://img.shields.io/badge/arXiv-2610.33853-b31b1b.svg)](https://arxiv.org/abs/2610.33853)
 [![Preprint DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23377964.svg)](https://doi.org/10.5281/zenodo.23377964)
 [![Software DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23377882.svg)](https://doi.org/10.5281/zenodo.23377882)
 
@@ -182,18 +183,34 @@ The canonical result set contains four provider outcomes (`invalid_patch`) and t
 
 Start with the [architecture overview](docs/architecture/overview.md), [development guide](docs/development.md), [research protocol](docs/research/research-protocol.md), and [public artifact policy](docs/release/public-artifact-policy.md).
 
-## Citation
+## Paper and Citation
+
+The English manuscript is a **preprint** published on arXiv in the cs.SE (Software Engineering) category. Read the [arXiv abstract](https://arxiv.org/abs/2610.33853) or [download the PDF](https://arxiv.org/pdf/2610.33853). Its persistent records are the [arXiv DOI](https://doi.org/10.48550/arXiv.2610.33853) and the separate [Zenodo version DOI](https://doi.org/10.5281/zenodo.23377965) ([Zenodo concept DOI](https://doi.org/10.5281/zenodo.23377964)). Author identity is available via [ORCID 0009-0006-8439-1839](https://orcid.org/0009-0006-8439-1839).
+
+The evaluation is exploratory and does not establish effectiveness superiority.
 
 Choose the citation that matches the reused artifact:
 
-- **Preprint:** Majid Feiz Deilami (2026). *ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair Using Repository Graphs and Execution Feedback* (Version 1.0.0) [Preprint]. Zenodo. https://doi.org/10.5281/zenodo.23377965
+- **arXiv preprint:** Majid Feiz Deilami (2026). *ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair Using Repository Graphs and Execution Feedback*. arXiv:2610.33853 [cs.SE]. https://doi.org/10.48550/arXiv.2610.33853
+- **Zenodo preprint record:** Majid Feiz Deilami (2026). *ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair Using Repository Graphs and Execution Feedback* (Version 1.0.0) [Preprint]. Zenodo. https://doi.org/10.5281/zenodo.23377965
 - **Software:** Majid Feiz Deilami (2026). *ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair with Repository Graphs and Execution Feedback* (Version v0.12.8) [Software]. Zenodo. https://doi.org/10.5281/zenodo.23377882
 
 The repository remains software in [`CITATION.cff`](CITATION.cff), with the version-specific preprint DOI as its preferred citation. Copyable BibTeX and role guidance are in [`paper/citation/`](paper/citation/README.md).
 
+```bibtex
+@article{feizdeilami2026archguardapr,
+  title   = {ArchGuard-APR: Architecture-Constraint-Aware Multi-Agent Program Repair Using Repository Graphs and Execution Feedback},
+  author  = {Feiz Deilami, Majid},
+  journal = {arXiv preprint arXiv:2610.33853},
+  year    = {2026},
+  doi     = {10.48550/arXiv.2610.33853},
+  url     = {https://arxiv.org/abs/2610.33853}
+}
+```
+
 ## Published manuscripts
 
-The English author manuscript was published as an open-access Zenodo preprint on 14 October 2026 (Version 1.0.0; [concept DOI](https://doi.org/10.5281/zenodo.23377964); [version record](https://zenodo.org/records/23377965)). It has **not been peer reviewed** and is not an accepted journal or conference article. The Persian manuscript remains an unpublished, not-peer-reviewed author manuscript.
+The English author manuscript is published as an arXiv preprint ([arXiv:2610.33853](https://arxiv.org/abs/2610.33853)) and as an open-access Zenodo preprint published on 14 October 2026 (Version 1.0.0; [concept DOI](https://doi.org/10.5281/zenodo.23377964); [version record](https://zenodo.org/records/23377965)). It has **not been peer reviewed** and is not an accepted journal or conference article. The Persian manuscript remains an unpublished, not-peer-reviewed author manuscript.
 
 - English preprint source files: [PDF](paper/dist/ArchGuard-APR-English.pdf) · [Word](paper/dist/ArchGuard-APR-English.docx)
 - Persian author manuscript: [PDF](paper/dist/ArchGuard-APR-Persian.pdf) · [Word](paper/dist/ArchGuard-APR-Persian.docx)
