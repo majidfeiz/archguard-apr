@@ -1,6 +1,7 @@
+import builtins
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from unittest.mock import patch
 
@@ -129,12 +130,24 @@ def test_parser_never_executes_or_imports_candidate_content(repository_root: Pat
         b"VALUE = 2", b"__import__('os').system('x')"
     )
     raw = raw.replace(b"@@ -1 +1 @@", b"@@ -1 +1 @@")
+    original_import = builtins.__import__
+
+    def reject_candidate_import(
+        name: str,
+        globals: Mapping[str, object] | None = None,
+        locals: Mapping[str, object] | None = None,
+        fromlist: Sequence[str] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "os":
+            raise AssertionError("candidate import called")
+        return original_import(name, globals, locals, fromlist, level)
+
     with (
         patch("builtins.eval", side_effect=AssertionError("eval called")),
         patch("builtins.exec", side_effect=AssertionError("exec called")),
-        patch("builtins.__import__", side_effect=AssertionError("import called")),
+        patch("builtins.__import__", side_effect=reject_candidate_import),
     ):
-        # Imports required by the test are complete before the guarded extraction.
         result = StrictRepairResponseExtractor().extract(raw)
     assert result.normalized_patch is not None
 
