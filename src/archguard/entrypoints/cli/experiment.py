@@ -2,6 +2,7 @@
 
 import csv
 import json
+import zipfile
 from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated, Never
@@ -29,6 +30,10 @@ from archguard.infrastructure.provider_preflight import (
     load_phase13_provider_configuration,
     provider_preflight,
 )
+from archguard.infrastructure.v2_identity_archive import (
+    import_identity_archive,
+    validate_identity_archive,
+)
 from archguard.infrastructure.v2_preflight import (
     load_v2_preflight_manifest,
     write_v2_preflight_result,
@@ -40,11 +45,36 @@ compare_app = typer.Typer(no_args_is_help=True)
 schedule_app = typer.Typer(no_args_is_help=True)
 ledger_app = typer.Typer(no_args_is_help=True)
 v2_app = typer.Typer(no_args_is_help=True)
+identity_app = typer.Typer(no_args_is_help=True)
 app.add_typer(plan_app, name="plan")
 app.add_typer(compare_app, name="compare")
 app.add_typer(schedule_app, name="schedule")
 app.add_typer(ledger_app, name="ledger")
 app.add_typer(v2_app, name="v2")
+v2_app.add_typer(identity_app, name="identity")
+
+
+@identity_app.command("validate")
+def identity_validate(archive: Annotated[Path, typer.Option("--archive")]) -> None:
+    """Validate a source-free PySnooper-2 tree-identity archive."""
+    try:
+        value = validate_identity_archive(archive)
+    except (OSError, TypeError, ValueError, zipfile.BadZipFile):
+        fail(2, "invalid_v2_identity_archive")
+    emit(asdict(value))
+
+
+@identity_app.command("import")
+def identity_import(
+    archive: Annotated[Path, typer.Option("--archive")],
+    output: Annotated[Path, typer.Option("--output")],
+) -> None:
+    """Idempotently import validated source-free tree-identity evidence."""
+    try:
+        value = import_identity_archive(archive, output)
+    except (OSError, TypeError, ValueError, zipfile.BadZipFile):
+        fail(2, "invalid_v2_identity_archive")
+    emit(asdict(value))
 
 
 @v2_app.command("preflight")
