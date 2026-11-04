@@ -1,0 +1,20 @@
+name: Reproducibility failure
+description: Report a deterministic reproduction or artifact mismatch without restricted data.
+title: "[reproducibility]: "
+labels: [reproducibility]
+body:
+  - type: textarea
+    id: expected
+    attributes: {label: Expected result, description: Include artifact hashes, not source or secrets.}
+    validations: {required: true}
+  - type: textarea
+    id: observed
+    attributes: {label: Observed result, description: Include versions and source-free diagnostics.}
+    validations: {required: true}
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, source-bearing provider output, gold patches, and restricted evaluator material.
+          required: true

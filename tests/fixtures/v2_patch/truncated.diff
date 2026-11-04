@@ -1,0 +1,6 @@
+diff --git a/src/demo.py b/src/demo.py
+--- a/src/demo.py
++++ b/src/demo.py
+@@ -1,2 +1,2 @@
+-VALUE = 1
++VALUE = 2

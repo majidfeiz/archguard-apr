@@ -2,6 +2,7 @@
 
 import csv
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated, Never
 
@@ -15,6 +16,7 @@ from archguard.application.services.experiments import (
 from archguard.application.services.phase13 import run_frozen_experiment
 from archguard.domain.benchmark import ExperimentPlan
 from archguard.domain.experiments import ComparisonContract, ExperimentLedger, ExperimentSchedule
+from archguard.domain.v2_preflight import evaluate_preflight
 from archguard.infrastructure.experiment_artifacts import (
     load_experiment_artifact,
     write_experiment_artifact,
@@ -27,16 +29,42 @@ from archguard.infrastructure.provider_preflight import (
     load_phase13_provider_configuration,
     provider_preflight,
 )
+from archguard.infrastructure.v2_preflight import (
+    load_v2_preflight_manifest,
+    write_v2_preflight_result,
+)
 
 app = typer.Typer(no_args_is_help=True)
 plan_app = typer.Typer(no_args_is_help=True)
 compare_app = typer.Typer(no_args_is_help=True)
 schedule_app = typer.Typer(no_args_is_help=True)
 ledger_app = typer.Typer(no_args_is_help=True)
+v2_app = typer.Typer(no_args_is_help=True)
 app.add_typer(plan_app, name="plan")
 app.add_typer(compare_app, name="compare")
 app.add_typer(schedule_app, name="schedule")
 app.add_typer(ledger_app, name="ledger")
+app.add_typer(v2_app, name="v2")
+
+
+@v2_app.command("preflight")
+def v2_preflight(
+    manifest: Annotated[Path, typer.Option("--manifest")],
+    output: Annotated[Path, typer.Option("--output")],
+) -> None:
+    """Evaluate V2 benchmark readiness without source access or provider calls."""
+    if output.exists():
+        fail(4, "immutable_output_exists")
+    try:
+        value = evaluate_preflight(load_v2_preflight_manifest(manifest))
+        write_v2_preflight_result(output, value)
+    except FileExistsError:
+        fail(4, "immutable_output_exists")
+    except (OSError, TypeError, ValueError):
+        fail(2, "invalid_v2_preflight_manifest")
+    emit(asdict(value))
+    if value.status != "READY":
+        raise typer.Exit(3)
 
 
 @app.command("provider-preflight")

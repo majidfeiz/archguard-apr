@@ -1,0 +1,9 @@
+diff --git a/src/old.py b/src/new.py
+similarity index 100%
+rename from src/old.py
+rename to src/new.py
+--- a/src/old.py
++++ b/src/new.py
+@@ -1 +1 @@
+-old
++new

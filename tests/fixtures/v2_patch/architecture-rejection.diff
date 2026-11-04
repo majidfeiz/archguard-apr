@@ -1,0 +1,6 @@
+diff --git a/src/domain.py b/src/domain.py
+--- a/src/domain.py
++++ b/src/domain.py
+@@ -1 +1,2 @@
+ VALUE = 1
++from infrastructure import adapter

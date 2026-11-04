@@ -1,0 +1,4 @@
+diff --git a/src/demo.py b/src/demo.py
+--- broken
++++ b/src/demo.py
+@@ malformed @@
