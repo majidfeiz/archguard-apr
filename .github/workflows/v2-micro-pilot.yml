@@ -1,0 +1,77 @@
+name: V2 Micro-Pilot Manual Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type AUTHORIZE_V2_MICRO_PILOT_8_CALLS_USD_1
+        required: true
+        type: string
+      execute_scientific_run:
+        description: Execute after all readiness gates and Environment approval
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2-micro-pilot
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - run: uv python install 3.12 && uv sync --frozen
+      - name: Validate canonical readiness without secrets
+        run: |
+          uv run pytest tests/unit/test_v2_micro_pilot.py tests/unit/test_v2_preflight.py
+          jq -e '.maximum_primary_calls == 8 and .retries == 0
+            and .maximum_reserved_cost_usd == "0.9400"
+            and .absolute_ceiling_usd == "1.0000"' research/v2/protocol/micro-pilot-call-plan.json
+          jq -e '.V2_MICRO_PILOT_READY == true and .prepared == true
+            and .human_authorization_required == true
+            and .provider_calls_executed == 0 and .scientific_executions == 0
+            and .blocker_codes == []' research/v2/readiness/micro-pilot-readiness.json
+      - name: Upload source-free preflight
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2-micro-pilot-preflight
+          path: research/v2/readiness/micro-pilot-readiness.json
+
+  execute:
+    needs: preflight
+    if: >-
+      inputs.execute_scientific_run == true &&
+      inputs.confirmation == 'AUTHORIZE_V2_MICRO_PILOT_8_CALLS_USD_1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    environment: v2-micro-pilot
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Execution remains blocked until readiness is true
+        run: |
+          jq -e '.V2_MICRO_PILOT_READY == true and .blocker_codes == []' research/v2/readiness/micro-pilot-readiness.json
+          echo "Future execution implementation must enforce eight calls, zero retries, and USD 1.0000."
+          exit 2
+      - name: Upload controlled source-free failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2-micro-pilot-source-free
+          path: research/v2/readiness/micro-pilot-readiness.json
+      - name: Cleanup
+        if: always()
+        run: |
+          docker ps -aq --filter label=org.archguard.phase=v2-micro-pilot | xargs --no-run-if-empty docker rm -f
+          find "$RUNNER_TEMP" -maxdepth 1 -type d -name 'archguard-v2-*' -exec rm -rf -- {} +
