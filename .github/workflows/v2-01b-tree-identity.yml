@@ -1,0 +1,113 @@
+name: V2.1B PySnooper-2 Fixed-Tree Identity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2-01b-pysnooper2-tree-identity
+  cancel-in-progress: false
+
+jobs:
+  identity-only-acquisition:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+      GIT_LFS_SKIP_SMUDGE: "1"
+      AUTHORIZED_REMOTE: https://github.com/cool-RR/PySnooper.git
+      AUTHORIZED_REVISION: 814abc34a098c1b98cb327105ac396f985d2413e
+      ACQUISITION_CEILING: "67108864"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          submodules: false
+
+      - name: Acquire immutable Git objects and derive source-free identity
+        id: acquire
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$AUTHORIZED_REMOTE" = "https://github.com/cool-RR/PySnooper.git"
+          test "$AUTHORIZED_REVISION" = "814abc34a098c1b98cb327105ac396f985d2413e"
+          [[ "$AUTHORIZED_REMOTE" == https://* ]]
+          [[ "$AUTHORIZED_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          acquisition_root=$(mktemp -d "$RUNNER_TEMP/archguard-v2-01b-acquisition.XXXXXX")
+          echo "acquisition_root=$acquisition_root" >> "$GITHUB_OUTPUT"
+          mkdir "$acquisition_root/hooks"
+          git -c protocol.file.allow=never init --bare "$acquisition_root/objects.git"
+          git -C "$acquisition_root/objects.git" config core.hooksPath "$acquisition_root/hooks"
+          git -C "$acquisition_root/objects.git" config submodule.recurse false
+          git -C "$acquisition_root/objects.git" remote add origin "$AUTHORIZED_REMOTE"
+          timeout 10m git -C "$acquisition_root/objects.git" -c protocol.file.allow=never \
+            -c fetch.recurseSubmodules=false fetch --no-tags --depth=1 origin "$AUTHORIZED_REVISION"
+          resolved=$(git -C "$acquisition_root/objects.git" rev-parse --verify 'FETCH_HEAD^{commit}')
+          test "$resolved" = "$AUTHORIZED_REVISION"
+          object_format=$(git -C "$acquisition_root/objects.git" rev-parse --show-object-format)
+          root_tree=$(git -C "$acquisition_root/objects.git" rev-parse --verify "$resolved^{tree}")
+          git -C "$acquisition_root/objects.git" ls-tree -r -z "$root_tree" > "$acquisition_root/ls-tree.raw"
+          ls_tree_sha256=$(sha256sum "$acquisition_root/ls-tree.raw" | cut -d' ' -f1)
+          entry_count=$(tr -cd '\0' < "$acquisition_root/ls-tree.raw" | wc -c)
+          acquisition_bytes=$(du -sb "$acquisition_root/objects.git/objects" | cut -f1)
+          test "$entry_count" -gt 0
+          test "$acquisition_bytes" -gt 0
+          test "$acquisition_bytes" -le "$ACQUISITION_CEILING"
+          git --version
+          printf '%s\n' "resolved=$resolved" "object_format=$object_format" \
+            "root_tree=$root_tree" "ls_tree_sha256=$ls_tree_sha256" \
+            "entry_count=$entry_count" "acquisition_bytes=$acquisition_bytes" >> "$GITHUB_OUTPUT"
+
+      - name: Remove acquisition material and verify cleanup
+        id: cleanup_acquisition
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          acquisition_root='${{ steps.acquire.outputs.acquisition_root }}'
+          test -n "$acquisition_root"
+          case "$acquisition_root" in "$RUNNER_TEMP"/archguard-v2-01b-acquisition.*) ;; *) exit 2 ;; esac
+          rm -rf -- "$acquisition_root"
+          test ! -e "$acquisition_root"
+          echo "cleanup_succeeded=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build the single source-free evidence archive
+        if: steps.acquire.outcome == 'success' && steps.cleanup_acquisition.outputs.cleanup_succeeded == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/archguard-v2-01b-evidence"
+          PYTHONPATH=src python scripts/build_v2_identity_archive.py \
+            --output "$RUNNER_TEMP/archguard-v2-01b-evidence/evidence.zip" \
+            --resolved-revision '${{ steps.acquire.outputs.resolved }}' \
+            --object-format '${{ steps.acquire.outputs.object_format }}' \
+            --root-tree '${{ steps.acquire.outputs.root_tree }}' \
+            --ls-tree-sha256 '${{ steps.acquire.outputs.ls_tree_sha256 }}' \
+            --entry-count '${{ steps.acquire.outputs.entry_count }}' \
+            --acquisition-bytes '${{ steps.acquire.outputs.acquisition_bytes }}' \
+            --github-run-id '${{ github.run_id }}' \
+            --github-job '${{ github.job }}' \
+            --runner-os '${{ runner.os }}' \
+            --runner-arch '${{ runner.arch }}'
+
+      - name: Upload exactly one source-free evidence artifact
+        if: steps.acquire.outcome == 'success' && steps.cleanup_acquisition.outputs.cleanup_succeeded == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: archguard-v2-01b-pysnooper2-tree-identity-${{ github.run_id }}
+          path: ${{ runner.temp }}/archguard-v2-01b-evidence/evidence.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Final cleanup verification
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf -- "$RUNNER_TEMP/archguard-v2-01b-evidence"
+          test -z "$(find "$RUNNER_TEMP" -maxdepth 1 -name 'archguard-v2-01b-*' -print -quit)"
+          test -z "$(git worktree list --porcelain | grep 'archguard-v2-01b' || true)"
+          test -z "$(docker ps -aq --filter label=org.archguard.phase=v2-01b || true)"
