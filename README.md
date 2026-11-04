@@ -76,6 +76,11 @@ flowchart TD
 
 Phase 13 was an exploratory feasibility evaluation: six executions were planned, four completed, and two black-4 slots had pre-provider infrastructure attrition. Two valid paired tasks remained. Baseline success was 0/2; ArchGuard success was 0/2; all four completed outputs were invalid patches. No effectiveness advantage was observed. The study is underpowered and supports no generalization, equivalence, superiority, or state-of-the-art claim. See the [final verification](docs/phase-13-final-verification.md) and [paper-ready results](research/results/phase-13/paper-ready-results.json).
 
+V2.1 is a prospective engineering-hardening phase for strict repair responses, deterministic patch
+extraction, precise source-free diagnostics, and provider-free benchmark preflight. It does not
+change V1/Phase 13 evidence and has not demonstrated improved effectiveness. Start with the
+[V2 offline quick start](docs/v2/README.md) and [proposed experiment design](docs/v2/experiment-design.md).
+
 ## Installation
 
 Requirements: Python 3.12 or 3.13, [uv](https://docs.astral.sh/uv/), and Git. Docker is optional for ordinary development and required only for sandbox execution checks.

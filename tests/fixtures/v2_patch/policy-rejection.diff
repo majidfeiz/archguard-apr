@@ -1,0 +1,6 @@
+diff --git a/protected/config.py b/protected/config.py
+--- a/protected/config.py
++++ b/protected/config.py
+@@ -1 +1 @@
+-enabled = true
++enabled = false

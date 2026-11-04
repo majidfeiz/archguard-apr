@@ -1,0 +1,6 @@
+diff --git a/../secret.py b/../secret.py
+--- a/../secret.py
++++ b/../secret.py
+@@ -1 +1 @@
+-old
++new

@@ -1,0 +1,16 @@
+```diff
+diff --git a/a.py b/a.py
+--- a/a.py
++++ b/a.py
+@@ -1 +1 @@
+-a
++b
+```
+```diff
+diff --git a/c.py b/c.py
+--- a/c.py
++++ b/c.py
+@@ -1 +1 @@
+-c
++d
+```

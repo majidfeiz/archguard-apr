@@ -1,0 +1,17 @@
+name: Benchmark adapter proposal
+description: Propose a provider-free benchmark adapter for prospective review.
+title: "[benchmark adapter]: "
+labels: [proposal]
+body:
+  - type: input
+    id: benchmark
+    attributes: {label: Benchmark and immutable revision}
+    validations: {required: true}
+  - type: textarea
+    id: provenance
+    attributes: {label: License and provenance evidence}
+    validations: {required: true}
+  - type: textarea
+    id: isolation
+    attributes: {label: Evaluator isolation and network policy}
+    validations: {required: true}

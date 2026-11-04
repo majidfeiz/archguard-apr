@@ -1,0 +1,6 @@
+diff --git a//tmp/demo.py b//tmp/demo.py
+--- a//tmp/demo.py
++++ b//tmp/demo.py
+@@ -1 +1 @@
+-old
++new

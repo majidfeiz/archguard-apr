@@ -1,0 +1,20 @@
+name: Architecture-profile proposal
+description: Propose an explicit, independently reviewable architecture profile.
+title: "[architecture profile]: "
+labels: [proposal]
+body:
+  - type: input
+    id: project
+    attributes: {label: Project and immutable revision}
+    validations: {required: true}
+  - type: textarea
+    id: basis
+    attributes: {label: Source-independent rationale and provenance}
+    validations: {required: true}
+  - type: checkboxes
+    id: leakage
+    attributes:
+      label: Leakage controls
+      options:
+        - label: The proposal was not derived from a gold patch or hidden answer.
+          required: true
