@@ -19,7 +19,7 @@ from archguard.domain.v2_micro_pilot import (
     SyntheticUsage,
     validate_condition_fairness,
 )
-from archguard.domain.v2_preflight import PreflightBlocker, evaluate_preflight
+from archguard.domain.v2_preflight import evaluate_preflight
 from archguard.infrastructure.v2_preflight import load_v2_preflight_manifest
 
 pytestmark = pytest.mark.unit
@@ -41,6 +41,8 @@ def test_canonical_artifacts_have_stable_identities(repository_root: Path) -> No
         "research/v2/provider/openai-gpt-5.4-2026-03-05-pricing.json",
         "research/v2/protocol/micro-pilot-call-plan.json",
         "research/v2/protocol/condition-fairness-matrix.json",
+        "research/v2/evidence/pysnooper-2-fixed-tree-identity.json",
+        "research/v2/readiness/pysnooper-2-identity-provenance.json",
         "research/v2/readiness/micro-pilot-readiness.json",
     )
     for relative in paths:
@@ -90,15 +92,22 @@ def test_fairness_matrix_and_mutations(repository_root: Path) -> None:
         validate_condition_fairness(mutated)
 
 
-def test_manifests_preserve_historical_bindings_and_block_missing_identity(
+def test_manifests_preserve_historical_bindings_and_integrate_identity(
     repository_root: Path,
 ) -> None:
     two = load(repository_root, "research/v2/manifests/pysnooper-2.json")
     three = load(repository_root, "research/v2/manifests/pysnooper-3.json")
     assert two["buggy_revision"] == "e21a31162f4c54be693d8ca8260e42393b39abd3"
     assert three["buggy_revision"] == "6e3d797be3fa0a746fb5b1b7c7fea78eb926c208"
-    assert two["static_preflight_status"] == "BLOCKED"
-    assert two["blocker_codes"] == ["FIXED_TREE_IDENTITY_RECHECK_REQUIRED"]
+    assert two["static_preflight_status"] == "READY"
+    assert two["blocker_codes"] == []
+    assert two["fixed_tree_identity"] == "d49244059559a6ae47051502fc88cf7fdb83beec"
+    assert two["pre_import_manifest_fingerprint"] == (
+        "400834ccce3146e41c6f30aedc334b017028b48bc14f7a08608ba86277efeba0"
+    )
+    assert two["fixed_tree_identity_evidence_fingerprint"] == (
+        "a7e6c1d87d7366eb2aa6fb77ac0bd314b309471ce2466ffcaa3655e6cfd72fe4"
+    )
     assert three["tree_identity_status"] == "HISTORICALLY_VERIFIED"
     assert two["external_execution_performed_in_v2_1a"] is False
     assert three["external_execution_performed_in_v2_1a"] is False
@@ -108,7 +117,7 @@ def test_manifests_preserve_historical_bindings_and_block_missing_identity(
     three_result = evaluate_preflight(
         load_v2_preflight_manifest(repository_root / "research/v2/manifests/pysnooper-3.json")
     )
-    assert two_result.blocker_codes == (PreflightBlocker.CHECKOUT_IDENTITY_MISMATCH,)
+    assert two_result.status == "READY" and two_result.blocker_codes == ()
     assert three_result.status == "READY"
 
 
@@ -139,6 +148,15 @@ def test_task_manifest_rejects_contradictions_and_unknown_fields(
     with pytest.raises(ValueError, match="invalid V2 task resource ceilings"):
         load_v2_preflight_manifest(invalid_resources)
 
+    source = load(repository_root, "research/v2/manifests/pysnooper-2.json")
+    source["fixed_tree_identity_evidence_sha256"] = "0" * 64
+    unsigned = {key: value for key, value in source.items() if key != "fingerprint"}
+    source["fingerprint"] = hashlib.sha256(canonical_json(unsigned)).hexdigest()
+    invalid_provenance = tmp_path / "invalid-provenance.json"
+    invalid_provenance.write_text(json.dumps(source))
+    with pytest.raises(ValueError, match="invalid V2 identity provenance"):
+        load_v2_preflight_manifest(invalid_provenance)
+
 
 def test_pricing_call_plan_and_readiness_are_exact(repository_root: Path) -> None:
     pricing = load(repository_root, "research/v2/provider/openai-gpt-5.4-2026-03-05-pricing.json")
@@ -153,7 +171,10 @@ def test_pricing_call_plan_and_readiness_are_exact(repository_root: Path) -> Non
     order = plan["order"]
     assert isinstance(order, list) and len(order) == 8 and plan["retries"] == 0
     assert plan["provider_tools"] == [] and plan["parallel_calls"] is False
-    assert readiness["V2_MICRO_PILOT_READY"] is False
+    assert readiness["V2_MICRO_PILOT_READY"] is True
+    assert readiness["blocker_codes"] == []
+    assert readiness["human_authorization_required"] is True
+    assert readiness["workflow_triggered"] is False
     assert readiness["provider_calls_executed"] == readiness["scientific_executions"] == 0
 
 

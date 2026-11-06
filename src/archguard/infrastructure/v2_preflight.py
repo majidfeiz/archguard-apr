@@ -60,6 +60,14 @@ TASK_MANIFEST_FIELDS = {
     "tree_identity_status",
 }
 
+IDENTITY_PROVENANCE_FIELDS = {
+    "fingerprint_migration_reason",
+    "fixed_tree_identity_acquisition_run_id",
+    "fixed_tree_identity_evidence_fingerprint",
+    "fixed_tree_identity_evidence_sha256",
+    "pre_import_manifest_fingerprint",
+}
+
 
 def load_v2_preflight_manifest(path: Path) -> V2PreflightManifest:
     raw = path.read_bytes()
@@ -81,7 +89,11 @@ def load_v2_preflight_manifest(path: Path) -> V2PreflightManifest:
 
 
 def _task_manifest(data: dict[str, Any]) -> V2PreflightManifest:
-    if set(data) != TASK_MANIFEST_FIELDS:
+    fields = set(data)
+    if frozenset(fields) not in {
+        frozenset(TASK_MANIFEST_FIELDS),
+        frozenset(TASK_MANIFEST_FIELDS | IDENTITY_PROVENANCE_FIELDS),
+    }:
         raise ValueError("invalid V2 task manifest fields")
     unsigned = {key: value for key, value in data.items() if key != "fingerprint"}
     expected_fingerprint = hashlib.sha256(canonical_json(unsigned)).hexdigest()
@@ -111,6 +123,19 @@ def _task_manifest(data: dict[str, Any]) -> V2PreflightManifest:
         raise ValueError("invalid V2 task sandbox plan")
     if set(license_evidence) != {"sha256", "spdx", "status"}:
         raise ValueError("invalid V2 task license evidence")
+    if IDENTITY_PROVENANCE_FIELDS <= fields:
+        if (
+            data["task_id"] != "PySnooper-2"
+            or data["pre_import_manifest_fingerprint"]
+            != "400834ccce3146e41c6f30aedc334b017028b48bc14f7a08608ba86277efeba0"
+            or data["fixed_tree_identity_evidence_fingerprint"]
+            != "a7e6c1d87d7366eb2aa6fb77ac0bd314b309471ce2466ffcaa3655e6cfd72fe4"
+            or data["fixed_tree_identity_evidence_sha256"]
+            != "145ed5cd2e1f005a253b56b4211a6f015a16a95c0f55003102e7d587b79ec16c"
+            or data["fixed_tree_identity_acquisition_run_id"] != "41905812267"
+            or data["fingerprint_migration_reason"] != "IMPORTED_FIXED_TREE_IDENTITY"
+        ):
+            raise ValueError("invalid V2 identity provenance")
     tree_binding = hashlib.sha256(
         canonical_json(
             {
