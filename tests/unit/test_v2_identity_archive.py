@@ -271,12 +271,15 @@ def test_workflow_is_manual_hardened_and_source_free(repository_root: Path) -> N
     assert "git checkout" not in source and "git worktree add" not in source
 
 
-def test_readiness_remains_blocked_without_import(repository_root: Path) -> None:
+def test_readiness_uses_validated_import_without_authorizing_execution(
+    repository_root: Path,
+) -> None:
     readiness = json.loads(
         (repository_root / "research/v2/readiness/micro-pilot-readiness.json").read_text()
     )
-    assert readiness["V2_MICRO_PILOT_READY"] is False
-    assert readiness["blocker_codes"] == ["PYSNOOPER_2_FIXED_TREE_IDENTITY_RECHECK_REQUIRED"]
-    assert not (
-        repository_root / "research/v2/evidence/pysnooper-2-fixed-tree-identity.json"
-    ).exists()
+    assert readiness["V2_MICRO_PILOT_READY"] is True
+    assert readiness["blocker_codes"] == []
+    assert readiness["human_authorization_required"] is True
+    assert readiness["workflow_triggered"] is False
+    assert readiness["provider_calls_executed"] == readiness["scientific_executions"] == 0
+    assert (repository_root / "research/v2/evidence/pysnooper-2-fixed-tree-identity.json").exists()
