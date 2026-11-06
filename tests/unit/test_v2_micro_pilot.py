@@ -187,7 +187,12 @@ def test_manual_workflow_is_safe_and_parseable(repository_root: Path) -> None:
     assert "cancel-in-progress: false" in source
     assert "OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}" in source
     assert "environment: v2-micro-pilot" in source
+    assert "uv run pytest --no-cov tests/unit/test_v2_micro_pilot.py" in source
+    assert "tests/unit/test_v2_preflight.py" in source
     assert "maximum_primary_calls == 8" in source
+    assert ".retries == 0" in source
+    assert '.maximum_reserved_cost_usd == "0.9400"' in source
+    assert '.absolute_ceiling_usd == "1.0000"' in source
     assert "V2_MICRO_PILOT_READY == true" in source
     assert "if: always()" in source
     assert "workflow_dispatch" in source and "schedule:" not in source
