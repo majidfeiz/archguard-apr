@@ -32,7 +32,8 @@ The provider capability probe is a separate one-request operational workflow. It
 model, Responses API, strict response schema, disabled tools, zero retries, a 128-output-token
 limit, and a USD 0.0050 ceiling. It records zero scientific executions and is not included in the
 eight primary calls. It requires the distinct authorization phrase
-`AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL`.
+`AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL`. That first-probe token is historical and is not
+accepted by the schema-fix probe described in `v2-02a-openai-schema-compatibility.md`.
 
 ## Historical boundary
 

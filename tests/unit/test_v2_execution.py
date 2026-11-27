@@ -657,7 +657,7 @@ def test_capability_probe_cli_requires_distinct_authorization(
             "--output",
             str(output),
             "--authorization",
-            "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL",
+            "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_SCHEMA_FIX_1_CALL",
         ],
     )
     assert accepted.exit_code == 0
@@ -676,7 +676,7 @@ def test_capability_probe_cli_requires_distinct_authorization(
             "--output",
             str(blocked_output),
             "--authorization",
-            "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL",
+            "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_SCHEMA_FIX_1_CALL",
         ],
     )
     assert blocked.exit_code == 3
@@ -775,7 +775,8 @@ def test_protocol_and_workflow_gates(repository_root: Path) -> None:
     probe_value = yaml.safe_load(probe_path.read_text())
     assert probe_value["jobs"]["probe"]["needs"] == "preflight"
     probe_source = probe_path.read_text()
-    assert "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL" in probe_source
+    assert "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_SCHEMA_FIX_1_CALL" in probe_source
+    assert "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL'" not in probe_source
     assert "environment: v2-provider-capability-probe" in probe_source
     assert "capability-probe" in probe_source
     assert "OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}" in probe_source
