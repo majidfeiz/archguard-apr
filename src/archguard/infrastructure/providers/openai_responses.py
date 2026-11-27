@@ -16,6 +16,9 @@ from archguard.domain.providers import (
 from archguard.infrastructure.providers.common import parse_response, response_schema, value
 from archguard.infrastructure.providers.configuration import ProviderSettings
 from archguard.infrastructure.providers.credentials import ProviderCredential
+from archguard.infrastructure.providers.openai_structured_outputs import (
+    v2_repair_response_schema,
+)
 from archguard.infrastructure.providers.retry import ProviderInvocationError
 
 
@@ -193,26 +196,7 @@ class OpenAIResponsesAdapter:
 
     def invoke_v2_repair(self, prompt: str) -> tuple[bytes, ProviderUsage]:
         """Invoke the strict V2.1 repair contract without retaining provider payloads."""
-        schema = {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "schema_version": {"const": "archguard.repair-response/v2.1"},
-                "task_id": {"type": "string"},
-                "candidate_id": {"type": "string"},
-                "unified_diff": {"type": "string"},
-                "declared_changed_paths": {"type": "array", "items": {"type": "string"}},
-                "rationale_summary": {"type": ["string", "null"]},
-            },
-            "required": [
-                "schema_version",
-                "task_id",
-                "candidate_id",
-                "unified_diff",
-                "declared_changed_paths",
-                "rationale_summary",
-            ],
-        }
+        schema = v2_repair_response_schema()
         try:
             response = self._client_value().responses.create(
                 model=self.settings.model,

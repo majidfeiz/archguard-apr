@@ -1,0 +1,19 @@
+{
+  "accepted_provider_calls": 0,
+  "artifact_zip_sha256": "83a41d2011fc5fb522aa8b1b0e1f512bc8f53ac5a5592a717efb4e31f88d5f11",
+  "diagnostic": {
+    "fingerprint": "4454817226b88eff7d182b9c2a0b801aff29b9e11de726ea85573dab9f4ea8b0",
+    "http_status": 400,
+    "kind": "INVALID_REQUEST",
+    "provider_code": "invalid_json_schema",
+    "request_id_hash": "87663d44e9847c002f6ccb53fec14e88b14af36a45c3ce3dc86a3f6d78ce462e",
+    "retryable": false,
+    "stage": "request",
+    "usage_returned": false
+  },
+  "evidence_json_sha256": "d348ed7c775c25a2ea2283842a5c80913e3f06890e7aa11bc3eacd8d4bbe83d2",
+  "provider_request_attempts": 1,
+  "schema": "archguard.v2-provider-capability-probe-incident/v1",
+  "scientific_executions": 0,
+  "status": "PROVIDER_REJECTED"
+}
