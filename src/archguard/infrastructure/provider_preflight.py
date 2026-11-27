@@ -48,7 +48,12 @@ def provider_preflight(
     output_directory: Path,
     analyzed_roots: tuple[Path, ...],
     require_secret: bool = True,
+    reference_time: datetime | None = None,
 ) -> dict[str, Any]:
+    effective_time = datetime.now(UTC) if reference_time is None else reference_time
+    if effective_time.tzinfo is None or effective_time.utcoffset() is None:
+        raise ValueError("provider preflight reference time must be timezone-aware")
+    effective_time = effective_time.astimezone(UTC)
     secret_present = bool(os.environ.get("OPENAI_API_KEY"))
     output = output_directory.resolve()
     roots = tuple(root.resolve() for root in analyzed_roots)
@@ -66,7 +71,7 @@ def provider_preflight(
         == "421f3129ef6bee5883c41d05f087d6faff5b2a3de3b2ea543b4d27ade1488886",
         "pricing_source": configuration.prices.source_url
         == "https://developers.openai.com/api/docs/models/gpt-5.4",
-        "pricing_fresh": _pricing_is_fresh(configuration.prices.verified_at),
+        "pricing_fresh": _pricing_is_fresh(configuration.prices.verified_at, effective_time),
         "protocol_binding": configuration.protocol_fingerprint
         == "93494690f402d17e511d9cad1fdc92907d408ae3a923139d30537894f9ab8ce7",
         "secret_present": secret_present if require_secret else True,
@@ -81,12 +86,12 @@ def provider_preflight(
     }
 
 
-def _pricing_is_fresh(value: str) -> bool:
+def _pricing_is_fresh(value: str, reference_time: datetime) -> bool:
     try:
         verified = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return False
-    age = datetime.now(UTC) - verified
+    age = reference_time - verified
     return timedelta(0) <= age <= timedelta(days=30)
 
 
