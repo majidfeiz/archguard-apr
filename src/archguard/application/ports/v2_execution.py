@@ -7,6 +7,8 @@ from archguard.domain.v2_execution import (
     BudgetLedger,
     ExecutionIdentity,
     ExecutionResult,
+    ProviderFailureDiagnostic,
+    ProviderFailureRecord,
     StageStatus,
     TerminalClassification,
 )
@@ -37,10 +39,18 @@ class CandidateAssessment:
 
 
 class ProviderChargedFailure(RuntimeError):
-    def __init__(self, usage: SyntheticUsage, diagnostic_fingerprint: str) -> None:
+    def __init__(self, usage: SyntheticUsage, diagnostic: ProviderFailureDiagnostic) -> None:
+        if usage.cost <= 0:
+            raise ValueError("charged provider failure requires positive trustworthy usage")
         super().__init__("provider call failed after usage was charged")
         self.usage = usage
-        self.diagnostic_fingerprint = diagnostic_fingerprint
+        self.diagnostic = diagnostic
+
+
+class ProviderAdmissionFailure(RuntimeError):
+    def __init__(self, diagnostic: ProviderFailureDiagnostic) -> None:
+        super().__init__("provider request was rejected without trustworthy usage")
+        self.diagnostic = diagnostic
 
 
 class RequestPreparer(Protocol):
@@ -56,7 +66,12 @@ class CandidateProcessor(Protocol):
 
 
 class CheckpointStore(Protocol):
-    def write(self, ledger: BudgetLedger, results: tuple[ExecutionResult, ...]) -> None: ...
+    def write(
+        self,
+        ledger: BudgetLedger,
+        results: tuple[ExecutionResult, ...],
+        failures: tuple[ProviderFailureRecord, ...],
+    ) -> None: ...
 
 
 class Cleanup(Protocol):

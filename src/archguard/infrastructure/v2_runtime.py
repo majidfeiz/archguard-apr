@@ -8,18 +8,23 @@ import os
 import shutil
 import subprocess
 import tempfile
+from dataclasses import asdict, dataclass
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 from archguard.application.ports.v2_execution import (
     CandidateAssessment,
     PreparedRequest,
-    ProviderChargedFailure,
+    ProviderAdmissionFailure,
     ProviderOutcome,
 )
 from archguard.domain.canonical import canonical_json
+from archguard.domain.providers import ProviderErrorCategory, ProviderFailure
 from archguard.domain.v2_execution import (
     ExecutionIdentity,
+    ProviderFailureDiagnostic,
+    ProviderFailureKind,
     StageStatus,
     TerminalClassification,
 )
@@ -32,6 +37,8 @@ from archguard.domain.v2_micro_pilot import (
 from archguard.infrastructure.providers.configuration import ProviderSettings, RetryPolicy
 from archguard.infrastructure.providers.credentials import credential_for
 from archguard.infrastructure.providers.openai_responses import OpenAIResponsesAdapter
+from archguard.infrastructure.providers.redaction import request_id_hash
+from archguard.infrastructure.providers.retry import ProviderInvocationError
 from archguard.infrastructure.v2_patch_response import StrictRepairResponseExtractor
 from archguard.infrastructure.v2_protocol import FrozenProtocol
 
@@ -42,12 +49,64 @@ TASK_TEXT = {
     ),
     "PySnooper-3": "Repair the defect exercised by the frozen PySnooper file-output task.",
 }
+CAPABILITY_PROBE_MAX_INPUT_TOKENS = 1_000
+CAPABILITY_PROBE_MAX_OUTPUT_TOKENS = 128
+CAPABILITY_PROBE_MAX_COST_USD = Decimal("0.0050")
+
+
+@dataclass(frozen=True)
+class CapabilityProbeResult:
+    schema: str
+    status: str
+    model: str
+    api: str
+    strict_schema_accepted: bool
+    tools_disabled: bool
+    provider_request_attempts: int
+    accepted_provider_calls: int
+    scientific_executions: int
+    input_tokens: int
+    output_tokens: int
+    observed_cost_usd: str
+
+    def as_source_free_dict(self) -> dict[str, object]:
+        return asdict(self)
 
 
 def diagnostic(label: str) -> str:
     return hashlib.sha256(
         canonical_json({"schema": "archguard.v2-diagnostic/v1", "code": label})
     ).hexdigest()
+
+
+FAILURE_TAXONOMY = {
+    ProviderErrorCategory.AUTHENTICATION: ProviderFailureKind.AUTHENTICATION,
+    ProviderErrorCategory.PERMISSION: ProviderFailureKind.PERMISSION_MODEL_ACCESS,
+    ProviderErrorCategory.UNSUPPORTED_MODEL: ProviderFailureKind.PERMISSION_MODEL_ACCESS,
+    ProviderErrorCategory.INVALID_REQUEST: ProviderFailureKind.INVALID_REQUEST,
+    ProviderErrorCategory.MALFORMED_OUTPUT: ProviderFailureKind.SCHEMA_REJECTION,
+    ProviderErrorCategory.INCOMPLETE: ProviderFailureKind.SCHEMA_REJECTION,
+    ProviderErrorCategory.OUTPUT_LIMIT: ProviderFailureKind.SCHEMA_REJECTION,
+    ProviderErrorCategory.UNSUPPORTED_CAPABILITY: ProviderFailureKind.SCHEMA_REJECTION,
+    ProviderErrorCategory.RATE_LIMITED: ProviderFailureKind.RATE_LIMIT,
+    ProviderErrorCategory.NETWORK: ProviderFailureKind.NETWORK_TRANSPORT,
+    ProviderErrorCategory.TIMEOUT: ProviderFailureKind.NETWORK_TRANSPORT,
+    ProviderErrorCategory.CANCELLED: ProviderFailureKind.NETWORK_TRANSPORT,
+    ProviderErrorCategory.OVERLOADED: ProviderFailureKind.SERVER_ERROR,
+    ProviderErrorCategory.UNAVAILABLE: ProviderFailureKind.SERVER_ERROR,
+}
+
+
+def safe_provider_diagnostic(failure: ProviderFailure) -> ProviderFailureDiagnostic:
+    return ProviderFailureDiagnostic(
+        FAILURE_TAXONOMY.get(failure.category, ProviderFailureKind.UNKNOWN_PROVIDER_FAILURE),
+        failure.stage,
+        failure.retryable,
+        failure.http_status,
+        failure.provider_code,
+        failure.usage_returned,
+        request_id_hash(failure.request_id),
+    )
 
 
 class DeterministicFakeProvider:
@@ -134,17 +193,77 @@ class V2OpenAIProvider:
             raw, usage = OpenAIResponsesAdapter(settings, credential).invoke_v2_repair(
                 request.prompt
             )
-        except Exception as error:
-            raise ProviderChargedFailure(
-                SyntheticUsage(0, 0), diagnostic(type(error).__name__)
-            ) from None
+        except ProviderInvocationError as error:
+            raise ProviderAdmissionFailure(safe_provider_diagnostic(error.failure)) from None
         try:
             measured = SyntheticUsage(usage.input_units, usage.output_units)
         except (TypeError, ValueError):
-            raise ProviderChargedFailure(
-                SyntheticUsage(0, 0), diagnostic("INVALID_USAGE")
+            raise ProviderAdmissionFailure(
+                ProviderFailureDiagnostic(
+                    ProviderFailureKind.UNKNOWN_PROVIDER_FAILURE,
+                    "usage_validation",
+                    False,
+                    None,
+                    "invalid_usage",
+                    True,
+                    None,
+                )
             ) from None
         return ProviderOutcome(raw, measured)
+
+
+class V2CapabilityProbe:
+    """One operational request; never part of the eight scientific executions."""
+
+    def run(self) -> CapabilityProbeResult:
+        credential = credential_for("openai")
+        if not credential.configured:
+            raise ValueError("OPENAI_API_KEY is not configured")
+        settings = ProviderSettings(
+            provider="openai",
+            model=MODEL_SNAPSHOT,
+            request_timeout_seconds=120,
+            maximum_output_units=CAPABILITY_PROBE_MAX_OUTPUT_TOKENS,
+            retry=RetryPolicy(maximum_attempts=1),
+            structured_output_mode="strict_json_schema",
+            reasoning_effort="minimal",
+            stateless=True,
+            model_allowlist=(MODEL_SNAPSHOT,),
+            maximum_invocation_cost=str(CAPABILITY_PROBE_MAX_COST_USD),
+        )
+        prompt = (
+            "Operational capability probe only. Return the smallest valid "
+            "archguard.repair-response/v2.1 JSON object with a minimal syntactically valid "
+            "unified diff. No repository source is supplied."
+        )
+        try:
+            raw, usage = OpenAIResponsesAdapter(settings, credential).invoke_v2_repair(prompt)
+        except ProviderInvocationError as error:
+            raise ProviderAdmissionFailure(safe_provider_diagnostic(error.failure)) from None
+        measured = SyntheticUsage(usage.input_units, usage.output_units)
+        if (
+            measured.input_tokens > CAPABILITY_PROBE_MAX_INPUT_TOKENS
+            or measured.output_tokens > CAPABILITY_PROBE_MAX_OUTPUT_TOKENS
+            or measured.cost > CAPABILITY_PROBE_MAX_COST_USD
+        ):
+            raise ValueError("capability probe usage or cost ceiling exceeded")
+        extracted = StrictRepairResponseExtractor().extract(raw)
+        if extracted.normalized_patch is None:
+            raise ValueError("capability probe strict schema response was invalid")
+        return CapabilityProbeResult(
+            "archguard.v2-provider-capability-probe/v1",
+            "SUPPORTED",
+            MODEL_SNAPSHOT,
+            "responses",
+            True,
+            True,
+            1,
+            1,
+            0,
+            measured.input_tokens,
+            measured.output_tokens,
+            format(measured.cost, "f"),
+        )
 
 
 class V2Workspace:

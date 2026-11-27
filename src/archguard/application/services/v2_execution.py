@@ -9,6 +9,7 @@ from archguard.application.ports.v2_execution import (
     CheckpointStore,
     Cleanup,
     Provider,
+    ProviderAdmissionFailure,
     ProviderChargedFailure,
     RequestPreparer,
 )
@@ -16,8 +17,7 @@ from archguard.domain.v2_execution import (
     BudgetLedger,
     ExecutionResult,
     ExecutionStatus,
-    StageStatus,
-    TerminalClassification,
+    ProviderFailureRecord,
     frozen_identities,
 )
 
@@ -41,12 +41,21 @@ class V2MicroPilotRunner:
         self,
         ledger: BudgetLedger | None = None,
         carried: tuple[ExecutionResult, ...] = (),
-    ) -> tuple[BudgetLedger, tuple[ExecutionResult, ...], bool]:
+        failures: tuple[ProviderFailureRecord, ...] = (),
+    ) -> tuple[
+        BudgetLedger,
+        tuple[ExecutionResult, ...],
+        tuple[ProviderFailureRecord, ...],
+        bool,
+    ]:
         ledger = ledger or BudgetLedger()
         if tuple(item.identity.ordinal for item in carried) != ledger.completed_ordinals:
             raise ValueError("checkpoint results contradict ledger")
+        if tuple(item.identity.ordinal for item in failures) != ledger.failed_attempt_ordinals:
+            raise ValueError("checkpoint failures contradict ledger")
         results = list(carried)
-        self.checkpoints.write(ledger, tuple(results))
+        recorded_failures = list(failures)
+        self.checkpoints.write(ledger, tuple(results), tuple(recorded_failures))
         cleaned = False
         try:
             for identity in frozen_identities()[ledger.completed_calls :]:
@@ -55,33 +64,40 @@ class V2MicroPilotRunner:
                 ledger = ledger.reserve(identity.ordinal)
                 try:
                     outcome = self.provider.invoke(request)
-                except ProviderChargedFailure as error:
-                    ledger = ledger.reconcile(identity.ordinal, error.usage)
-                    results.append(
-                        ExecutionResult(
+                except ProviderAdmissionFailure as error:
+                    ledger = ledger.record_provider_failure(identity.ordinal, None)
+                    recorded_failures.append(
+                        ProviderFailureRecord(
                             identity,
-                            ExecutionStatus.FAILED,
+                            error.diagnostic,
+                            0,
+                            0,
+                            0,
+                            Decimal("0"),
+                        )
+                    )
+                    self.checkpoints.write(ledger, tuple(results), tuple(recorded_failures))
+                    raise
+                except ProviderChargedFailure as error:
+                    ledger = ledger.record_provider_failure(identity.ordinal, error.usage)
+                    recorded_failures.append(
+                        ProviderFailureRecord(
+                            identity,
+                            error.diagnostic,
                             1,
                             error.usage.input_tokens,
                             error.usage.output_tokens,
                             error.usage.cost,
-                            Decimal("0"),
-                            StageStatus.NOT_RUN,
-                            StageStatus.NOT_RUN,
-                            StageStatus.NOT_RUN,
-                            StageStatus.NOT_RUN,
-                            TerminalClassification.INFRASTRUCTURE_FAILURE,
-                            (error.diagnostic_fingerprint,),
                         )
                     )
-                    self.checkpoints.write(ledger, tuple(results))
+                    self.checkpoints.write(ledger, tuple(results), tuple(recorded_failures))
                     raise
                 except Exception:
-                    # An exception without trustworthy usage is not claimed as a provider call.
+                    # Failures before a provider request are neither attempts nor calls.
                     ledger = ledger.cancel_pre_provider(identity.ordinal)
-                    self.checkpoints.write(ledger, tuple(results))
+                    self.checkpoints.write(ledger, tuple(results), tuple(recorded_failures))
                     raise
-                ledger = ledger.reconcile(identity.ordinal, outcome.usage)
+                ledger = ledger.reconcile_success(identity.ordinal, outcome.usage)
                 assessment = self.processor.process(request, outcome.response)
                 results.append(
                     ExecutionResult(
@@ -100,7 +116,7 @@ class V2MicroPilotRunner:
                         assessment.diagnostic_fingerprints,
                     )
                 )
-                self.checkpoints.write(ledger, tuple(results))
+                self.checkpoints.write(ledger, tuple(results), tuple(recorded_failures))
         finally:
             cleaned = self.cleanup_adapter.cleanup()
-        return ledger, tuple(results), cleaned
+        return ledger, tuple(results), tuple(recorded_failures), cleaned

@@ -256,6 +256,26 @@ def test_openai_error_mapping(
     assert "secret body" not in str(raised.value)
 
 
+def test_openai_v2_failure_retains_only_sanitized_structured_metadata() -> None:
+    error = RuntimeError("Authorization: Bearer secret raw response")
+    error.status_code = 403  # type: ignore[attr-defined]
+    error.code = "model_access.denied"  # type: ignore[attr-defined]
+    error.request_id = "req_safe-123"  # type: ignore[attr-defined]
+    adapter = OpenAIResponsesAdapter(
+        settings("openai"),
+        ProviderCredential(False, None),
+        SimpleNamespace(responses=Resource(error=error)),
+    )
+    with pytest.raises(ProviderInvocationError) as raised:
+        adapter.invoke_v2_repair("sensitive prompt")
+    failure = raised.value.failure
+    assert failure.category is ProviderErrorCategory.PERMISSION
+    assert failure.http_status == 403
+    assert failure.provider_code == "model_access.denied"
+    assert failure.request_id == "req_safe-123"
+    assert "secret" not in str(raised.value).lower()
+
+
 def test_anthropic_valid_tool_response() -> None:
     resource = Resource(anthropic_result(response_payload()))
     adapter = AnthropicMessagesAdapter(

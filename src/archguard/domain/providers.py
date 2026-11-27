@@ -74,6 +74,8 @@ class ProviderFailure:
     retry_after_seconds: float | None = None
     provider_code: str | None = None
     request_id: str | None = None
+    http_status: int | None = None
+    usage_returned: bool = False
 
     def __post_init__(self) -> None:
         check(self.provider in {"openai", "anthropic"}, "unknown provider")
@@ -81,6 +83,7 @@ class ProviderFailure:
         check(0 < len(self.public_message) <= 512, "invalid public error")
         if self.retry_after_seconds is not None:
             check(0 <= self.retry_after_seconds <= 3600, "invalid retry-after")
+        check(self.http_status is None or 100 <= self.http_status <= 599, "invalid HTTP status")
 
 
 @dataclass(frozen=True)
