@@ -21,6 +21,7 @@ from archguard.domain.orchestration import (
 from archguard.domain.providers import ProviderCapability, ProviderErrorCategory
 from archguard.infrastructure.providers.anthropic_messages import AnthropicMessagesAdapter
 from archguard.infrastructure.providers.configuration import (
+    FROZEN_MODEL_REASONING_EFFORTS,
     ProviderSettings,
     load_provider_configuration,
 )
@@ -78,6 +79,36 @@ def settings(provider: str) -> ProviderSettings:
             "model_allowlist": ["test-model"],
         }
     )
+
+
+@pytest.mark.parametrize("effort", ["none", "low", "medium", "high", "xhigh"])
+def test_frozen_gpt54_accepts_documented_reasoning_efforts(effort: str) -> None:
+    value = ProviderSettings.model_validate(
+        {
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "structured_output_mode": "strict_json_schema",
+            "reasoning_effort": effort,
+            "model_allowlist": ["gpt-5.4-2026-03-05"],
+        }
+    )
+    assert value.reasoning_effort == effort
+    assert FROZEN_MODEL_REASONING_EFFORTS[value.model] == frozenset(
+        {"none", "low", "medium", "high", "xhigh"}
+    )
+
+
+def test_frozen_gpt54_rejects_minimal_before_provider_construction() -> None:
+    with pytest.raises(ValueError, match="unsupported by the frozen model"):
+        ProviderSettings.model_validate(
+            {
+                "provider": "openai",
+                "model": "gpt-5.4-2026-03-05",
+                "structured_output_mode": "strict_json_schema",
+                "reasoning_effort": "minimal",
+                "model_allowlist": ["gpt-5.4-2026-03-05"],
+            }
+        )
 
 
 class Resource:

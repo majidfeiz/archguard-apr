@@ -1,0 +1,17 @@
+{
+  "accepted_provider_calls": 0,
+  "diagnostic": {
+    "fingerprint": "829b6c4d5f83aa4c51081fc46ab013c34dbb4eb4874b41995a2acc5af43e1868",
+    "http_status": 400,
+    "kind": "INVALID_REQUEST",
+    "provider_code": "unsupported_value",
+    "request_id_hash": "909519de9f104f04760dab07ded045e9da89fecdd7d2b02c840df84bf37c9f3e",
+    "retryable": false,
+    "stage": "request",
+    "usage_returned": false
+  },
+  "provider_request_attempts": 1,
+  "schema": "archguard.v2-provider-capability-probe-incident/v1",
+  "scientific_executions": 0,
+  "status": "PROVIDER_REJECTED"
+}
