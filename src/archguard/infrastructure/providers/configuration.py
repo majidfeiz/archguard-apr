@@ -10,6 +10,18 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from archguard.domain.orchestration import AgentRole
 
+type ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
+
+FROZEN_MODEL_REASONING_EFFORTS: dict[str, frozenset[ReasoningEffort]] = {
+    "gpt-5.4-2026-03-05": frozenset({"none", "low", "medium", "high", "xhigh"}),
+}
+
+
+def validate_model_reasoning_effort(model: str, effort: ReasoningEffort | None) -> None:
+    supported = FROZEN_MODEL_REASONING_EFFORTS.get(model)
+    if supported is not None and effort is not None and effort not in supported:
+        raise ValueError("reasoning effort is unsupported by the frozen model")
+
 
 class RetryPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
@@ -28,7 +40,7 @@ class ProviderSettings(BaseModel):
     retry: RetryPolicy = RetryPolicy()
     structured_output_mode: Literal["strict_json_schema", "forced_tool"]
     temperature: float | None = Field(default=None, ge=0, le=2, allow_inf_nan=False)
-    reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
+    reasoning_effort: ReasoningEffort | None = None
     organization_env: str | None = None
     project_env: str | None = None
     stateless: bool = True
@@ -55,6 +67,7 @@ class ProviderSettings(BaseModel):
             raise ValueError("model not allowlisted")
         if self.provider == "openai" and self.structured_output_mode != "strict_json_schema":
             raise ValueError("unsupported OpenAI output mode")
+        validate_model_reasoning_effort(self.model, self.reasoning_effort)
         return self
 
 

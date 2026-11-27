@@ -226,7 +226,7 @@ class V2CapabilityProbe:
             maximum_output_units=CAPABILITY_PROBE_MAX_OUTPUT_TOKENS,
             retry=RetryPolicy(maximum_attempts=1),
             structured_output_mode="strict_json_schema",
-            reasoning_effort="minimal",
+            reasoning_effort="none",
             stateless=True,
             model_allowlist=(MODEL_SNAPSHOT,),
             maximum_invocation_cost=str(CAPABILITY_PROBE_MAX_COST_USD),

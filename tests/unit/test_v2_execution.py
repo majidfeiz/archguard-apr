@@ -30,6 +30,7 @@ from archguard.domain.v2_execution import (
 )
 from archguard.domain.v2_micro_pilot import SyntheticUsage
 from archguard.entrypoints.cli.app import app
+from archguard.infrastructure.providers.openai_responses import OpenAIResponsesAdapter
 from archguard.infrastructure.providers.retry import ProviderInvocationError
 from archguard.infrastructure.v2_evidence import (
     AtomicCheckpointStore,
@@ -527,8 +528,11 @@ def test_real_provider_uses_existing_adapter_without_serializing_secret(
 
     seen: dict[str, object] = {}
 
-    def invoke(adapter: object, prompt: str):  # type: ignore[no-untyped-def]
+    def invoke(adapter: OpenAIResponsesAdapter, prompt: str):  # type: ignore[no-untyped-def]
         seen["prompt"] = prompt
+        settings = adapter.settings
+        seen["reasoning_effort"] = settings.reasoning_effort
+        seen["maximum_invocation_cost"] = settings.maximum_invocation_cost
         return b"{}", SimpleNamespace(input_units=12, output_units=3)
 
     monkeypatch.setattr(
@@ -540,6 +544,8 @@ def test_real_provider_uses_existing_adapter_without_serializing_secret(
     request = FakePreparer("f" * 64).prepare(frozen_identities()[0])
     outcome = V2OpenAIProvider().invoke(request)
     assert outcome.usage == SyntheticUsage(12, 3) and seen["prompt"] == request.prompt
+    assert seen["reasoning_effort"] == "medium"
+    assert seen["maximum_invocation_cost"] == "0.1175"
     assert "recognizable-fake-secret" not in repr(outcome)
 
 
@@ -586,9 +592,14 @@ def test_capability_probe_is_one_provider_free_operational_call(
 
     calls = 0
 
-    def invoke(adapter: object, prompt: str):  # type: ignore[no-untyped-def]
+    def invoke(adapter: OpenAIResponsesAdapter, prompt: str):  # type: ignore[no-untyped-def]
         nonlocal calls
         calls += 1
+        settings = adapter.settings
+        assert settings.model == "gpt-5.4-2026-03-05"
+        assert settings.reasoning_effort == "none"
+        assert settings.retry.maximum_attempts == 1
+        assert settings.maximum_invocation_cost == "0.0050"
         assert "Operational capability probe only" in prompt
         response = {
             "schema_version": "archguard.repair-response/v2.1",
@@ -632,6 +643,22 @@ def test_capability_probe_cli_requires_distinct_authorization(
         ],
     )
     assert refused.exit_code == 2 and not output.exists()
+    for prior_token in (
+        "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL",
+        "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_SCHEMA_FIX_1_CALL",
+    ):
+        prior = CliRunner().invoke(
+            app,
+            [
+                "v2-micro-pilot",
+                "capability-probe",
+                "--output",
+                str(output),
+                "--authorization",
+                prior_token,
+            ],
+        )
+        assert prior.exit_code == 2 and not output.exists()
     monkeypatch.setattr(
         "archguard.entrypoints.cli.v2.V2CapabilityProbe.run",
         lambda self: CapabilityProbeResult(
@@ -657,7 +684,7 @@ def test_capability_probe_cli_requires_distinct_authorization(
             "--output",
             str(output),
             "--authorization",
-            "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_SCHEMA_FIX_1_CALL",
+            "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_REASONING_FIX_1_CALL",
         ],
     )
     assert accepted.exit_code == 0
@@ -676,7 +703,7 @@ def test_capability_probe_cli_requires_distinct_authorization(
             "--output",
             str(blocked_output),
             "--authorization",
-            "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_SCHEMA_FIX_1_CALL",
+            "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_REASONING_FIX_1_CALL",
         ],
     )
     assert blocked.exit_code == 3
@@ -688,6 +715,28 @@ def test_capability_probe_cli_requires_distinct_authorization(
         "status": "PRE_PROVIDER_BLOCKED",
     }
     assert "sensitive local configuration detail" not in blocked_output.read_text()
+
+
+def test_second_probe_incident_record_is_source_free_and_not_accepted(
+    repository_root: Path,
+) -> None:
+    value = json.loads(
+        (repository_root / "docs/v2/v2-02b-provider-reasoning-incident.json").read_bytes()
+    )
+    validate_source_free(value)
+    assert value["status"] == "PROVIDER_REJECTED"
+    assert value["provider_request_attempts"] == 1
+    assert value["accepted_provider_calls"] == value["scientific_executions"] == 0
+    assert value["diagnostic"] == {
+        "fingerprint": "829b6c4d5f83aa4c51081fc46ab013c34dbb4eb4874b41995a2acc5af43e1868",
+        "http_status": 400,
+        "kind": "INVALID_REQUEST",
+        "provider_code": "unsupported_value",
+        "request_id_hash": ("909519de9f104f04760dab07ded045e9da89fecdd7d2b02c840df84bf37c9f3e"),
+        "retryable": False,
+        "stage": "request",
+        "usage_returned": False,
+    }
 
 
 def test_workspace_acquisition_context_processing_and_cleanup(
@@ -775,7 +824,8 @@ def test_protocol_and_workflow_gates(repository_root: Path) -> None:
     probe_value = yaml.safe_load(probe_path.read_text())
     assert probe_value["jobs"]["probe"]["needs"] == "preflight"
     probe_source = probe_path.read_text()
-    assert "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_SCHEMA_FIX_1_CALL" in probe_source
+    assert "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_REASONING_FIX_1_CALL" in probe_source
+    assert "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_SCHEMA_FIX_1_CALL'" not in probe_source
     assert "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL'" not in probe_source
     assert "environment: v2-provider-capability-probe" in probe_source
     assert "capability-probe" in probe_source
