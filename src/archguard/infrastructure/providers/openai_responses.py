@@ -190,6 +190,80 @@ class OpenAIResponsesAdapter:
             payload = None
         return parse_response("openai", request, payload)
 
+    def invoke_v2_repair(self, prompt: str) -> tuple[bytes, ProviderUsage]:
+        """Invoke the strict V2.1 repair contract without retaining provider payloads."""
+        schema = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "schema_version": {"const": "archguard.repair-response/v2.1"},
+                "task_id": {"type": "string"},
+                "candidate_id": {"type": "string"},
+                "unified_diff": {"type": "string"},
+                "declared_changed_paths": {"type": "array", "items": {"type": "string"}},
+                "rationale_summary": {"type": ["string", "null"]},
+            },
+            "required": [
+                "schema_version",
+                "task_id",
+                "candidate_id",
+                "unified_diff",
+                "declared_changed_paths",
+                "rationale_summary",
+            ],
+        }
+        try:
+            response = self._client_value().responses.create(
+                model=self.settings.model,
+                input=[{"role": "developer", "content": prompt}],
+                max_output_tokens=self.settings.maximum_output_units,
+                store=False,
+                reasoning={"effort": self.settings.reasoning_effort},
+                tools=[],
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": "archguard_repair_response_v2_1",
+                        "strict": True,
+                        "schema": schema,
+                    }
+                },
+            )
+        except Exception as error:
+            raise self._map_error(error) from None
+        model = str(value(response, "model", ""))
+        usage = value(response, "usage")
+        if model != self.settings.model or usage is None:
+            raise ProviderInvocationError(
+                ProviderFailure(
+                    ProviderErrorCategory.INCOMPLETE,
+                    False,
+                    "Provider metadata was missing or contradictory.",
+                    "openai",
+                    "response",
+                )
+            )
+        measured = ProviderUsage(
+            int(value(usage, "input_tokens", 0)),
+            int(value(usage, "output_tokens", 0)),
+            value(value(usage, "input_tokens_details", {}), "cached_tokens"),
+            value(value(usage, "output_tokens_details", {}), "reasoning_tokens"),
+            "openai",
+            model,
+        )
+        raw = str(value(response, "output_text", "")).encode()
+        if not raw:
+            raise ProviderInvocationError(
+                ProviderFailure(
+                    ProviderErrorCategory.INCOMPLETE,
+                    False,
+                    "Provider returned no structured output.",
+                    "openai",
+                    "response",
+                )
+            )
+        return raw, measured
+
     def _map_error(self, error: Exception) -> ProviderInvocationError:
         status = getattr(error, "status_code", None)
         mapping = {
