@@ -1,6 +1,7 @@
 """OpenAI Responses API adapter using only the documented public response shape."""
 
 import json
+import re
 from typing import Any, Protocol, cast
 
 from archguard.application.services.prompts import construct_prompt
@@ -229,10 +230,13 @@ class OpenAIResponsesAdapter:
                     }
                 },
             )
+        except ProviderInvocationError:
+            raise
         except Exception as error:
             raise self._map_error(error) from None
         model = str(value(response, "model", ""))
         usage = value(response, "usage")
+        request_id = str(value(response, "id", "")) or None
         if model != self.settings.model or usage is None:
             raise ProviderInvocationError(
                 ProviderFailure(
@@ -241,6 +245,8 @@ class OpenAIResponsesAdapter:
                     "Provider metadata was missing or contradictory.",
                     "openai",
                     "response",
+                    request_id=request_id,
+                    usage_returned=usage is not None,
                 )
             )
         measured = ProviderUsage(
@@ -260,6 +266,8 @@ class OpenAIResponsesAdapter:
                     "Provider returned no structured output.",
                     "openai",
                     "response",
+                    request_id=request_id,
+                    usage_returned=True,
                 )
             )
         return raw, measured
@@ -291,8 +299,19 @@ class OpenAIResponsesAdapter:
             ProviderErrorCategory.NETWORK,
             ProviderErrorCategory.TIMEOUT,
         }
+        raw_code = str(getattr(error, "code", "") or "").lower()
+        provider_code = raw_code if re.fullmatch(r"[a-z0-9_.-]{1,64}", raw_code) else None
+        raw_request_id = str(getattr(error, "request_id", "") or "")
+        request_id = raw_request_id if raw_request_id else None
         return ProviderInvocationError(
             ProviderFailure(
-                category, retryable, "OpenAI request failed safely.", "openai", "request"
+                category,
+                retryable,
+                "OpenAI request failed safely.",
+                "openai",
+                "request",
+                provider_code=provider_code,
+                request_id=request_id,
+                http_status=status if isinstance(status, int) and 100 <= status <= 599 else None,
             )
         )

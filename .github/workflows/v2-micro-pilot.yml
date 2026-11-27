@@ -12,8 +12,18 @@ on:
         required: true
         default: false
         type: boolean
+      resume_run_id:
+        description: Prior workflow run ID containing a validated source-free checkpoint
+        required: false
+        type: string
+      resume_artifact_name:
+        description: Prior artifact name; both resume fields must be supplied together
+        required: false
+        default: v2-micro-pilot-source-free
+        type: string
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -67,6 +77,27 @@ jobs:
         run: |
           jq -e '.V2_MICRO_PILOT_READY == true and .blocker_codes == []' research/v2/readiness/micro-pilot-readiness.json
           uv run archguard v2-micro-pilot protocol-validate --root .
+          if { test -n "${{ inputs.resume_run_id }}" && test -z "${{ inputs.resume_artifact_name }}"; } ||
+             { test -z "${{ inputs.resume_run_id }}" && test -n "${{ inputs.resume_artifact_name }}" &&
+               test "${{ inputs.resume_artifact_name }}" != "v2-micro-pilot-source-free"; }; then
+            echo "Resume run ID and artifact name must be supplied together." >&2
+            exit 2
+          fi
+      - name: Download prior source-free evidence
+        if: inputs.resume_run_id != ''
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ inputs.resume_artifact_name }}
+          path: ${{ runner.temp }}/v2-resume-download
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.resume_run_id }}
+      - name: Validate and import prior checkpoint
+        if: inputs.resume_run_id != ''
+        run: |
+          mapfile -t archives < <(find "$RUNNER_TEMP/v2-resume-download" -type f -name 'v2-micro-pilot-evidence.zip' -print)
+          test "${#archives[@]}" -eq 1
+          uv run archguard v2-micro-pilot evidence-import "${archives[0]}" \
+            --destination "$RUNNER_TEMP/archguard-v2-evidence"
       - name: Execute bounded micro-pilot
         run: |
           uv run archguard v2-micro-pilot execute \
@@ -82,9 +113,12 @@ jobs:
               echo '## ArchGuard V2.2 Micro-Pilot'
               echo
               echo "- Completed calls: $(jq -r '.completed_calls' "$CHECKPOINT") / 8"
+              echo "- Provider request attempts: $(jq -r '.provider_request_attempts' "$CHECKPOINT")"
+              echo "- Accepted provider calls: $(jq -r '.accepted_provider_calls' "$CHECKPOINT")"
+              echo "- Infrastructure failures: $(jq -r '.infrastructure_failures' "$CHECKPOINT")"
               echo "- Remaining calls: $(jq -r '.remaining_calls' "$CHECKPOINT")"
               echo "- Observed cost (USD): $(jq -r '.ledger.observed_cost_usd' "$CHECKPOINT")"
-              echo '- Evidence is source-free and resumable.'
+              echo '- Resume is permitted only after source-free artifact import and validation.'
             } >> "$GITHUB_STEP_SUMMARY"
           else
             echo '## ArchGuard V2.2 Micro-Pilot\n\nNo provider call was checkpointed.' >> "$GITHUB_STEP_SUMMARY"

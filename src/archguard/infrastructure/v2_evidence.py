@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 import zipfile
 from dataclasses import asdict
 from decimal import Decimal
@@ -19,13 +20,16 @@ from archguard.domain.v2_execution import (
     ExecutionIdentity,
     ExecutionResult,
     ExecutionStatus,
+    ProviderFailureDiagnostic,
+    ProviderFailureKind,
+    ProviderFailureRecord,
     StageStatus,
     TerminalClassification,
 )
 from archguard.infrastructure.artifact_io import atomic_write
 from archguard.infrastructure.json_codec import unique_object
 
-SCHEMA = "archguard.v2-micro-pilot-checkpoint/v1"
+SCHEMA = "archguard.v2-micro-pilot-checkpoint/v2"
 EVIDENCE_ALLOWLIST = frozenset(
     {
         "run-manifest.json",
@@ -72,19 +76,25 @@ def result_value(result: ExecutionResult) -> dict[str, object]:
 def checkpoint_value(
     ledger: BudgetLedger,
     results: tuple[ExecutionResult, ...],
+    failures: tuple[ProviderFailureRecord, ...],
     *,
     carried_calls: int = 0,
 ) -> dict[str, object]:
-    if not 0 <= carried_calls <= len(results):
+    if not 0 <= carried_calls <= ledger.provider_request_attempts:
         raise ValueError("invalid carried call count")
     value: dict[str, object] = {
         "schema": SCHEMA,
         "ledger": _plain(asdict(ledger)),
         "results": [result_value(item) for item in results],
+        "provider_failures": [_plain(asdict(item)) for item in failures],
         "carried_calls": carried_calls,
-        "new_calls": len(results) - carried_calls,
+        "new_provider_request_attempts": ledger.provider_request_attempts - carried_calls,
+        "provider_request_attempts": ledger.provider_request_attempts,
+        "accepted_provider_calls": ledger.accepted_provider_calls,
         "completed_calls": ledger.completed_calls,
+        "infrastructure_failures": ledger.infrastructure_failures,
         "remaining_calls": ledger.remaining_calls,
+        "remaining_provider_requests": ledger.remaining_provider_requests,
     }
     value["fingerprint"] = hashlib.sha256(canonical_json(value)).hexdigest()
     return value
@@ -95,14 +105,23 @@ class AtomicCheckpointStore(CheckpointStore):
         self.path = path
         self.carried_calls = carried_calls
 
-    def write(self, ledger: BudgetLedger, results: tuple[ExecutionResult, ...]) -> None:
+    def write(
+        self,
+        ledger: BudgetLedger,
+        results: tuple[ExecutionResult, ...],
+        failures: tuple[ProviderFailureRecord, ...],
+    ) -> None:
         atomic_write(
             self.path,
-            canonical_json(checkpoint_value(ledger, results, carried_calls=self.carried_calls)),
+            canonical_json(
+                checkpoint_value(ledger, results, failures, carried_calls=self.carried_calls)
+            ),
         )
 
 
-def load_checkpoint(path: Path) -> tuple[BudgetLedger, tuple[ExecutionResult, ...]]:
+def load_checkpoint(
+    path: Path,
+) -> tuple[BudgetLedger, tuple[ExecutionResult, ...], tuple[ProviderFailureRecord, ...]]:
     raw = path.read_bytes()
     value = json.loads(raw, object_pairs_hook=unique_object)
     if not isinstance(value, dict) or canonical_json(value) != raw:
@@ -115,15 +134,28 @@ def load_checkpoint(path: Path) -> tuple[BudgetLedger, tuple[ExecutionResult, ..
         raise ValueError("invalid checkpoint schema")
     ledger_data = cast(dict[str, object], value["ledger"])
     ledger = BudgetLedger(
-        tuple(_integer(item) for item in cast(list[object], ledger_data["completed_ordinals"])),
-        cast(int | None, ledger_data["in_flight_ordinal"]),
-        Decimal(str(ledger_data["observed_cost_usd"])),
-        Decimal(str(ledger_data["reserved_cost_usd"])),
+        completed_ordinals=tuple(
+            _integer(item) for item in cast(list[object], ledger_data["completed_ordinals"])
+        ),
+        failed_attempt_ordinals=tuple(
+            _integer(item) for item in cast(list[object], ledger_data["failed_attempt_ordinals"])
+        ),
+        provider_request_attempts=_integer(ledger_data["provider_request_attempts"]),
+        accepted_provider_calls=_integer(ledger_data["accepted_provider_calls"]),
+        infrastructure_failures=_integer(ledger_data["infrastructure_failures"]),
+        in_flight_ordinal=cast(int | None, ledger_data["in_flight_ordinal"]),
+        observed_cost_usd=Decimal(str(ledger_data["observed_cost_usd"])),
+        reserved_cost_usd=Decimal(str(ledger_data["reserved_cost_usd"])),
     )
     results = tuple(_decode_result(cast(dict[str, object], item)) for item in value["results"])
+    failures = tuple(
+        _decode_failure(cast(dict[str, object], item)) for item in value["provider_failures"]
+    )
     if tuple(item.identity.ordinal for item in results) != ledger.completed_ordinals:
         raise ValueError("checkpoint results contradict ledger")
-    return ledger, results
+    if tuple(item.identity.ordinal for item in failures) != ledger.failed_attempt_ordinals:
+        raise ValueError("checkpoint failures contradict ledger")
+    return ledger, results, failures
 
 
 def _decode_result(value: dict[str, object]) -> ExecutionResult:
@@ -133,7 +165,7 @@ def _decode_result(value: dict[str, object]) -> ExecutionResult:
             _integer(identity["ordinal"]), str(identity["task_id"]), str(identity["condition"])
         ),
         ExecutionStatus(str(value["status"])),
-        _integer(value["provider_call_count"]),
+        _integer(value["accepted_provider_call_count"]),
         _integer(value["input_tokens"]),
         _integer(value["output_tokens"]),
         Decimal(str(value["observed_cost_usd"])),
@@ -144,6 +176,30 @@ def _decode_result(value: dict[str, object]) -> ExecutionResult:
         StageStatus(str(value["architecture_evaluation"])),
         TerminalClassification(str(value["terminal_classification"])),
         tuple(str(item) for item in cast(list[object], value["diagnostic_fingerprints"])),
+    )
+
+
+def _decode_failure(value: dict[str, object]) -> ProviderFailureRecord:
+    identity = cast(dict[str, object], value["identity"])
+    diagnostic = cast(dict[str, object], value["diagnostic"])
+    return ProviderFailureRecord(
+        ExecutionIdentity(
+            _integer(identity["ordinal"]), str(identity["task_id"]), str(identity["condition"])
+        ),
+        ProviderFailureDiagnostic(
+            ProviderFailureKind(str(diagnostic["kind"])),
+            str(diagnostic["stage"]),
+            bool(diagnostic["retryable"]),
+            cast(int | None, diagnostic["http_status"]),
+            cast(str | None, diagnostic["provider_code"]),
+            bool(diagnostic["usage_returned"]),
+            cast(str | None, diagnostic["request_id_hash"]),
+            str(diagnostic["fingerprint"]),
+        ),
+        _integer(value["accepted_provider_call_count"]),
+        _integer(value["input_tokens"]),
+        _integer(value["output_tokens"]),
+        Decimal(str(value["observed_cost_usd"])),
     )
 
 
@@ -186,6 +242,7 @@ def write_run_evidence(
     directory: Path,
     ledger: BudgetLedger,
     results: tuple[ExecutionResult, ...],
+    failures: tuple[ProviderFailureRecord, ...],
     *,
     protocol_fingerprint: str,
     fairness_fingerprint: str,
@@ -198,7 +255,9 @@ def write_run_evidence(
             "schema": "archguard.v2-micro-pilot-run/v1",
             "protocol_fingerprint": protocol_fingerprint,
             "execution_count": len(results),
-            "provider_call_count": sum(item.provider_call_count for item in results),
+            "provider_request_attempts": ledger.provider_request_attempts,
+            "accepted_provider_calls": ledger.accepted_provider_calls,
+            "infrastructure_failures": ledger.infrastructure_failures,
         },
         "aggregate-result.json": {
             "schema": "archguard.v2-micro-pilot-aggregate/v1",
@@ -213,7 +272,11 @@ def write_run_evidence(
         "cost-token-ledger.json": {
             "schema": "archguard.v2-cost-token-ledger/v1",
             "completed_calls": ledger.completed_calls,
+            "provider_request_attempts": ledger.provider_request_attempts,
+            "accepted_provider_calls": ledger.accepted_provider_calls,
+            "infrastructure_failures": ledger.infrastructure_failures,
             "remaining_calls": ledger.remaining_calls,
+            "remaining_provider_requests": ledger.remaining_provider_requests,
             "observed_cost_usd": format(ledger.observed_cost_usd, "f"),
             "reserved_cost_usd": format(ledger.reserved_cost_usd, "f"),
             "input_tokens": sum(item.input_tokens for item in results),
@@ -231,7 +294,7 @@ def write_run_evidence(
             "completed": len(results),
             "remaining": 8 - len(results),
         },
-        "checkpoint.json": checkpoint_value(ledger, results, carried_calls=carried_calls),
+        "checkpoint.json": checkpoint_value(ledger, results, failures, carried_calls=carried_calls),
         "cleanup-report.json": {
             "schema": "archguard.v2-cleanup/v1",
             "complete": cleanup_complete,
@@ -254,28 +317,42 @@ def write_run_evidence(
 
 
 def import_evidence(archive_path: Path, directory: Path) -> None:
+    if directory.is_symlink() or not directory.is_dir() or any(directory.iterdir()):
+        raise ValueError("resume destination must be an empty non-symlink directory")
+    members: dict[str, bytes] = {}
     with zipfile.ZipFile(archive_path) as archive:
         names = archive.namelist()
         if len(names) != len(set(names)) or not set(names) <= EVIDENCE_ALLOWLIST:
             raise ValueError("archive allowlist violation")
+        if "checkpoint.json" not in names or "SHA256SUMS" not in names:
+            raise ValueError("archive is missing required resume evidence")
         if any("/" in name or "\\" in name for name in names):
             raise ValueError("archive must be flat")
         for info in archive.infolist():
             if (info.external_attr >> 16) & 0o170000 not in {0, 0o100000}:
                 raise ValueError("non-regular archive member")
+            if info.file_size > 16 * 1024 * 1024:
+                raise ValueError("archive member exceeds size limit")
             raw = archive.read(info)
             if info.filename.endswith(".json"):
                 validate_source_free(json.loads(raw, object_pairs_hook=unique_object))
-            target = directory / info.filename
-            descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(descriptor, "wb") as file:
-                file.write(raw)
-    load_checkpoint(directory / "checkpoint.json")
-    sums_path = directory / "SHA256SUMS"
-    if sums_path.exists():
-        for line in sums_path.read_text(encoding="ascii").splitlines():
-            expected, name = line.split("  ", 1)
-            if name not in EVIDENCE_ALLOWLIST or name == "SHA256SUMS":
-                raise ValueError("invalid checksum member")
-            if hashlib.sha256((directory / name).read_bytes()).hexdigest() != expected:
-                raise ValueError("evidence checksum mismatch")
+            members[info.filename] = raw
+    checksummed: set[str] = set()
+    for line in members["SHA256SUMS"].decode("ascii").splitlines():
+        expected, name = line.split("  ", 1)
+        if name in checksummed or name not in members or name == "SHA256SUMS":
+            raise ValueError("invalid checksum member")
+        checksummed.add(name)
+        if hashlib.sha256(members[name]).hexdigest() != expected:
+            raise ValueError("evidence checksum mismatch")
+    if checksummed != set(members) - {"SHA256SUMS"}:
+        raise ValueError("incomplete evidence checksums")
+    with tempfile.TemporaryDirectory(prefix="archguard-v2-import-") as temporary:
+        checkpoint = Path(temporary) / "checkpoint.json"
+        checkpoint.write_bytes(members["checkpoint.json"])
+        load_checkpoint(checkpoint)
+    for name, raw in sorted(members.items()):
+        target = directory / name
+        descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "wb") as file:
+            file.write(raw)

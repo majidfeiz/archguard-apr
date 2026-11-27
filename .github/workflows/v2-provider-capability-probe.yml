@@ -1,0 +1,63 @@
+name: V2 Provider Capability Probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL
+        required: true
+        type: string
+      execute_capability_probe:
+        description: Execute one operational, non-scientific provider request
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2-provider-capability-probe
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - run: uv python install 3.12 && uv sync --frozen
+      - name: Validate frozen provider protocol without a secret
+        run: uv run archguard v2-micro-pilot protocol-validate --root .
+
+  probe:
+    needs: preflight
+    if: >-
+      inputs.execute_capability_probe == true &&
+      inputs.confirmation == 'AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: v2-provider-capability-probe
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - run: uv python install 3.12 && uv sync --frozen
+      - name: Run one separately authorized operational probe
+        run: |
+          uv run archguard v2-micro-pilot capability-probe \
+            --output "$RUNNER_TEMP/v2-provider-capability-probe.json" \
+            --authorization "${{ inputs.confirmation }}"
+      - name: Upload source-free operational evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2-provider-capability-probe
+          if-no-files-found: error
+          path: ${{ runner.temp }}/v2-provider-capability-probe.json

@@ -1,11 +1,13 @@
 """Explicit commands for offline validation, fake dry-runs and authorized V2.2 execution."""
 
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
+from archguard.application.ports.v2_execution import ProviderAdmissionFailure
 from archguard.application.services.v2_execution import V2MicroPilotRunner
 from archguard.domain.canonical import canonical_json
 from archguard.domain.v2_execution import BudgetLedger
@@ -23,12 +25,14 @@ from archguard.infrastructure.v2_runtime import (
     FakePreparer,
     FakeProcessor,
     NoopCleanup,
+    V2CapabilityProbe,
     V2OpenAIProvider,
     V2Workspace,
 )
 
 app = typer.Typer(no_args_is_help=True)
 AUTHORIZATION = "AUTHORIZE_V2_MICRO_PILOT_8_CALLS_USD_1"
+CAPABILITY_PROBE_AUTHORIZATION = "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL"
 
 
 def _protocol(root: Path) -> FrozenProtocol:
@@ -59,11 +63,12 @@ def dry_run(
         checkpoint,
         NoopCleanup(),
     )
-    ledger, results, cleaned = runner.run()
+    ledger, results, failures, cleaned = runner.run()
     archive = write_run_evidence(
         output,
         ledger,
         results,
+        failures,
         protocol_fingerprint=protocol.fingerprint,
         fairness_fingerprint=protocol.fairness_fingerprint,
         cleanup_complete=cleaned,
@@ -90,30 +95,36 @@ def execute(
         raise typer.BadParameter("execution output must remain outside the analyzed repository")
     resolved_output.mkdir(parents=True, exist_ok=True)
     checkpoint_path = resolved_output / "checkpoint.json"
-    ledger, carried = (
-        load_checkpoint(checkpoint_path) if checkpoint_path.exists() else (BudgetLedger(), ())
+    ledger, carried, failures = (
+        load_checkpoint(checkpoint_path) if checkpoint_path.exists() else (BudgetLedger(), (), ())
     )
+    carried_attempts = ledger.provider_request_attempts
+    if ledger.failed_attempt_ordinals:
+        raise typer.BadParameter(
+            "failed scientific ordinal cannot be repeated without a prospective protocol amendment"
+        )
     workspace = V2Workspace(protocol)
     runner = V2MicroPilotRunner(
         workspace,
         V2OpenAIProvider(),
         workspace,
-        AtomicCheckpointStore(checkpoint_path, len(carried)),
+        AtomicCheckpointStore(checkpoint_path, carried_attempts),
         workspace,
     )
     try:
-        ledger, results, cleaned = runner.run(ledger, carried)
+        ledger, results, failures, cleaned = runner.run(ledger, carried, failures)
     finally:
         if checkpoint_path.exists():
-            ledger, results = load_checkpoint(checkpoint_path)
+            ledger, results, failures = load_checkpoint(checkpoint_path)
             write_run_evidence(
                 resolved_output,
                 ledger,
                 results,
+                failures,
                 protocol_fingerprint=protocol.fingerprint,
                 fairness_fingerprint=protocol.fairness_fingerprint,
                 cleanup_complete=not workspace.root.exists(),
-                carried_calls=len(carried),
+                carried_calls=carried_attempts,
             )
     typer.echo(
         json.dumps({"completed_calls": ledger.completed_calls, "cleanup": cleaned}, sort_keys=True)
@@ -122,9 +133,19 @@ def execute(
 
 @app.command("checkpoint-validate")
 def checkpoint_validate(path: Annotated[Path, typer.Argument()]) -> None:
-    ledger, results = load_checkpoint(path)
+    ledger, results, failures = load_checkpoint(path)
     typer.echo(
-        json.dumps({"completed": ledger.completed_calls, "results": len(results)}, sort_keys=True)
+        json.dumps(
+            {
+                "provider_request_attempts": ledger.provider_request_attempts,
+                "accepted_provider_calls": ledger.accepted_provider_calls,
+                "completed_scientific_executions": ledger.completed_calls,
+                "infrastructure_failures": ledger.infrastructure_failures,
+                "results": len(results),
+                "failure_records": len(failures),
+            },
+            sort_keys=True,
+        )
     )
 
 
@@ -151,13 +172,57 @@ def evidence_import(
 def aggregate(
     checkpoint: Annotated[Path, typer.Argument()], output: Annotated[Path, typer.Option("--output")]
 ) -> None:
-    ledger, results = load_checkpoint(checkpoint)
+    ledger, results, failures = load_checkpoint(checkpoint)
     value = {
         "schema": "archguard.v2-micro-pilot-aggregate/v1",
         "completed": ledger.completed_calls,
+        "provider_request_attempts": ledger.provider_request_attempts,
+        "accepted_provider_calls": ledger.accepted_provider_calls,
+        "infrastructure_failures": ledger.infrastructure_failures,
         "remaining": ledger.remaining_calls,
         "classifications": [item.terminal_classification.value for item in results],
+        "provider_failure_kinds": [item.diagnostic.kind.value for item in failures],
     }
     validate_source_free(value)
     atomic_write(output, canonical_json(value))
     typer.echo(str(output))
+
+
+@app.command("capability-probe")
+def capability_probe(
+    output: Annotated[Path, typer.Option("--output")],
+    authorization: Annotated[str, typer.Option("--authorization")],
+) -> None:
+    """Run one separately authorized operational provider capability probe."""
+    if authorization != CAPABILITY_PROBE_AUTHORIZATION:
+        raise typer.BadParameter("exact provider capability-probe authorization is required")
+    try:
+        result = V2CapabilityProbe().run().as_source_free_dict()
+    except ValueError:
+        result = {
+            "schema": "archguard.v2-provider-capability-probe/v1",
+            "status": "PRE_PROVIDER_BLOCKED",
+            "provider_request_attempts": 0,
+            "accepted_provider_calls": 0,
+            "scientific_executions": 0,
+        }
+        validate_source_free(result)
+        atomic_write(output, canonical_json(result))
+        typer.echo(json.dumps(result, sort_keys=True))
+        raise typer.Exit(3) from None
+    except ProviderAdmissionFailure as error:
+        result = {
+            "schema": "archguard.v2-provider-capability-probe/v1",
+            "status": "PROVIDER_REJECTED",
+            "provider_request_attempts": 1,
+            "accepted_provider_calls": 0,
+            "scientific_executions": 0,
+            "diagnostic": asdict(error.diagnostic),
+        }
+        validate_source_free(result)
+        atomic_write(output, canonical_json(result))
+        typer.echo(json.dumps(result, sort_keys=True))
+        raise typer.Exit(3) from None
+    validate_source_free(result)
+    atomic_write(output, canonical_json(result))
+    typer.echo(json.dumps(result, sort_keys=True))
