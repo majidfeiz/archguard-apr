@@ -155,6 +155,47 @@ def test_openai_valid_response_and_safe_request() -> None:
     assert ProviderCapability.STRICT_JSON_SCHEMA in adapter.capabilities().values
 
 
+def test_openai_v2_repair_contract_is_strict_stateless_and_tool_free() -> None:
+    payload = {
+        "schema_version": "archguard.repair-response/v2.1",
+        "task_id": "PySnooper-2",
+        "candidate_id": "candidate",
+        "unified_diff": "diff --git a/a.py b/a.py\n",
+        "declared_changed_paths": ["a.py"],
+        "rationale_summary": None,
+    }
+    resource = Resource(openai_result(payload, output_text=json.dumps(payload)))
+    adapter = OpenAIResponsesAdapter(
+        settings("openai"), ProviderCredential(False, None), SimpleNamespace(responses=resource)
+    )
+    raw, usage = adapter.invoke_v2_repair("source-bearing prompt kept in memory")
+    assert json.loads(raw) == payload
+    assert (usage.input_units, usage.output_units) == (11, 7)
+    assert resource.kwargs["store"] is False
+    assert resource.kwargs["tools"] == []
+    assert resource.kwargs["model"] == "test-model"
+    assert resource.kwargs["max_output_tokens"] == 2048
+    assert resource.kwargs["text"]["format"]["strict"] is True  # type: ignore[index]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"model": "alias", "output_text": "{}"},
+        {"usage": None, "output_text": "{}"},
+        {"output_text": ""},
+    ],
+)
+def test_openai_v2_repair_fails_closed_on_metadata(changes: dict[str, object]) -> None:
+    adapter = OpenAIResponsesAdapter(
+        settings("openai"),
+        ProviderCredential(False, None),
+        SimpleNamespace(responses=Resource(openai_result({}, **changes))),
+    )
+    with pytest.raises(ProviderInvocationError):
+        adapter.invoke_v2_repair("prompt")
+
+
 @pytest.mark.parametrize(
     ("result", "category"),
     [

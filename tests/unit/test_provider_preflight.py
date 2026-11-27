@@ -1,5 +1,6 @@
 import json
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -146,6 +147,17 @@ def test_previous_configuration_and_prospective_amendment_are_immutable(
     assert amendment["execution_state"]["scientific_executions_observed"] == 0
 
 
+def test_historical_configuration_identity_does_not_expire(
+    configuration: ProviderExperimentConfiguration, repository_root: Path
+) -> None:
+    path = repository_root / "configs/experiments/phase13-provider.json"
+    original = path.read_bytes()
+    assert canonical_configuration_bytes(configuration) == original
+    assert configuration.provider_configuration_fingerprint == (
+        "f5dc6fb5b8bf54c7cf1b58b990fa3db44073500df9903e3a7d93cbeb1ad92c2d"
+    )
+
+
 def test_offline_preflight_requires_secret_and_host(
     configuration: ProviderExperimentConfiguration,
     tmp_path: Path,
@@ -172,11 +184,78 @@ def test_offline_preflight_requires_secret_and_host(
         configuration,
         output_directory=tmp_path / "new-output",
         analyzed_roots=(tmp_path / "target",),
+        reference_time=datetime(2026, 10, 20, tzinfo=UTC),
     )
     encoded = json.dumps(ready)
     assert ready["status"] == "ready"
     assert "recognizable-fake-secret" not in encoded
     assert "authorization" not in encoded.lower()
+
+
+@pytest.mark.parametrize(
+    ("age", "expected"),
+    [
+        (timedelta(days=30), True),
+        (timedelta(days=30, microseconds=1), False),
+    ],
+)
+def test_live_pricing_freshness_uses_injected_reference_time(
+    configuration: ProviderExperimentConfiguration,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    age: timedelta,
+    expected: bool,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "recognizable-fake-secret")
+    monkeypatch.setattr(
+        "archguard.infrastructure.provider_preflight.platform.system", lambda: "Linux"
+    )
+    monkeypatch.setattr(
+        "archguard.infrastructure.provider_preflight.platform.machine", lambda: "x86_64"
+    )
+    monkeypatch.setattr(
+        "archguard.infrastructure.provider_preflight.shutil.which", lambda _: "/usr/bin/docker"
+    )
+    verified = datetime.fromisoformat(configuration.prices.verified_at.replace("Z", "+00:00"))
+    report = provider_preflight(
+        configuration,
+        output_directory=tmp_path / "output",
+        analyzed_roots=(tmp_path / "target",),
+        reference_time=verified + age,
+    )
+    assert report["checks"]["pricing_fresh"] is expected
+    assert report["status"] == ("ready" if expected else "blocked")
+
+
+def test_live_preflight_rejects_naive_reference_time(
+    configuration: ProviderExperimentConfiguration, tmp_path: Path
+) -> None:
+    with pytest.raises(ValueError, match="timezone-aware"):
+        provider_preflight(
+            configuration,
+            output_directory=tmp_path / "output",
+            analyzed_roots=(tmp_path / "target",),
+            reference_time=datetime(2026, 10, 20),
+        )
+
+
+def test_live_preflight_rejects_malformed_recorded_pricing_time(
+    configuration: ProviderExperimentConfiguration, tmp_path: Path
+) -> None:
+    malformed = replace(
+        configuration,
+        prices=replace(configuration.prices, verified_at="not-a-timeZ"),
+        provider_configuration_fingerprint="",
+    )
+    report = provider_preflight(
+        malformed,
+        output_directory=tmp_path / "output",
+        analyzed_roots=(tmp_path / "target",),
+        require_secret=False,
+        reference_time=datetime(2026, 10, 20, tzinfo=UTC),
+    )
+    assert report["checks"]["pricing_fresh"] is False
+    assert report["status"] == "blocked"
 
 
 def test_preflight_rejects_output_inside_target(

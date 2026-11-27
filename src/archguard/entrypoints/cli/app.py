@@ -19,6 +19,7 @@ from archguard.entrypoints.cli.provider import app as provider_app
 from archguard.entrypoints.cli.readiness import app as readiness_app
 from archguard.entrypoints.cli.repair import app as repair_app
 from archguard.entrypoints.cli.repository import app as repository_app
+from archguard.entrypoints.cli.v2 import app as v2_app
 from archguard.infrastructure.config import Settings, load_settings, read_yaml
 from archguard.infrastructure.logging import redact
 from archguard.infrastructure.paths import writable_directory
@@ -35,6 +36,7 @@ app.add_typer(execution_app, name="execution")
 app.add_typer(repair_app, name="repair")
 app.add_typer(provider_app, name="provider")
 app.add_typer(readiness_app, name="readiness")
+app.add_typer(v2_app, name="v2-micro-pilot")
 config_app = typer.Typer()
 experiment_app = experiment_runner_app
 app.add_typer(config_app, name="config")

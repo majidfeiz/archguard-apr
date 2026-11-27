@@ -59,18 +59,46 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - uses: actions/checkout@v6
-      - name: Execution remains blocked until readiness is true
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - run: uv python install 3.12 && uv sync --frozen
+      - name: Validate frozen protocol
         run: |
           jq -e '.V2_MICRO_PILOT_READY == true and .blocker_codes == []' research/v2/readiness/micro-pilot-readiness.json
-          echo "Future execution implementation must enforce eight calls, zero retries, and USD 1.0000."
-          exit 2
-      - name: Upload controlled source-free failure
+          uv run archguard v2-micro-pilot protocol-validate --root .
+      - name: Execute bounded micro-pilot
+        run: |
+          uv run archguard v2-micro-pilot execute \
+            --root . \
+            --output "$RUNNER_TEMP/archguard-v2-evidence" \
+            --authorization "${{ inputs.confirmation }}"
+      - name: Write source-free summary
+        if: always()
+        run: |
+          CHECKPOINT="$RUNNER_TEMP/archguard-v2-evidence/checkpoint.json"
+          if test -f "$CHECKPOINT"; then
+            {
+              echo '## ArchGuard V2.2 Micro-Pilot'
+              echo
+              echo "- Completed calls: $(jq -r '.completed_calls' "$CHECKPOINT") / 8"
+              echo "- Remaining calls: $(jq -r '.remaining_calls' "$CHECKPOINT")"
+              echo "- Observed cost (USD): $(jq -r '.ledger.observed_cost_usd' "$CHECKPOINT")"
+              echo '- Evidence is source-free and resumable.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '## ArchGuard V2.2 Micro-Pilot\n\nNo provider call was checkpointed.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload controlled source-free evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: v2-micro-pilot-source-free
-          path: research/v2/readiness/micro-pilot-readiness.json
-      - name: Cleanup
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/archguard-v2-evidence/
+            ${{ runner.temp }}/v2-micro-pilot-evidence.zip
+      - name: Ownership-scoped cleanup
         if: always()
         run: |
           docker ps -aq --filter label=org.archguard.phase=v2-micro-pilot | xargs --no-run-if-empty docker rm -f
