@@ -1,13 +1,11 @@
 """Explicit commands for offline validation, fake dry-runs and authorized V2.2 execution."""
 
 import json
-from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
-from archguard.application.ports.v2_execution import ProviderAdmissionFailure
 from archguard.application.services.v2_execution import V2MicroPilotRunner
 from archguard.domain.canonical import canonical_json
 from archguard.domain.v2_execution import BudgetLedger
@@ -21,6 +19,7 @@ from archguard.infrastructure.v2_evidence import (
 )
 from archguard.infrastructure.v2_protocol import FrozenProtocol, load_frozen_protocol
 from archguard.infrastructure.v2_runtime import (
+    CapabilityProbeFailure,
     DeterministicFakeProvider,
     FakePreparer,
     FakeProcessor,
@@ -32,7 +31,7 @@ from archguard.infrastructure.v2_runtime import (
 
 app = typer.Typer(no_args_is_help=True)
 AUTHORIZATION = "AUTHORIZE_V2_MICRO_PILOT_8_CALLS_USD_1"
-CAPABILITY_PROBE_AUTHORIZATION = "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_REASONING_FIX_1_CALL"
+CAPABILITY_PROBE_AUTHORIZATION = "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_OBSERVABILITY_FIX_1_CALL"
 
 
 def _protocol(root: Path) -> FrozenProtocol:
@@ -198,27 +197,8 @@ def capability_probe(
         raise typer.BadParameter("exact provider capability-probe authorization is required")
     try:
         result = V2CapabilityProbe().run().as_source_free_dict()
-    except ValueError:
-        result = {
-            "schema": "archguard.v2-provider-capability-probe/v1",
-            "status": "PRE_PROVIDER_BLOCKED",
-            "provider_request_attempts": 0,
-            "accepted_provider_calls": 0,
-            "scientific_executions": 0,
-        }
-        validate_source_free(result)
-        atomic_write(output, canonical_json(result))
-        typer.echo(json.dumps(result, sort_keys=True))
-        raise typer.Exit(3) from None
-    except ProviderAdmissionFailure as error:
-        result = {
-            "schema": "archguard.v2-provider-capability-probe/v1",
-            "status": "PROVIDER_REJECTED",
-            "provider_request_attempts": 1,
-            "accepted_provider_calls": 0,
-            "scientific_executions": 0,
-            "diagnostic": asdict(error.diagnostic),
-        }
+    except CapabilityProbeFailure as error:
+        result = error.result.as_source_free_dict()
         validate_source_free(result)
         atomic_write(output, canonical_json(result))
         typer.echo(json.dumps(result, sort_keys=True))

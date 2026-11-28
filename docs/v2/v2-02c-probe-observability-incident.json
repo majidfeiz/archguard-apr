@@ -1,0 +1,16 @@
+{
+  "environment_secret_present": true,
+  "head_sha": "95af0f4c3a679819319a95441f64a5d5cd108286",
+  "historical_classification": "HISTORICALLY_AMBIGUOUS",
+  "provider_acceptance": "UNKNOWN",
+  "provider_cost": "UNKNOWN",
+  "provider_usage": "UNKNOWN",
+  "reported_accepted_provider_calls": 0,
+  "reported_provider_request_attempts": 0,
+  "reported_scientific_executions": 0,
+  "reported_status": "PRE_PROVIDER_BLOCKED",
+  "run_id": 46055379901,
+  "schema": "archguard.v2-provider-capability-probe-observability-incident/v1",
+  "scientific_executions": 0,
+  "workflow_artifact_zip_sha256": "2ae80eac5458187cef66dbf0c27e138cac14e8c971d9fc5ee0165ddf0c47b772"
+}
