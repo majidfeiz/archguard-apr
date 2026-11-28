@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 from dataclasses import asdict, dataclass
 from decimal import Decimal
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -29,11 +30,14 @@ from archguard.domain.v2_execution import (
     TerminalClassification,
 )
 from archguard.domain.v2_micro_pilot import (
+    INPUT_PER_MILLION,
     MAX_INPUT_TOKENS,
     MAX_OUTPUT_TOKENS,
     MODEL_SNAPSHOT,
+    OUTPUT_PER_MILLION,
     SyntheticUsage,
 )
+from archguard.infrastructure.json_codec import unique_object
 from archguard.infrastructure.providers.configuration import ProviderSettings, RetryPolicy
 from archguard.infrastructure.providers.credentials import credential_for
 from archguard.infrastructure.providers.openai_responses import OpenAIResponsesAdapter
@@ -60,17 +64,45 @@ class CapabilityProbeResult:
     status: str
     model: str
     api: str
+    stage: str
     strict_schema_accepted: bool
+    response_structure_valid: bool
+    patch_semantics_valid: bool
     tools_disabled: bool
     provider_request_attempts: int
     accepted_provider_calls: int
     scientific_executions: int
+    usage_returned: bool
     input_tokens: int
     output_tokens: int
     observed_cost_usd: str
+    diagnostic_fingerprint: str
 
     def as_source_free_dict(self) -> dict[str, object]:
         return asdict(self)
+
+
+class CapabilityProbeStage(StrEnum):
+    LOCAL_ADMISSION = "LOCAL_ADMISSION"
+    PROVIDER_REQUEST = "PROVIDER_REQUEST"
+    PROVIDER_RESPONSE = "PROVIDER_RESPONSE"
+    USAGE_RECONCILIATION = "USAGE_RECONCILIATION"
+    STRUCTURED_RESPONSE_VALIDATION = "STRUCTURED_RESPONSE_VALIDATION"
+    PATCH_SEMANTIC_VALIDATION = "PATCH_SEMANTIC_VALIDATION"
+
+
+class CapabilityProbeStatus(StrEnum):
+    PRE_PROVIDER_BLOCKED = "PRE_PROVIDER_BLOCKED"
+    PROVIDER_REJECTED = "PROVIDER_REJECTED"
+    PROVIDER_ACCEPTED_RESPONSE_INVALID = "PROVIDER_ACCEPTED_RESPONSE_INVALID"
+    PROVIDER_ACCEPTED_USAGE_INVALID = "PROVIDER_ACCEPTED_USAGE_INVALID"
+    SUPPORTED = "SUPPORTED"
+
+
+class CapabilityProbeFailure(RuntimeError):
+    def __init__(self, result: CapabilityProbeResult) -> None:
+        super().__init__("source-free capability probe failure")
+        self.result = result
 
 
 def diagnostic(label: str) -> str:
@@ -216,21 +248,31 @@ class V2CapabilityProbe:
     """One operational request; never part of the eight scientific executions."""
 
     def run(self) -> CapabilityProbeResult:
-        credential = credential_for("openai")
-        if not credential.configured:
-            raise ValueError("OPENAI_API_KEY is not configured")
-        settings = ProviderSettings(
-            provider="openai",
-            model=MODEL_SNAPSHOT,
-            request_timeout_seconds=120,
-            maximum_output_units=CAPABILITY_PROBE_MAX_OUTPUT_TOKENS,
-            retry=RetryPolicy(maximum_attempts=1),
-            structured_output_mode="strict_json_schema",
-            reasoning_effort="none",
-            stateless=True,
-            model_allowlist=(MODEL_SNAPSHOT,),
-            maximum_invocation_cost=str(CAPABILITY_PROBE_MAX_COST_USD),
-        )
+        try:
+            self._admit()
+            settings = ProviderSettings(
+                provider="openai",
+                model=MODEL_SNAPSHOT,
+                request_timeout_seconds=120,
+                maximum_output_units=CAPABILITY_PROBE_MAX_OUTPUT_TOKENS,
+                retry=RetryPolicy(maximum_attempts=1),
+                structured_output_mode="strict_json_schema",
+                reasoning_effort="none",
+                stateless=True,
+                model_allowlist=(MODEL_SNAPSHOT,),
+                maximum_invocation_cost=str(CAPABILITY_PROBE_MAX_COST_USD),
+            )
+            credential = credential_for("openai")
+            if not credential.configured:
+                raise ValueError("provider credential is not configured")
+        except (TypeError, ValueError):
+            raise CapabilityProbeFailure(
+                self._result(
+                    CapabilityProbeStatus.PRE_PROVIDER_BLOCKED,
+                    CapabilityProbeStage.LOCAL_ADMISSION,
+                    diagnostic_fingerprint=diagnostic("probe_local_admission"),
+                )
+            ) from None
         prompt = (
             "Operational capability probe only. Return the smallest valid "
             "archguard.repair-response/v2.1 JSON object with a minimal syntactically valid "
@@ -239,30 +281,168 @@ class V2CapabilityProbe:
         try:
             raw, usage = OpenAIResponsesAdapter(settings, credential).invoke_v2_repair(prompt)
         except ProviderInvocationError as error:
-            raise ProviderAdmissionFailure(safe_provider_diagnostic(error.failure)) from None
-        measured = SyntheticUsage(usage.input_units, usage.output_units)
-        if (
-            measured.input_tokens > CAPABILITY_PROBE_MAX_INPUT_TOKENS
-            or measured.output_tokens > CAPABILITY_PROBE_MAX_OUTPUT_TOKENS
-            or measured.cost > CAPABILITY_PROBE_MAX_COST_USD
-        ):
-            raise ValueError("capability probe usage or cost ceiling exceeded")
+            provider_diagnostic = safe_provider_diagnostic(error.failure)
+            raise CapabilityProbeFailure(
+                self._result(
+                    CapabilityProbeStatus.PROVIDER_REJECTED,
+                    CapabilityProbeStage.PROVIDER_REQUEST,
+                    attempts=1,
+                    usage_returned=provider_diagnostic.usage_returned,
+                    diagnostic_fingerprint=provider_diagnostic.fingerprint,
+                )
+            ) from None
+        except Exception:
+            raise CapabilityProbeFailure(
+                self._result(
+                    CapabilityProbeStatus.PROVIDER_ACCEPTED_RESPONSE_INVALID,
+                    CapabilityProbeStage.PROVIDER_RESPONSE,
+                    attempts=1,
+                    diagnostic_fingerprint=diagnostic("probe_provider_response"),
+                )
+            ) from None
+        try:
+            input_tokens = self._usage_integer(usage.input_units)
+            output_tokens = self._usage_integer(usage.output_units)
+            observed = self._cost(input_tokens, output_tokens)
+            if (
+                input_tokens > CAPABILITY_PROBE_MAX_INPUT_TOKENS
+                or output_tokens > CAPABILITY_PROBE_MAX_OUTPUT_TOKENS
+                or observed > CAPABILITY_PROBE_MAX_COST_USD
+            ):
+                raise ValueError("probe usage contradicts reservation")
+        except (TypeError, ValueError):
+            safe_input = usage.input_units if type(usage.input_units) is int else 0
+            safe_output = usage.output_units if type(usage.output_units) is int else 0
+            safe_cost = self._cost(max(safe_input, 0), max(safe_output, 0))
+            raise CapabilityProbeFailure(
+                self._result(
+                    CapabilityProbeStatus.PROVIDER_ACCEPTED_USAGE_INVALID,
+                    CapabilityProbeStage.USAGE_RECONCILIATION,
+                    attempts=1,
+                    accepted=1,
+                    usage_returned=True,
+                    input_tokens=safe_input,
+                    output_tokens=safe_output,
+                    observed_cost=safe_cost,
+                    strict_schema_accepted=True,
+                    diagnostic_fingerprint=diagnostic("probe_usage_reconciliation"),
+                )
+            ) from None
+        structure_valid = self._structure_valid(raw)
+        if not structure_valid:
+            raise CapabilityProbeFailure(
+                self._result(
+                    CapabilityProbeStatus.PROVIDER_ACCEPTED_RESPONSE_INVALID,
+                    CapabilityProbeStage.STRUCTURED_RESPONSE_VALIDATION,
+                    attempts=1,
+                    accepted=1,
+                    usage_returned=True,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    observed_cost=observed,
+                    strict_schema_accepted=True,
+                    diagnostic_fingerprint=diagnostic("probe_structured_response"),
+                )
+            ) from None
         extracted = StrictRepairResponseExtractor().extract(raw)
-        if extracted.normalized_patch is None:
-            raise ValueError("capability probe strict schema response was invalid")
+        return self._result(
+            CapabilityProbeStatus.SUPPORTED,
+            CapabilityProbeStage.PATCH_SEMANTIC_VALIDATION,
+            attempts=1,
+            accepted=1,
+            usage_returned=True,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            observed_cost=observed,
+            strict_schema_accepted=True,
+            response_structure_valid=True,
+            patch_semantics_valid=extracted.normalized_patch is not None,
+            diagnostic_fingerprint=diagnostic("probe_supported"),
+        )
+
+    @staticmethod
+    def _admit() -> None:
+        maximum = V2CapabilityProbe._cost(
+            CAPABILITY_PROBE_MAX_INPUT_TOKENS, CAPABILITY_PROBE_MAX_OUTPUT_TOKENS
+        )
+        if maximum > CAPABILITY_PROBE_MAX_COST_USD:
+            raise ValueError("probe reservation exceeds hard ceiling")
+
+    @staticmethod
+    def _usage_integer(value: object) -> int:
+        if type(value) is not int or value < 0:
+            raise ValueError("invalid provider usage")
+        return value
+
+    @staticmethod
+    def _cost(input_tokens: int, output_tokens: int) -> Decimal:
+        return (
+            Decimal(input_tokens) * INPUT_PER_MILLION + Decimal(output_tokens) * OUTPUT_PER_MILLION
+        ) / Decimal(1_000_000)
+
+    @staticmethod
+    def _structure_valid(raw: bytes) -> bool:
+        try:
+            value = json.loads(raw, object_pairs_hook=unique_object)
+        except (TypeError, ValueError, UnicodeDecodeError):
+            return False
+        if not isinstance(value, dict) or set(value) != {
+            "schema_version",
+            "task_id",
+            "candidate_id",
+            "unified_diff",
+            "declared_changed_paths",
+            "rationale_summary",
+        }:
+            return False
+        return (
+            value.get("schema_version") == "archguard.repair-response/v2.1"
+            and all(
+                isinstance(value.get(key), str)
+                for key in ("task_id", "candidate_id", "unified_diff")
+            )
+            and isinstance(value.get("declared_changed_paths"), list)
+            and all(isinstance(item, str) for item in value["declared_changed_paths"])
+            and (
+                value.get("rationale_summary") is None
+                or isinstance(value["rationale_summary"], str)
+            )
+        )
+
+    @staticmethod
+    def _result(
+        status: CapabilityProbeStatus,
+        stage: CapabilityProbeStage,
+        *,
+        attempts: int = 0,
+        accepted: int = 0,
+        usage_returned: bool = False,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        observed_cost: Decimal = Decimal("0"),
+        strict_schema_accepted: bool = False,
+        response_structure_valid: bool = False,
+        patch_semantics_valid: bool = False,
+        diagnostic_fingerprint: str,
+    ) -> CapabilityProbeResult:
         return CapabilityProbeResult(
-            "archguard.v2-provider-capability-probe/v1",
-            "SUPPORTED",
+            "archguard.v2-provider-capability-probe/v2",
+            status.value,
             MODEL_SNAPSHOT,
             "responses",
+            stage.value,
+            strict_schema_accepted,
+            response_structure_valid,
+            patch_semantics_valid,
             True,
-            True,
-            1,
-            1,
+            attempts,
+            accepted,
             0,
-            measured.input_tokens,
-            measured.output_tokens,
-            format(measured.cost, "f"),
+            usage_returned,
+            input_tokens,
+            output_tokens,
+            format(observed_cost, "f"),
+            diagnostic_fingerprint,
         )
 
 

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Type AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_REASONING_FIX_1_CALL
+        description: Type AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_OBSERVABILITY_FIX_1_CALL
         required: true
         type: string
       execute_capability_probe:
@@ -37,7 +37,7 @@ jobs:
     needs: preflight
     if: >-
       inputs.execute_capability_probe == true &&
-      inputs.confirmation == 'AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_REASONING_FIX_1_CALL'
+      inputs.confirmation == 'AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_OBSERVABILITY_FIX_1_CALL'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: v2-provider-capability-probe
@@ -58,6 +58,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: v2-provider-capability-probe-reasoning-fix
+          name: v2-provider-capability-probe-observability-fix
           if-no-files-found: error
           path: ${{ runner.temp }}/v2-provider-capability-probe.json

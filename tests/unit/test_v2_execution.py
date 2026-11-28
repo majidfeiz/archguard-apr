@@ -41,7 +41,9 @@ from archguard.infrastructure.v2_evidence import (
 )
 from archguard.infrastructure.v2_protocol import load_frozen_protocol
 from archguard.infrastructure.v2_runtime import (
-    CapabilityProbeResult,
+    CapabilityProbeFailure,
+    CapabilityProbeStage,
+    CapabilityProbeStatus,
     DeterministicFakeProvider,
     FakePreparer,
     FakeProcessor,
@@ -624,7 +626,118 @@ def test_capability_probe_is_one_provider_free_operational_call(
     assert calls == 1
     assert result.provider_request_attempts == result.accepted_provider_calls == 1
     assert result.scientific_executions == 0
+    assert result.status == "SUPPORTED"
+    assert result.response_structure_valid and result.patch_semantics_valid
     assert Decimal(result.observed_cost_usd) <= Decimal("0.0050")
+
+
+def test_probe_accepts_structure_with_invalid_patch_semantics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "archguard.infrastructure.v2_runtime.credential_for",
+        lambda _: SimpleNamespace(configured=True),
+    )
+    response = canonical_json(
+        {
+            "schema_version": "archguard.repair-response/v2.1",
+            "task_id": "capability-probe",
+            "candidate_id": "probe",
+            "unified_diff": "not a valid patch",
+            "declared_changed_paths": ["probe.py"],
+            "rationale_summary": None,
+        }
+    )
+    monkeypatch.setattr(
+        "archguard.infrastructure.v2_runtime.OpenAIResponsesAdapter.invoke_v2_repair",
+        lambda self, prompt: (response, SimpleNamespace(input_units=100, output_units=10)),
+    )
+    result = V2CapabilityProbe().run()
+    assert result.status == "SUPPORTED"
+    assert result.stage == "PATCH_SEMANTIC_VALIDATION"
+    assert result.response_structure_valid is True
+    assert result.patch_semantics_valid is False
+    assert result.provider_request_attempts == result.accepted_provider_calls == 1
+    assert result.scientific_executions == 0
+
+
+@pytest.mark.parametrize(
+    ("raw", "usage", "status", "stage"),
+    [
+        (
+            b"{}",
+            SimpleNamespace(input_units=100, output_units=10),
+            "PROVIDER_ACCEPTED_RESPONSE_INVALID",
+            "STRUCTURED_RESPONSE_VALIDATION",
+        ),
+        (
+            canonical_json(
+                {
+                    "schema_version": "archguard.repair-response/v2.1",
+                    "task_id": "probe",
+                    "candidate_id": "probe",
+                    "unified_diff": "invalid",
+                    "declared_changed_paths": ["probe.py"],
+                    "rationale_summary": None,
+                }
+            ),
+            SimpleNamespace(input_units=1000, output_units=200),
+            "PROVIDER_ACCEPTED_USAGE_INVALID",
+            "USAGE_RECONCILIATION",
+        ),
+    ],
+)
+def test_probe_post_provider_failures_preserve_usage_and_counters(
+    monkeypatch: pytest.MonkeyPatch,
+    raw: bytes,
+    usage: SimpleNamespace,
+    status: str,
+    stage: str,
+) -> None:
+    monkeypatch.setattr(
+        "archguard.infrastructure.v2_runtime.credential_for",
+        lambda _: SimpleNamespace(configured=True),
+    )
+    monkeypatch.setattr(
+        "archguard.infrastructure.v2_runtime.OpenAIResponsesAdapter.invoke_v2_repair",
+        lambda self, prompt: (raw, usage),
+    )
+    with pytest.raises(CapabilityProbeFailure) as raised:
+        V2CapabilityProbe().run()
+    result = raised.value.result
+    assert result.status == status and result.stage == stage
+    assert result.provider_request_attempts == result.accepted_provider_calls == 1
+    assert result.usage_returned is True
+    assert (result.input_tokens, result.output_tokens) == (usage.input_units, usage.output_units)
+    assert Decimal(result.observed_cost_usd) > 0
+    assert result.scientific_executions == 0
+
+
+def test_probe_http_rejection_is_not_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "archguard.infrastructure.v2_runtime.credential_for",
+        lambda _: SimpleNamespace(configured=True),
+    )
+    failure = ProviderFailure(
+        ProviderErrorCategory.INVALID_REQUEST,
+        False,
+        "must not persist",
+        "openai",
+        "request",
+        provider_code="invalid_request",
+        http_status=400,
+    )
+    monkeypatch.setattr(
+        "archguard.infrastructure.v2_runtime.OpenAIResponsesAdapter.invoke_v2_repair",
+        lambda self, prompt: (_ for _ in ()).throw(ProviderInvocationError(failure)),
+    )
+    with pytest.raises(CapabilityProbeFailure) as raised:
+        V2CapabilityProbe().run()
+    result = raised.value.result
+    assert result.status == "PROVIDER_REJECTED"
+    assert result.stage == "PROVIDER_REQUEST"
+    assert result.provider_request_attempts == 1
+    assert result.accepted_provider_calls == result.scientific_executions == 0
 
 
 def test_capability_probe_cli_requires_distinct_authorization(
@@ -646,6 +759,7 @@ def test_capability_probe_cli_requires_distinct_authorization(
     for prior_token in (
         "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL",
         "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_SCHEMA_FIX_1_CALL",
+        "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_REASONING_FIX_1_CALL",
     ):
         prior = CliRunner().invoke(
             app,
@@ -661,19 +775,19 @@ def test_capability_probe_cli_requires_distinct_authorization(
         assert prior.exit_code == 2 and not output.exists()
     monkeypatch.setattr(
         "archguard.entrypoints.cli.v2.V2CapabilityProbe.run",
-        lambda self: CapabilityProbeResult(
-            "archguard.v2-provider-capability-probe/v1",
-            "SUPPORTED",
-            "gpt-5.4-2026-03-05",
-            "responses",
-            True,
-            True,
-            1,
-            1,
-            0,
-            100,
-            10,
-            "0.0004",
+        lambda self: self._result(
+            CapabilityProbeStatus.SUPPORTED,
+            CapabilityProbeStage.PATCH_SEMANTIC_VALIDATION,
+            attempts=1,
+            accepted=1,
+            usage_returned=True,
+            input_tokens=100,
+            output_tokens=10,
+            observed_cost=Decimal("0.0004"),
+            strict_schema_accepted=True,
+            response_structure_valid=True,
+            patch_semantics_valid=True,
+            diagnostic_fingerprint="f" * 64,
         ),
     )
     accepted = CliRunner().invoke(
@@ -684,16 +798,17 @@ def test_capability_probe_cli_requires_distinct_authorization(
             "--output",
             str(output),
             "--authorization",
-            "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_REASONING_FIX_1_CALL",
+            "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_OBSERVABILITY_FIX_1_CALL",
         ],
     )
     assert accepted.exit_code == 0
     assert json.loads(output.read_bytes())["scientific_executions"] == 0
 
     blocked_output = tmp_path / "blocked-probe.json"
+    monkeypatch.undo()
     monkeypatch.setattr(
-        "archguard.entrypoints.cli.v2.V2CapabilityProbe.run",
-        lambda self: (_ for _ in ()).throw(ValueError("sensitive local configuration detail")),
+        "archguard.infrastructure.v2_runtime.credential_for",
+        lambda _: SimpleNamespace(configured=False),
     )
     blocked = CliRunner().invoke(
         app,
@@ -703,18 +818,16 @@ def test_capability_probe_cli_requires_distinct_authorization(
             "--output",
             str(blocked_output),
             "--authorization",
-            "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_REASONING_FIX_1_CALL",
+            "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_OBSERVABILITY_FIX_1_CALL",
         ],
     )
     assert blocked.exit_code == 3
-    assert json.loads(blocked_output.read_bytes()) == {
-        "accepted_provider_calls": 0,
-        "provider_request_attempts": 0,
-        "schema": "archguard.v2-provider-capability-probe/v1",
-        "scientific_executions": 0,
-        "status": "PRE_PROVIDER_BLOCKED",
-    }
-    assert "sensitive local configuration detail" not in blocked_output.read_text()
+    blocked_value = json.loads(blocked_output.read_bytes())
+    assert blocked_value["status"] == "PRE_PROVIDER_BLOCKED"
+    assert blocked_value["stage"] == "LOCAL_ADMISSION"
+    assert blocked_value["provider_request_attempts"] == 0
+    assert blocked_value["accepted_provider_calls"] == 0
+    assert blocked_value["scientific_executions"] == 0
 
 
 def test_second_probe_incident_record_is_source_free_and_not_accepted(
@@ -737,6 +850,22 @@ def test_second_probe_incident_record_is_source_free_and_not_accepted(
         "stage": "request",
         "usage_returned": False,
     }
+
+
+def test_historical_observability_run_remains_ambiguous(repository_root: Path) -> None:
+    value = json.loads(
+        (repository_root / "docs/v2/v2-02c-probe-observability-incident.json").read_bytes()
+    )
+    validate_source_free(value)
+    assert value["run_id"] == 46055379901
+    assert value["head_sha"] == "95af0f4c3a679819319a95441f64a5d5cd108286"
+    assert value["workflow_artifact_zip_sha256"] == (
+        "2ae80eac5458187cef66dbf0c27e138cac14e8c971d9fc5ee0165ddf0c47b772"
+    )
+    assert value["historical_classification"] == "HISTORICALLY_AMBIGUOUS"
+    assert value["provider_acceptance"] == "UNKNOWN"
+    assert value["provider_usage"] == value["provider_cost"] == "UNKNOWN"
+    assert value["scientific_executions"] == 0
 
 
 def test_workspace_acquisition_context_processing_and_cleanup(
@@ -824,7 +953,8 @@ def test_protocol_and_workflow_gates(repository_root: Path) -> None:
     probe_value = yaml.safe_load(probe_path.read_text())
     assert probe_value["jobs"]["probe"]["needs"] == "preflight"
     probe_source = probe_path.read_text()
-    assert "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_REASONING_FIX_1_CALL" in probe_source
+    assert "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_OBSERVABILITY_FIX_1_CALL" in probe_source
+    assert "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_REASONING_FIX_1_CALL'" not in probe_source
     assert "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_SCHEMA_FIX_1_CALL'" not in probe_source
     assert "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL'" not in probe_source
     assert "environment: v2-provider-capability-probe" in probe_source
