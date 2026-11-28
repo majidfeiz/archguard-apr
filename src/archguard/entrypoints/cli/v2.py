@@ -8,8 +8,9 @@ import typer
 
 from archguard.application.services.v2_execution import V2MicroPilotRunner
 from archguard.domain.canonical import canonical_json
-from archguard.domain.v2_execution import BudgetLedger
+from archguard.domain.v2_execution import BudgetLedger, ExecutionResult, ProviderFailureRecord
 from archguard.infrastructure.artifact_io import atomic_write
+from archguard.infrastructure.v2_capability_freeze import import_capability_evidence
 from archguard.infrastructure.v2_evidence import (
     AtomicCheckpointStore,
     import_evidence,
@@ -30,7 +31,7 @@ from archguard.infrastructure.v2_runtime import (
 )
 
 app = typer.Typer(no_args_is_help=True)
-AUTHORIZATION = "AUTHORIZE_V2_MICRO_PILOT_8_CALLS_USD_1"
+AUTHORIZATION = "AUTHORIZE_V2_AMENDED_MICRO_PILOT_8_CALLS_USD_1"
 CAPABILITY_PROBE_AUTHORIZATION = "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_OBSERVABILITY_FIX_1_CALL"
 
 
@@ -43,6 +44,16 @@ def protocol_validate(root: Annotated[Path, typer.Option("--root")] = Path("."))
     """Validate every frozen protocol binding without source or provider access."""
     protocol = _protocol(root)
     typer.echo(json.dumps({"status": "VALID", "fingerprint": protocol.fingerprint}, sort_keys=True))
+
+
+@app.command("capability-freeze-import")
+def capability_freeze_import(
+    archive: Annotated[Path, typer.Argument()],
+    destination: Annotated[Path, typer.Option("--destination")],
+) -> None:
+    """Validate and idempotently import the one-file capability artifact."""
+    import_capability_evidence(archive, destination)
+    typer.echo("FROZEN_SUPPORTED")
 
 
 @app.command("dry-run")
@@ -81,7 +92,7 @@ def execute(
     authorization: Annotated[str, typer.Option("--authorization")],
     root: Annotated[Path, typer.Option("--root")] = Path("."),
 ) -> None:
-    """Execute or resume the real, sequential run after exact human authorization."""
+    """Execute one clean amended run after exact human authorization."""
     if authorization != AUTHORIZATION:
         raise typer.BadParameter("exact V2 micro-pilot authorization is required")
     protocol = _protocol(root)
@@ -92,16 +103,17 @@ def execute(
         pass
     else:
         raise typer.BadParameter("execution output must remain outside the analyzed repository")
+    if resolved_output.is_symlink() or (
+        resolved_output.exists()
+        and (not resolved_output.is_dir() or any(resolved_output.iterdir()))
+    ):
+        raise typer.BadParameter("amended scientific execution requires an empty output directory")
     resolved_output.mkdir(parents=True, exist_ok=True)
     checkpoint_path = resolved_output / "checkpoint.json"
-    ledger, carried, failures = (
-        load_checkpoint(checkpoint_path) if checkpoint_path.exists() else (BudgetLedger(), (), ())
-    )
-    carried_attempts = ledger.provider_request_attempts
-    if ledger.failed_attempt_ordinals:
-        raise typer.BadParameter(
-            "failed scientific ordinal cannot be repeated without a prospective protocol amendment"
-        )
+    ledger = BudgetLedger()
+    carried: tuple[ExecutionResult, ...] = ()
+    failures: tuple[ProviderFailureRecord, ...] = ()
+    carried_attempts = 0
     workspace = V2Workspace(protocol)
     runner = V2MicroPilotRunner(
         workspace,

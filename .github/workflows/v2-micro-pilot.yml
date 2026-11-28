@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Type AUTHORIZE_V2_MICRO_PILOT_8_CALLS_USD_1
+        description: Type AUTHORIZE_V2_AMENDED_MICRO_PILOT_8_CALLS_USD_1
         required: true
         type: string
       execute_scientific_run:
@@ -12,15 +12,6 @@ on:
         required: true
         default: false
         type: boolean
-      resume_run_id:
-        description: Prior workflow run ID containing a validated source-free checkpoint
-        required: false
-        type: string
-      resume_artifact_name:
-        description: Prior artifact name; both resume fields must be supplied together
-        required: false
-        default: v2-micro-pilot-source-free
-        type: string
 
 permissions:
   actions: read
@@ -46,22 +37,24 @@ jobs:
           jq -e '.maximum_primary_calls == 8 and .retries == 0
             and .maximum_reserved_cost_usd == "0.9400"
             and .absolute_ceiling_usd == "1.0000"' research/v2/protocol/micro-pilot-call-plan.json
-          jq -e '.V2_MICRO_PILOT_READY == true and .prepared == true
+          jq -e '.V2_AMENDED_MICRO_PILOT_READY == true and .status == "READY"
+            and .capability_status == "FROZEN_SUPPORTED"
             and .human_authorization_required == true
             and .provider_calls_executed == 0 and .scientific_executions == 0
-            and .blocker_codes == []' research/v2/readiness/micro-pilot-readiness.json
+            and .scientific_checkpoint_state == "EMPTY_REQUIRED"
+            and .blocker_codes == []' research/v2/readiness/amended-micro-pilot-readiness.json
       - name: Upload source-free preflight
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: v2-micro-pilot-preflight
-          path: research/v2/readiness/micro-pilot-readiness.json
+          path: research/v2/readiness/amended-micro-pilot-readiness.json
 
   execute:
     needs: preflight
     if: >-
       inputs.execute_scientific_run == true &&
-      inputs.confirmation == 'AUTHORIZE_V2_MICRO_PILOT_8_CALLS_USD_1'
+      inputs.confirmation == 'AUTHORIZE_V2_AMENDED_MICRO_PILOT_8_CALLS_USD_1'
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     environment: v2-micro-pilot
@@ -75,29 +68,10 @@ jobs:
       - run: uv python install 3.12 && uv sync --frozen
       - name: Validate frozen protocol
         run: |
-          jq -e '.V2_MICRO_PILOT_READY == true and .blocker_codes == []' research/v2/readiness/micro-pilot-readiness.json
+          jq -e '.V2_AMENDED_MICRO_PILOT_READY == true and .blocker_codes == []
+            and .scientific_checkpoint_state == "EMPTY_REQUIRED"' research/v2/readiness/amended-micro-pilot-readiness.json
           uv run archguard v2-micro-pilot protocol-validate --root .
-          if { test -n "${{ inputs.resume_run_id }}" && test -z "${{ inputs.resume_artifact_name }}"; } ||
-             { test -z "${{ inputs.resume_run_id }}" && test -n "${{ inputs.resume_artifact_name }}" &&
-               test "${{ inputs.resume_artifact_name }}" != "v2-micro-pilot-source-free"; }; then
-            echo "Resume run ID and artifact name must be supplied together." >&2
-            exit 2
-          fi
-      - name: Download prior source-free evidence
-        if: inputs.resume_run_id != ''
-        uses: actions/download-artifact@v5
-        with:
-          name: ${{ inputs.resume_artifact_name }}
-          path: ${{ runner.temp }}/v2-resume-download
-          github-token: ${{ github.token }}
-          run-id: ${{ inputs.resume_run_id }}
-      - name: Validate and import prior checkpoint
-        if: inputs.resume_run_id != ''
-        run: |
-          mapfile -t archives < <(find "$RUNNER_TEMP/v2-resume-download" -type f -name 'v2-micro-pilot-evidence.zip' -print)
-          test "${#archives[@]}" -eq 1
-          uv run archguard v2-micro-pilot evidence-import "${archives[0]}" \
-            --destination "$RUNNER_TEMP/archguard-v2-evidence"
+          test ! -e "$RUNNER_TEMP/archguard-v2-evidence"
       - name: Execute bounded micro-pilot
         run: |
           uv run archguard v2-micro-pilot execute \
@@ -118,7 +92,7 @@ jobs:
               echo "- Infrastructure failures: $(jq -r '.infrastructure_failures' "$CHECKPOINT")"
               echo "- Remaining calls: $(jq -r '.remaining_calls' "$CHECKPOINT")"
               echo "- Observed cost (USD): $(jq -r '.ledger.observed_cost_usd' "$CHECKPOINT")"
-              echo '- Resume is permitted only after source-free artifact import and validation.'
+              echo '- This amended run began from a new empty scientific checkpoint.'
             } >> "$GITHUB_STEP_SUMMARY"
           else
             echo '## ArchGuard V2.2 Micro-Pilot\n\nNo provider call was checkpointed.' >> "$GITHUB_STEP_SUMMARY"
