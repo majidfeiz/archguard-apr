@@ -40,10 +40,13 @@ def test_canonical_artifacts_have_stable_identities(repository_root: Path) -> No
         "research/v2/manifests/pysnooper-3.json",
         "research/v2/provider/openai-gpt-5.4-2026-03-05-pricing.json",
         "research/v2/protocol/micro-pilot-call-plan.json",
+        "research/v2/protocol/micro-pilot-amendment-v3.json",
         "research/v2/protocol/condition-fairness-matrix.json",
         "research/v2/evidence/pysnooper-2-fixed-tree-identity.json",
+        "research/v2/evidence/provider-capability-provenance.json",
         "research/v2/readiness/pysnooper-2-identity-provenance.json",
         "research/v2/readiness/micro-pilot-readiness.json",
+        "research/v2/readiness/amended-micro-pilot-readiness.json",
     )
     for relative in paths:
         path = repository_root / relative
@@ -193,7 +196,9 @@ def test_manual_workflow_is_safe_and_parseable(repository_root: Path) -> None:
     assert ".retries == 0" in source
     assert '.maximum_reserved_cost_usd == "0.9400"' in source
     assert '.absolute_ceiling_usd == "1.0000"' in source
-    assert "V2_MICRO_PILOT_READY == true" in source
+    assert "V2_AMENDED_MICRO_PILOT_READY == true" in source
+    assert "FROZEN_SUPPORTED" in source
+    assert "EMPTY_REQUIRED" in source
     assert "if: always()" in source
     assert "workflow_dispatch" in source and "schedule:" not in source
 

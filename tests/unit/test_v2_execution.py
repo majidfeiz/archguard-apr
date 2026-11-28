@@ -469,12 +469,10 @@ def test_offline_cli_validation_import_and_aggregation(
     assert refused.exit_code == 2
 
 
-def test_authorized_execute_resumes_checkpoint_without_calling_provider(
+def test_authorized_execute_requires_clean_checkpoint_without_calling_provider(
     repository_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     output = tmp_path / "authorized"
-    output.mkdir()
-    AtomicCheckpointStore(output / "checkpoint.json").write(BudgetLedger(), (), ())
     workspace = SimpleNamespace(
         root=tmp_path / "already-clean",
         prepare=lambda identity: None,
@@ -496,12 +494,29 @@ def test_authorized_execute_resumes_checkpoint_without_calling_provider(
             "--output",
             str(output),
             "--authorization",
-            "AUTHORIZE_V2_MICRO_PILOT_8_CALLS_USD_1",
+            "AUTHORIZE_V2_AMENDED_MICRO_PILOT_8_CALLS_USD_1",
         ],
     )
     assert result.exit_code == 0, result.output
     assert json.loads(result.output) == {"cleanup": True, "completed_calls": 0}
-    assert (tmp_path / "v2-micro-pilot-evidence.zip").exists()
+
+    resumed = tmp_path / "resumed"
+    resumed.mkdir()
+    AtomicCheckpointStore(resumed / "checkpoint.json").write(BudgetLedger(), (), ())
+    rejected_resume = CliRunner().invoke(
+        app,
+        [
+            "v2-micro-pilot",
+            "execute",
+            "--root",
+            str(repository_root),
+            "--output",
+            str(resumed),
+            "--authorization",
+            "AUTHORIZE_V2_AMENDED_MICRO_PILOT_8_CALLS_USD_1",
+        ],
+    )
+    assert rejected_resume.exit_code == 2
 
     inside = CliRunner().invoke(
         app,
@@ -513,7 +528,7 @@ def test_authorized_execute_resumes_checkpoint_without_calling_provider(
             "--output",
             str(repository_root / "forbidden-output"),
             "--authorization",
-            "AUTHORIZE_V2_MICRO_PILOT_8_CALLS_USD_1",
+            "AUTHORIZE_V2_AMENDED_MICRO_PILOT_8_CALLS_USD_1",
         ],
     )
     assert inside.exit_code == 2
@@ -943,12 +958,22 @@ def test_protocol_and_workflow_gates(repository_root: Path) -> None:
     assert "Execution remains blocked until readiness is true" not in source
     assert "Future execution implementation" not in source
     assert "inputs.execute_scientific_run == true" in source
-    assert "AUTHORIZE_V2_MICRO_PILOT_8_CALLS_USD_1" in source
+    assert "AUTHORIZE_V2_AMENDED_MICRO_PILOT_8_CALLS_USD_1" in source
     assert "OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}" in source
     assert "if: always()" in source
-    assert "actions/download-artifact@v5" in source
-    assert "evidence-import" in source
-    assert "resume_run_id" in source
+    assert "amended-micro-pilot-readiness.json" in source
+    assert "EMPTY_REQUIRED" in source
+    assert "actions/download-artifact" not in source
+    assert "evidence-import" not in source
+    assert "resume_run_id" not in source
+    for obsolete in (
+        "AUTHORIZE_V2_MICRO_PILOT_8_CALLS_USD_1",
+        "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_1_CALL",
+        "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_SCHEMA_FIX_1_CALL",
+        "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_REASONING_FIX_1_CALL",
+        "AUTHORIZE_V2_PROVIDER_CAPABILITY_PROBE_OBSERVABILITY_FIX_1_CALL",
+    ):
+        assert obsolete not in source
     probe_path = repository_root / ".github/workflows/v2-provider-capability-probe.yml"
     probe_value = yaml.safe_load(probe_path.read_text())
     assert probe_value["jobs"]["probe"]["needs"] == "preflight"
