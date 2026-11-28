@@ -18,6 +18,7 @@ from archguard.application.ports.v2_execution import (
     CandidateAssessment,
     PreparedRequest,
     ProviderAdmissionFailure,
+    ProviderChargedFailure,
     ProviderOutcome,
 )
 from archguard.domain.canonical import canonical_json
@@ -226,7 +227,27 @@ class V2OpenAIProvider:
                 request.prompt
             )
         except ProviderInvocationError as error:
-            raise ProviderAdmissionFailure(safe_provider_diagnostic(error.failure)) from None
+            if error.usage is None:
+                raise ProviderAdmissionFailure(safe_provider_diagnostic(error.failure)) from None
+            try:
+                measured = SyntheticUsage(error.usage.input_units, error.usage.output_units)
+            except (TypeError, ValueError):
+                raise ProviderAdmissionFailure(
+                    ProviderFailureDiagnostic(
+                        ProviderFailureKind.UNKNOWN_PROVIDER_FAILURE,
+                        "usage_validation",
+                        False,
+                        None,
+                        "invalid_usage",
+                        True,
+                        None,
+                    )
+                ) from None
+            raise ProviderChargedFailure(
+                measured,
+                safe_provider_diagnostic(error.failure),
+                error.response_state,
+            ) from None
         try:
             measured = SyntheticUsage(usage.input_units, usage.output_units)
         except (TypeError, ValueError):

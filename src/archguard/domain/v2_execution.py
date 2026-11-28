@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from decimal import Decimal
 from enum import StrEnum
 
+from archguard.domain.providers import ProviderResponseState
 from archguard.domain.repository import check, digest
 from archguard.domain.v2_micro_pilot import (
     HARD_CEILING,
@@ -82,6 +83,7 @@ class ExecutionResult:
     architecture_evaluation: StageStatus
     terminal_classification: TerminalClassification
     diagnostic_fingerprints: tuple[str, ...] = ()
+    response_state: ProviderResponseState = ProviderResponseState.COMPLETED
 
     def __post_init__(self) -> None:
         check(
@@ -94,6 +96,10 @@ class ExecutionResult:
         check(values == tuple(sorted(set(values))), "diagnostics must be unique and sorted")
         for value in values:
             digest(value)
+        check(
+            self.response_state == ProviderResponseState.COMPLETED,
+            "scientific completion requires a completed provider response",
+        )
         object.__setattr__(self, "diagnostic_fingerprints", values)
 
 
@@ -138,6 +144,7 @@ class ProviderFailureRecord:
     input_tokens: int
     output_tokens: int
     observed_cost_usd: Decimal
+    response_state: ProviderResponseState = ProviderResponseState.NOT_RECEIVED
 
     def __post_init__(self) -> None:
         check(self.accepted_provider_call_count in {0, 1}, "invalid accepted call count")
@@ -147,6 +154,19 @@ class ProviderFailureRecord:
             check(
                 usage == SyntheticUsage(0, 0) and self.observed_cost_usd == 0,
                 "uncharged failure contains usage or cost",
+            )
+            check(
+                self.response_state == ProviderResponseState.NOT_RECEIVED,
+                "unaccepted failure cannot contain response state",
+            )
+        else:
+            check(
+                self.diagnostic.usage_returned,
+                "accepted failure requires trustworthy returned usage",
+            )
+            check(
+                self.response_state != ProviderResponseState.NOT_RECEIVED,
+                "accepted failure requires response state",
             )
 
 

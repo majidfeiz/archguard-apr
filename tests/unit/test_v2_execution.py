@@ -20,7 +20,11 @@ from archguard.application.ports.v2_execution import (
 )
 from archguard.application.services.v2_execution import V2MicroPilotRunner
 from archguard.domain.canonical import canonical_json
-from archguard.domain.providers import ProviderErrorCategory, ProviderFailure
+from archguard.domain.providers import (
+    ProviderErrorCategory,
+    ProviderFailure,
+    ProviderResponseState,
+)
 from archguard.domain.v2_execution import (
     BudgetLedger,
     ExecutionIdentity,
@@ -152,6 +156,7 @@ def test_charged_failure_is_checkpointed_once_without_retry(
                     True,
                     None,
                 ),
+                ProviderResponseState.INCOMPLETE_OTHER,
             )
 
     service, cleanup = runner(repository_root, tmp_path, ChargedProvider())
@@ -201,7 +206,9 @@ def test_zero_usage_provider_rejection_is_attempt_not_call_or_scientific_complet
     with pytest.raises(ValueError, match="protocol amendment"):
         ledger.reserve(1)
     with pytest.raises(ValueError, match="positive trustworthy usage"):
-        ProviderChargedFailure(SyntheticUsage(0, 0), diagnostic)
+        ProviderChargedFailure(
+            SyntheticUsage(0, 0), diagnostic, ProviderResponseState.SCHEMA_REJECTION
+        )
 
 
 @pytest.mark.parametrize(
@@ -957,8 +964,10 @@ def test_protocol_and_workflow_gates(repository_root: Path) -> None:
     source = path.read_text()
     assert "Execution remains blocked until readiness is true" not in source
     assert "Future execution implementation" not in source
-    assert "inputs.execute_scientific_run == true" in source
-    assert "AUTHORIZE_V2_AMENDED_MICRO_PILOT_8_CALLS_USD_1" in source
+    assert "if: ${{ false }}" in source
+    assert "CHECK_ONLY_REQUIRES_FUTURE_HUMAN_AUTHORIZATION" in source
+    assert "scientific-history-validate" in source
+    assert "AUTHORIZE_V2_AMENDED_MICRO_PILOT_8_CALLS_USD_1" not in source
     assert "OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}" in source
     assert "if: always()" in source
     assert "amended-micro-pilot-readiness.json" in source

@@ -29,6 +29,7 @@ from archguard.infrastructure.v2_runtime import (
     V2OpenAIProvider,
     V2Workspace,
 )
+from archguard.infrastructure.v2_scientific_history import validate_frozen_scientific_history
 
 app = typer.Typer(no_args_is_help=True)
 AUTHORIZATION = "AUTHORIZE_V2_AMENDED_MICRO_PILOT_8_CALLS_USD_1"
@@ -44,6 +45,15 @@ def protocol_validate(root: Annotated[Path, typer.Option("--root")] = Path("."))
     """Validate every frozen protocol binding without source or provider access."""
     protocol = _protocol(root)
     typer.echo(json.dumps({"status": "VALID", "fingerprint": protocol.fingerprint}, sort_keys=True))
+
+
+@app.command("scientific-history-validate")
+def scientific_history_validate(
+    root: Annotated[Path, typer.Option("--root")] = Path("."),
+) -> None:
+    """Validate the immutable source-free first scientific-run evidence."""
+    validate_frozen_scientific_history(root)
+    typer.echo("VALID")
 
 
 @app.command("capability-freeze-import")

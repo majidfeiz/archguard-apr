@@ -64,6 +64,17 @@ class ProviderErrorCategory(StrEnum):
     INTERNAL = "internal_adapter_error"
 
 
+class ProviderResponseState(StrEnum):
+    """Safe lifecycle state retained without provider response content."""
+
+    NOT_RECEIVED = "NOT_RECEIVED"
+    COMPLETED = "COMPLETED"
+    INCOMPLETE_MAX_OUTPUT = "INCOMPLETE_MAX_OUTPUT"
+    INCOMPLETE_OTHER = "INCOMPLETE_OTHER"
+    REFUSAL = "REFUSAL"
+    SCHEMA_REJECTION = "SCHEMA_REJECTION"
+
+
 @dataclass(frozen=True)
 class ProviderFailure:
     category: ProviderErrorCategory
