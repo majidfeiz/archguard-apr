@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
+from archguard.domain.providers import ProviderResponseState
 from archguard.domain.v2_execution import (
     BudgetLedger,
     ExecutionIdentity,
@@ -26,6 +27,7 @@ class PreparedRequest:
 class ProviderOutcome:
     response: bytes
     usage: SyntheticUsage
+    response_state: ProviderResponseState = ProviderResponseState.COMPLETED
 
 
 @dataclass(frozen=True)
@@ -39,12 +41,18 @@ class CandidateAssessment:
 
 
 class ProviderChargedFailure(RuntimeError):
-    def __init__(self, usage: SyntheticUsage, diagnostic: ProviderFailureDiagnostic) -> None:
+    def __init__(
+        self,
+        usage: SyntheticUsage,
+        diagnostic: ProviderFailureDiagnostic,
+        response_state: ProviderResponseState,
+    ) -> None:
         if usage.cost <= 0:
             raise ValueError("charged provider failure requires positive trustworthy usage")
         super().__init__("provider call failed after usage was charged")
         self.usage = usage
         self.diagnostic = diagnostic
+        self.response_state = response_state
 
 
 class ProviderAdmissionFailure(RuntimeError):

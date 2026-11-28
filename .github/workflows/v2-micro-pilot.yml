@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Type AUTHORIZE_V2_AMENDED_MICRO_PILOT_8_CALLS_USD_1
+        description: Type the execution authorization, or CHECK_ONLY_V2_SCIENTIFIC_RESPONSE_ACCOUNTING when execution is false
         required: true
         type: string
       execute_scientific_run:
@@ -43,6 +43,14 @@ jobs:
             and .provider_calls_executed == 0 and .scientific_executions == 0
             and .scientific_checkpoint_state == "EMPTY_REQUIRED"
             and .blocker_codes == []' research/v2/readiness/amended-micro-pilot-readiness.json
+          uv run archguard v2-micro-pilot scientific-history-validate --root .
+          jq -e '.proposal_status == "CHECK_ONLY_REQUIRES_FUTURE_HUMAN_AUTHORIZATION"
+            and .execution_authorized == false
+            and .decision == "ORDINAL_2_REMAINS_ATTRITION"
+            and .ordinal_2_rerun_permitted == false
+            and .continuation_ordinals == [3,4,5,6,7,8]
+            and .maximum_total_provider_requests == 8
+            and .scientific_hard_ceiling_usd == "1.0000"' research/v2/protocol/scientific-continuation-proposal-v1.json
       - name: Upload source-free preflight
         if: always()
         uses: actions/upload-artifact@v4
@@ -52,9 +60,8 @@ jobs:
 
   execute:
     needs: preflight
-    if: >-
-      inputs.execute_scientific_run == true &&
-      inputs.confirmation == 'AUTHORIZE_V2_AMENDED_MICRO_PILOT_8_CALLS_USD_1'
+    # Check-only until a future protocol and explicit human authorization are approved.
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     environment: v2-micro-pilot

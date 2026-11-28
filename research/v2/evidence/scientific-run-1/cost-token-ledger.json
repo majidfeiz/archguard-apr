@@ -1,0 +1,1 @@
+{"accepted_provider_calls":1,"completed_calls":1,"infrastructure_failures":1,"input_tokens":5291,"observed_cost_usd":"0.0432275","output_tokens":2000,"provider_request_attempts":2,"remaining_calls":7,"remaining_provider_requests":6,"reserved_cost_usd":"0","schema":"archguard.v2-cost-token-ledger/v1"}

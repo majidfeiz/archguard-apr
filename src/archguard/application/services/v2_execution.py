@@ -88,6 +88,7 @@ class V2MicroPilotRunner:
                             error.usage.input_tokens,
                             error.usage.output_tokens,
                             error.usage.cost,
+                            error.response_state,
                         )
                     )
                     self.checkpoints.write(ledger, tuple(results), tuple(recorded_failures))
@@ -114,6 +115,7 @@ class V2MicroPilotRunner:
                         assessment.architecture_evaluation,
                         assessment.classification,
                         assessment.diagnostic_fingerprints,
+                        outcome.response_state,
                     )
                 )
                 self.checkpoints.write(ledger, tuple(results), tuple(recorded_failures))

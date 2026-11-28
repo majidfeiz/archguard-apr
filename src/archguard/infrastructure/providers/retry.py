@@ -3,7 +3,12 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from archguard.domain.providers import ProviderErrorCategory, ProviderFailure
+from archguard.domain.providers import (
+    ProviderErrorCategory,
+    ProviderFailure,
+    ProviderResponseState,
+    ProviderUsage,
+)
 
 RETRYABLE = frozenset(
     {
@@ -31,9 +36,20 @@ class RetrySchedule:
 
 
 class ProviderInvocationError(RuntimeError):
-    def __init__(self, failure: ProviderFailure) -> None:
+    def __init__(
+        self,
+        failure: ProviderFailure,
+        usage: ProviderUsage | None = None,
+        response_state: ProviderResponseState = ProviderResponseState.NOT_RECEIVED,
+    ) -> None:
+        if usage is not None and not failure.usage_returned:
+            raise ValueError("trustworthy usage was not marked returned")
+        if usage is None and response_state != ProviderResponseState.NOT_RECEIVED:
+            raise ValueError("response state requires trustworthy provider usage")
         super().__init__(failure.public_message)
         self.failure = failure
+        self.usage = usage
+        self.response_state = response_state
 
 
 def with_retry[T](

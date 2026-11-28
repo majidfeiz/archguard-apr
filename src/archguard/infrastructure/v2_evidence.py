@@ -15,6 +15,7 @@ from typing import cast
 
 from archguard.application.ports.v2_execution import CheckpointStore
 from archguard.domain.canonical import canonical_json
+from archguard.domain.providers import ProviderResponseState
 from archguard.domain.v2_execution import (
     BudgetLedger,
     ExecutionIdentity,
@@ -176,6 +177,7 @@ def _decode_result(value: dict[str, object]) -> ExecutionResult:
         StageStatus(str(value["architecture_evaluation"])),
         TerminalClassification(str(value["terminal_classification"])),
         tuple(str(item) for item in cast(list[object], value["diagnostic_fingerprints"])),
+        ProviderResponseState(str(value.get("response_state", "COMPLETED"))),
     )
 
 
@@ -200,6 +202,7 @@ def _decode_failure(value: dict[str, object]) -> ProviderFailureRecord:
         _integer(value["input_tokens"]),
         _integer(value["output_tokens"]),
         Decimal(str(value["observed_cost_usd"])),
+        ProviderResponseState(str(value.get("response_state", "NOT_RECEIVED"))),
     )
 
 

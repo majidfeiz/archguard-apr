@@ -18,7 +18,11 @@ from archguard.domain.orchestration import (
     Disposition,
     Usage,
 )
-from archguard.domain.providers import ProviderCapability, ProviderErrorCategory
+from archguard.domain.providers import (
+    ProviderCapability,
+    ProviderErrorCategory,
+    ProviderResponseState,
+)
 from archguard.infrastructure.providers.anthropic_messages import AnthropicMessagesAdapter
 from archguard.infrastructure.providers.configuration import (
     FROZEN_MODEL_REASONING_EFFORTS,
@@ -225,6 +229,62 @@ def test_openai_v2_repair_fails_closed_on_metadata(changes: dict[str, object]) -
     )
     with pytest.raises(ProviderInvocationError):
         adapter.invoke_v2_repair("prompt")
+
+
+def test_openai_v2_incomplete_response_preserves_usage_and_safe_state() -> None:
+    adapter = OpenAIResponsesAdapter(
+        settings("openai"),
+        ProviderCredential(False, None),
+        SimpleNamespace(
+            responses=Resource(
+                openai_result(
+                    None,
+                    status="incomplete",
+                    incomplete_details={"reason": "max_output_tokens"},
+                    output_text="",
+                )
+            )
+        ),
+    )
+    with pytest.raises(ProviderInvocationError) as raised:
+        adapter.invoke_v2_repair("prompt")
+    assert raised.value.failure.category is ProviderErrorCategory.OUTPUT_LIMIT
+    assert raised.value.usage is not None
+    assert (raised.value.usage.input_units, raised.value.usage.output_units) == (11, 7)
+    assert raised.value.response_state is ProviderResponseState.INCOMPLETE_MAX_OUTPUT
+
+
+def test_openai_v2_completed_response_without_output_is_schema_rejection() -> None:
+    adapter = OpenAIResponsesAdapter(
+        settings("openai"),
+        ProviderCredential(False, None),
+        SimpleNamespace(responses=Resource(openai_result(None, output_text=""))),
+    )
+    with pytest.raises(ProviderInvocationError) as raised:
+        adapter.invoke_v2_repair("prompt")
+    assert raised.value.failure.category is ProviderErrorCategory.MALFORMED_OUTPUT
+    assert raised.value.usage is not None
+    assert raised.value.response_state is ProviderResponseState.SCHEMA_REJECTION
+
+
+def test_openai_v2_refusal_preserves_usage_and_safe_state() -> None:
+    refusal = [
+        SimpleNamespace(
+            type="message",
+            content=[SimpleNamespace(type="refusal", refusal="sensitive provider text")],
+        )
+    ]
+    adapter = OpenAIResponsesAdapter(
+        settings("openai"),
+        ProviderCredential(False, None),
+        SimpleNamespace(responses=Resource(openai_result(None, output=refusal, output_text=""))),
+    )
+    with pytest.raises(ProviderInvocationError) as raised:
+        adapter.invoke_v2_repair("prompt")
+    assert raised.value.failure.category is ProviderErrorCategory.REFUSAL
+    assert raised.value.usage is not None
+    assert raised.value.response_state is ProviderResponseState.REFUSAL
+    assert "sensitive provider text" not in str(raised.value)
 
 
 @pytest.mark.parametrize(

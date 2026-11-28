@@ -11,6 +11,7 @@ from archguard.domain.providers import (
     ProviderCapability,
     ProviderErrorCategory,
     ProviderFailure,
+    ProviderResponseState,
     ProviderUsage,
 )
 from archguard.infrastructure.providers.common import parse_response, response_schema, value
@@ -241,18 +242,59 @@ class OpenAIResponsesAdapter:
             "openai",
             model,
         )
+        status = str(value(response, "status", ""))
+        if status == "incomplete":
+            reason = value(value(response, "incomplete_details", {}), "reason")
+            output_limited = reason in {"max_output_tokens", "max_tokens"}
+            raise ProviderInvocationError(
+                ProviderFailure(
+                    ProviderErrorCategory.OUTPUT_LIMIT
+                    if output_limited
+                    else ProviderErrorCategory.INCOMPLETE,
+                    False,
+                    "Provider response was incomplete.",
+                    "openai",
+                    "response",
+                    request_id=request_id,
+                    usage_returned=True,
+                ),
+                measured,
+                ProviderResponseState.INCOMPLETE_MAX_OUTPUT
+                if output_limited
+                else ProviderResponseState.INCOMPLETE_OTHER,
+            )
+        for item in value(response, "output", ()) or ():
+            if value(item, "type") != "message":
+                continue
+            for content in value(item, "content", ()) or ():
+                if value(content, "type") == "refusal":
+                    raise ProviderInvocationError(
+                        ProviderFailure(
+                            ProviderErrorCategory.REFUSAL,
+                            False,
+                            "Provider refused the request.",
+                            "openai",
+                            "response",
+                            request_id=request_id,
+                            usage_returned=True,
+                        ),
+                        measured,
+                        ProviderResponseState.REFUSAL,
+                    )
         raw = str(value(response, "output_text", "")).encode()
         if not raw:
             raise ProviderInvocationError(
                 ProviderFailure(
-                    ProviderErrorCategory.INCOMPLETE,
+                    ProviderErrorCategory.MALFORMED_OUTPUT,
                     False,
                     "Provider returned no structured output.",
                     "openai",
                     "response",
                     request_id=request_id,
                     usage_returned=True,
-                )
+                ),
+                measured,
+                ProviderResponseState.SCHEMA_REJECTION,
             )
         return raw, measured
 
